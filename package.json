@@ -1,0 +1,14 @@
+{
+  "name": "dewdrop-ts",
+  "module": "lib/index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/bun": "latest",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "binaryen": "^123.0.0"
+  }
+}
