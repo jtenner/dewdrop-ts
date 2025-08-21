@@ -1,6 +1,6 @@
 import * as fsp from "node:fs/promises";
 
-export async function* chars(path: string) {
+export async function* chars_from(path: string) {
   const f = await fsp.open(path);
   const e = new TextDecoder("utf-8");
   const size = 64 * 1024;
@@ -16,5 +16,11 @@ export async function* chars(path: string) {
       yield c;
     }
     offset += bytesRead;
+  }
+}
+
+export async function* chars(text: string) {
+  for (const c of text) {
+    yield c;
   }
 }
