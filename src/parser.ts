@@ -217,6 +217,7 @@ export const take_expression = async (
         // string value
         yard.push_expr(next_token);
         combine_state = true;
+        continue;
       }
       if ("symbol" in next_token) {
         if (next_token.symbol === "(") {
@@ -234,6 +235,22 @@ export const take_expression = async (
           prefix: [op, (operand) => ({ prefix: { op, operand } })],
         });
         continue;
+      }
+      if ("keyword" in next_token) {
+        switch (next_token.keyword) {
+          case "inf": {
+            yard.push_expr({ float: { size: 64, value: Infinity } });
+            combine_state = true;
+            continue;
+          }
+          case "nan": {
+            yard.push_expr({ float: { size: 64, value: NaN } });
+            combine_state = true;
+            continue;
+          }
+          default:
+            return [next_token, null];
+        }
       }
 
       return [next_token, null];
@@ -414,6 +431,8 @@ export const parse = async (text: string) => {
     "type",
     "let",
     "trait",
+    "inf",
+    "nan",
   ]);
   const declarations = [] as Declaration[];
   let next_token: Token | null = null;
