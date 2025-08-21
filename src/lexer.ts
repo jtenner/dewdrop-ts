@@ -42,7 +42,8 @@ export type Token =
   | { float: number }
   | { name: string }
   | { type: string }
-  | { string: string };
+  | { string: string }
+  | { keyword: string };
 
 const take_whitespace = async (
   iter: CharIter,
