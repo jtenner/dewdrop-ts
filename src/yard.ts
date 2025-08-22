@@ -5,7 +5,7 @@ export type BinaryOpCallback<TExpression> = (
 ) => TExpression;
 export type UnaryOpCallback<TExpression> = (expr: TExpression) => TExpression;
 export type Operator<TExpression> =
-  | { binary: [string, number, Associativity, BinaryOpCallback<TExpression>] }
+  | { infix: [string, number, Associativity, BinaryOpCallback<TExpression>] }
   | { prefix: [string, UnaryOpCallback<TExpression>] }
   | { postfix: [string, UnaryOpCallback<TExpression>] }
   | { group: null };
@@ -13,6 +13,11 @@ export type Operator<TExpression> =
 export class Yard<TExpression> {
   op_stack: Operator<TExpression>[] = [];
   expr_stack: TExpression[] = [];
+  nested: number = 0;
+
+  get is_nested(): boolean {
+    return this.nested > 0;
+  }
 
   get top_op(): Operator<TExpression> {
     if (this.op_stack.length === 0) throw new Error("OpStack underflow.");
@@ -31,14 +36,14 @@ export class Yard<TExpression> {
 
     if ("binary" in op && "prefix" in top) return false;
 
-    if ("binary" in op && "binary" in top) {
+    if ("infix" in op && "infix" in top) {
       return (
         // top has greater precidence
-        op.binary[1] < top.binary[1] ||
+        op.infix[1] < top.infix[1] ||
         // top has same precidence but is left associative
-        (op.binary[1] === top.binary[1] &&
-          op.binary[2] === "left" &&
-          top.binary[2] === "left")
+        (op.infix[1] === top.infix[1] &&
+          op.infix[2] === "left" &&
+          top.infix[2] === "left")
       );
     }
 
@@ -47,6 +52,7 @@ export class Yard<TExpression> {
 
   push_group() {
     this.op_stack.push({ group: null });
+    this.nested += 1;
     return this;
   }
 
@@ -85,7 +91,7 @@ export class Yard<TExpression> {
     } else if ("binary" in top) {
       const right = this.pop_expr();
       const left = this.pop_expr();
-      const op = top.binary[3];
+      const op = top.infix[3];
       const result = op(left, right);
       return this.push_expr(result);
     }
@@ -102,6 +108,7 @@ export class Yard<TExpression> {
     while (true) {
       if (this.op_stack.length === 0) throw new Error("OpStack underflow.");
       if ("group" in this.op_stack.at(-1)!) {
+        this.nested -= 1;
         this.op_stack.length -= 1;
         return this;
       }
@@ -109,11 +116,11 @@ export class Yard<TExpression> {
     }
   }
 
-  finalize(): TExpression {
+  finalize(): TExpression | null {
     while (this.op_stack.length > 0) {
       this.eval_op();
     }
     if (this.expr_stack.length === 1) return this.expr_stack[0]!;
-    throw new Error("Invalid Yard state, expression stack not empty.");
+    return null;
   }
 }

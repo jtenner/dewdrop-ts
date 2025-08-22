@@ -181,6 +181,9 @@ const take_after_decimal = async (
   if (dec(result.value)) acc += result.value;
   else return [result.value, { unknown: null }];
 
+  result = await iter.next();
+  if (result.done) return [null, { float: parseFloat(acc) }];
+
   while (true) {
     const result = await iter.next();
     if (result.done) return [null, { float: parseFloat(acc) }];
