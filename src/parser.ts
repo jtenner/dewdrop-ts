@@ -802,11 +802,17 @@ export const take_expression = async (
       }
 
       // end groups if nested, continue combining
-      [next_token, success_token] = await take_symbol(next_token, tokens, ")");
-      if (success_token && yard.nested) {
-        yard.pop_group();
-        combine_state = true;
-        continue;
+      if (yard.nested) {
+        [next_token, success_token] = await take_symbol(
+          next_token,
+          tokens,
+          ")",
+        );
+        if (success_token) {
+          yard.pop_group();
+          combine_state = true;
+          continue;
+        }
       }
 
       [next_token, op] = await take_operator(next_token, tokens);
@@ -831,7 +837,6 @@ export const take_expression = async (
       // for binary expressions, switch back to combine = false
       const infix_op = get_infix_op(op);
       if (infix_op) {
-        console.log(infix_op, yard);
         yard.push_op(infix_op);
         combine_state = false;
         continue;
@@ -861,6 +866,14 @@ export const take_expression = async (
       if (type) {
         yard.push_expr({ constr: type.type });
         combine_state = true;
+        continue;
+      }
+
+      // group expression
+      [next_token, success_token] = await take_symbol(next_token, tokens, "(");
+      if (success_token) {
+        yard.push_group();
+        combine_state = false;
         continue;
       }
 
@@ -1064,16 +1077,20 @@ export const take_list = async <T>(
   while (true) {
     // expect a parsed item
     [next_token, item] = await fn(next_token, tokens);
-
     if (!item) return [next_token, null];
+    console.log("item", item);
 
     results.push(item);
     next_token ??= await next(tokens);
 
+    console.log("next token is", next_token);
     if (!next_token) return [null, null];
     if ("symbol" in next_token && next_token.symbol === term)
       return [null, results];
-    if ("symbol" in next_token && next_token.symbol === sep) continue;
+    if ("symbol" in next_token && next_token.symbol === sep) {
+      next_token = null;
+      continue;
+    }
 
     // parse failed, pass the token on
     return [next_token, null];
