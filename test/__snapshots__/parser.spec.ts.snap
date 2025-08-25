@@ -1,0 +1,193 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`"1" matches snapshot: Expression: 1 1`] = `
+{
+  "int": {
+    "size": 32,
+    "value": 1n,
+  },
+}
+`;
+
+exports[`"a" matches snapshot: Expression: a 1`] = `
+{
+  "name": "a",
+}
+`;
+
+exports[`"\\"testing\\"" matches snapshot: Expression: "testing" 1`] = `
+{
+  "string": "testing",
+}
+`;
+
+exports[`"a + b * c - d" matches snapshot: Expression: a + b * c - d 1`] = `
+{
+  "infix": {
+    "left": {
+      "name": "a",
+    },
+    "op": "+",
+    "right": {
+      "infix": {
+        "left": {
+          "infix": {
+            "left": {
+              "name": "b",
+            },
+            "op": "*",
+            "right": {
+              "name": "c",
+            },
+          },
+        },
+        "op": "-",
+        "right": {
+          "name": "d",
+        },
+      },
+    },
+  },
+}
+`;
+
+exports[`"a + b + c + d" matches snapshot: Expression: a + b + c + d 1`] = `
+{
+  "infix": {
+    "left": {
+      "name": "a",
+    },
+    "op": "+",
+    "right": {
+      "infix": {
+        "left": {
+          "name": "b",
+        },
+        "op": "+",
+        "right": {
+          "infix": {
+            "left": {
+              "name": "c",
+            },
+            "op": "+",
+            "right": {
+              "name": "d",
+            },
+          },
+        },
+      },
+    },
+  },
+}
+`;
+
+exports[`"a ** b ** c ** d" matches snapshot: Expression: a ** b ** c ** d 1`] = `
+{
+  "infix": {
+    "left": {
+      "infix": {
+        "left": {
+          "infix": {
+            "left": {
+              "name": "a",
+            },
+            "op": "**",
+            "right": {
+              "name": "b",
+            },
+          },
+        },
+        "op": "**",
+        "right": {
+          "name": "c",
+        },
+      },
+    },
+    "op": "**",
+    "right": {
+      "name": "d",
+    },
+  },
+}
+`;
+
+exports[`"(a + b) * c" matches snapshot: Expression: (a + b) * c 1`] = `null`;
+
+exports[`"foo()" matches snapshot: Expression: foo() 1`] = `
+{
+  "call": [
+    {
+      "name": "foo",
+    },
+    [],
+  ],
+}
+`;
+
+exports[`"foo(1, 2, bar)" matches snapshot: Expression: foo(1, 2, bar) 1`] = `null`;
+
+exports[`"obj.field" matches snapshot: Expression: obj.field 1`] = `
+{
+  "select": [
+    {
+      "name": "obj",
+    },
+    {
+      "name": "field",
+    },
+  ],
+}
+`;
+
+exports[`"obj.method(x, y)" matches snapshot: Expression: obj.method(x, y) 1`] = `null`;
+
+exports[`"MyType" matches snapshot: Expression: MyType 1`] = `
+{
+  "constr": "MyType",
+}
+`;
+
+exports[`"MyType()" matches snapshot: Expression: MyType() 1`] = `
+{
+  "call": [
+    {
+      "constr": "MyType",
+    },
+    [],
+  ],
+}
+`;
+
+exports[`"#(1, 2, 3)" matches snapshot: Expression: #(1, 2, 3) 1`] = `null`;
+
+exports[`"#{x: 1, y: 2}" matches snapshot: Expression: #{x: 1, y: 2} 1`] = `null`;
+
+exports[`"{ a; b; c }" matches snapshot: Expression: { a; b; c } 1`] = `null`;
+
+exports[`"{ let x = 1; x + 2 }" matches snapshot: Expression: { let x = 1; x + 2 } 1`] = `null`;
+
+exports[`"if a { b } else { c }" matches snapshot: Expression: if a { b } else { c } 1`] = `
+{
+  "name": "if",
+}
+`;
+
+exports[`"if a { b }" matches snapshot: Expression: if a { b } 1`] = `
+{
+  "name": "if",
+}
+`;
+
+exports[`"match x { A => 1, B => 2, _ => 3 }" matches snapshot: Expression: match x { A => 1, B => 2, _ => 3 } 1`] = `
+{
+  "name": "match",
+}
+`;
+
+exports[`"foo(1).bar(2, 3).baz" matches snapshot: Expression: foo(1).bar(2, 3).baz 1`] = `null`;
+
+exports[`"if match x { A => true, _ => false } { 1 } else { 0 }" matches snapshot: Expression: if match x { A => true, _ => false } { 1 } else { 0 } 1`] = `
+{
+  "name": "if",
+}
+`;

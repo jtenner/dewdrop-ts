@@ -1,11 +1,11 @@
 export type Associativity = "left" | "right";
-export type BinaryOpCallback<TExpression> = (
+export type InfixOpCallback<TExpression> = (
   left: TExpression,
   right: TExpression,
 ) => TExpression;
 export type UnaryOpCallback<TExpression> = (expr: TExpression) => TExpression;
 export type Operator<TExpression> =
-  | { infix: [string, number, Associativity, BinaryOpCallback<TExpression>] }
+  | { infix: [string, number, Associativity, InfixOpCallback<TExpression>] }
   | { prefix: [string, UnaryOpCallback<TExpression>] }
   | { postfix: [string, UnaryOpCallback<TExpression>] }
   | { group: null };
@@ -34,12 +34,12 @@ export class Yard<TExpression> {
 
     const top = this.top_op;
 
-    if ("binary" in op && "prefix" in top) return false;
+    if ("infix" in op && "prefix" in top) return false;
 
     if ("infix" in op && "infix" in top) {
       return (
         // top has greater precidence
-        op.infix[1] < top.infix[1] ||
+        op.infix[1] > top.infix[1] ||
         // top has same precidence but is left associative
         (op.infix[1] === top.infix[1] &&
           op.infix[2] === "left" &&
@@ -88,7 +88,7 @@ export class Yard<TExpression> {
       return this.push_expr(result);
     } else if ("group" in top) {
       throw new Error("Cannot pop Group operator.");
-    } else if ("binary" in top) {
+    } else if ("infix" in top) {
       const right = this.pop_expr();
       const left = this.pop_expr();
       const op = top.infix[3];

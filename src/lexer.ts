@@ -33,16 +33,20 @@ const to_num = (c: string) =>
           ? c.charCodeAt(0) - "A".charCodeAt(0) + 10
           : -1,
   );
-
+export type IntToken = { int: bigint };
+export type FloatToken = { float: number };
+export type NameToken = { name: string };
+export type TypeToken = { type: string };
+export type StringToken = { string: string };
 export type Token =
   | { unknown: null }
   | { whitespace: null }
   | { symbol: string }
-  | { int: bigint }
-  | { float: number }
-  | { name: string }
-  | { type: string }
-  | { string: string }
+  | IntToken
+  | FloatToken
+  | NameToken
+  | TypeToken
+  | StringToken
   | { keyword: string };
 
 const take_whitespace = async (
@@ -162,7 +166,7 @@ const take_number = async (
     const next_char = result.value;
     if (dec(next_char)) acc += next_char;
     else if (dot(next_char)) {
-      acc += next_char;
+      acc += ".";
       break;
     } else return [next_char, { int: BigInt(acc) }];
   }
@@ -180,9 +184,6 @@ const take_after_decimal = async (
 
   if (dec(result.value)) acc += result.value;
   else return [result.value, { unknown: null }];
-
-  result = await iter.next();
-  if (result.done) return [null, { float: parseFloat(acc) }];
 
   while (true) {
     const result = await iter.next();
