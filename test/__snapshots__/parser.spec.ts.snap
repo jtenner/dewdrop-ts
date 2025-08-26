@@ -133,11 +133,81 @@ exports[`"(a + b) * c" matches snapshot: Expression: (a + b) * c 1`] = `
 }
 `;
 
-exports[`"foo()" matches snapshot: Expression: foo() 1`] = `null`;
+exports[`"foo()" matches snapshot: Expression: foo() 1`] = `
+{
+  "call": [
+    {
+      "name": "foo",
+    },
+    [],
+  ],
+}
+`;
 
-exports[`"foo(1, 2, bar)" matches snapshot: Expression: foo(1, 2, bar) 1`] = `null`;
+exports[`"foo(1, 2, bar)" matches snapshot: Expression: foo(1, 2, bar) 1`] = `
+{
+  "call": [
+    {
+      "name": "foo",
+    },
+    [
+      {
+        "int": {
+          "size": 32,
+          "value": 1n,
+        },
+      },
+      {
+        "int": {
+          "size": 32,
+          "value": 2n,
+        },
+      },
+      {
+        "name": "bar",
+      },
+    ],
+  ],
+}
+`;
 
-exports[`"obj.field" matches snapshot: Expression: obj.field 1`] = `null`;
+exports[`"obj.field" matches snapshot: Expression: obj.field 1`] = `
+{
+  "select": [
+    {
+      "name": "obj",
+    },
+    {
+      "name": "field",
+    },
+  ],
+}
+`;
+
+exports[`"obj.method(x, y)" matches snapshot: Expression: obj.method(x, y) 1`] = `
+{
+  "call": [
+    {
+      "select": [
+        {
+          "name": "obj",
+        },
+        {
+          "name": "method",
+        },
+      ],
+    },
+    [
+      {
+        "name": "x",
+      },
+      {
+        "name": "y",
+      },
+    ],
+  ],
+}
+`;
 
 exports[`"MyType" matches snapshot: Expression: MyType 1`] = `
 {
@@ -145,7 +215,16 @@ exports[`"MyType" matches snapshot: Expression: MyType 1`] = `
 }
 `;
 
-exports[`"MyType()" matches snapshot: Expression: MyType() 1`] = `null`;
+exports[`"MyType()" matches snapshot: Expression: MyType() 1`] = `
+{
+  "call": [
+    {
+      "constr": "MyType",
+    },
+    [],
+  ],
+}
+`;
 
 exports[`"#(1, 2, 3)" matches snapshot: Expression: #(1, 2, 3) 1`] = `
 {
@@ -223,28 +302,677 @@ exports[`"{ a; b; c }" matches snapshot: Expression: { a; b; c } 1`] = `
 }
 `;
 
-exports[`"{ let x = 1; x + 2 }" matches snapshot: Expression: { let x = 1; x + 2 } 1`] = `null`;
+exports[`"{ let x = 1; x + 2 }" matches snapshot: Expression: { let x = 1; x + 2 } 1`] = `
+{
+  "block": [
+    {
+      "let_bind": [
+        {
+          "name": "x",
+        },
+        {
+          "int": {
+            "size": 32,
+            "value": 1n,
+          },
+        },
+      ],
+    },
+    {
+      "expression": {
+        "infix": {
+          "left": {
+            "name": "x",
+          },
+          "op": "+",
+          "right": {
+            "int": {
+              "size": 32,
+              "value": 2n,
+            },
+          },
+        },
+      },
+    },
+  ],
+}
+`;
 
 exports[`"if a { b } else { c }" matches snapshot: Expression: if a { b } else { c } 1`] = `
 {
-  "name": "if",
+  "if_expr": {
+    "cond": {
+      "name": "a",
+    },
+    "else_body": {
+      "block": [
+        {
+          "expression": {
+            "name": "c",
+          },
+        },
+      ],
+    },
+    "if_body": {
+      "block": [
+        {
+          "expression": {
+            "name": "b",
+          },
+        },
+      ],
+    },
+  },
 }
 `;
 
 exports[`"if a { b }" matches snapshot: Expression: if a { b } 1`] = `
 {
-  "name": "if",
+  "if_expr": {
+    "cond": {
+      "name": "a",
+    },
+    "else_body": null,
+    "if_body": {
+      "block": [
+        {
+          "expression": {
+            "name": "b",
+          },
+        },
+      ],
+    },
+  },
 }
 `;
 
-exports[`"match x { A => 1, B => 2, _ => 3 }" matches snapshot: Expression: match x { A => 1, B => 2, _ => 3 } 1`] = `
+exports[`"match x { A => 1, B => 2, _ => 3 }" matches snapshot: Expression: match x { A => 1, B => 2, _ => 3 } 1`] = `null`;
+
+exports[`"foo(1).bar(2, 3).baz" matches snapshot: Expression: foo(1).bar(2, 3).baz 1`] = `
 {
-  "name": "match",
+  "select": [
+    {
+      "call": [
+        {
+          "select": [
+            {
+              "call": [
+                {
+                  "name": "foo",
+                },
+                [
+                  {
+                    "int": {
+                      "size": 32,
+                      "value": 1n,
+                    },
+                  },
+                ],
+              ],
+            },
+            {
+              "name": "bar",
+            },
+          ],
+        },
+        [
+          {
+            "int": {
+              "size": 32,
+              "value": 2n,
+            },
+          },
+          {
+            "int": {
+              "size": 32,
+              "value": 3n,
+            },
+          },
+        ],
+      ],
+    },
+    {
+      "name": "baz",
+    },
+  ],
 }
 `;
 
-exports[`"if match x { A => true, _ => false } { 1 } else { 0 }" matches snapshot: Expression: if match x { A => true, _ => false } { 1 } else { 0 } 1`] = `
+exports[`"if match x { A => true, _ => false } { 1 } else { 0 }" matches snapshot: Expression: if match x { A => true, _ => false } { 1 } else { 0 } 1`] = `null`;
+
+exports[`"x" matches snapshot: PatternExpression: x 1`] = `
 {
-  "name": "if",
+  "name": "x",
+}
+`;
+
+exports[`"_wild" matches snapshot: PatternExpression: _wild 1`] = `
+{
+  "name": "_wild",
+}
+`;
+
+exports[`"Some" matches snapshot: PatternExpression: Some 1`] = `
+{
+  "constr": [
+    {
+      "type": "Some",
+    },
+    [],
+  ],
+}
+`;
+
+exports[`"Some(42)" matches snapshot: PatternExpression: Some(42) 1`] = `
+{
+  "constr": [
+    {
+      "type": "Some",
+    },
+    [
+      {
+        "int": {
+          "size": 32,
+          "value": 42n,
+        },
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"Pair(1, x)" matches snapshot: PatternExpression: Pair(1, x) 1`] = `
+{
+  "constr": [
+    {
+      "type": "Pair",
+    },
+    [
+      {
+        "int": {
+          "size": 32,
+          "value": 1n,
+        },
+      },
+      {
+        "name": "x",
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"123" matches snapshot: PatternExpression: 123 1`] = `
+{
+  "int": {
+    "size": 32,
+    "value": 123n,
+  },
+}
+`;
+
+exports[`"3.14" matches snapshot: PatternExpression: 3.14 1`] = `
+{
+  "float": {
+    "size": 64,
+    "value": 3.14,
+  },
+}
+`;
+
+exports[`"\\"hello\\"" matches snapshot: PatternExpression: "hello" 1`] = `
+{
+  "string": "hello",
+}
+`;
+
+exports[`"nan" matches snapshot: PatternExpression: nan 1`] = `
+{
+  "float": {
+    "size": 64,
+    "value": NaN,
+  },
+}
+`;
+
+exports[`"inf" matches snapshot: PatternExpression: inf 1`] = `
+{
+  "float": {
+    "size": 64,
+    "value": Infinity,
+  },
+}
+`;
+
+exports[`"#(x, y)" matches snapshot: PatternExpression: #(x, y) 1`] = `
+{
+  "tuple": [
+    {
+      "name": "x",
+    },
+    {
+      "name": "y",
+    },
+  ],
+}
+`;
+
+exports[`"#(1, 2, 3)" matches snapshot: PatternExpression: #(1, 2, 3) 1`] = `
+{
+  "tuple": [
+    {
+      "int": {
+        "size": 32,
+        "value": 1n,
+      },
+    },
+    {
+      "int": {
+        "size": 32,
+        "value": 2n,
+      },
+    },
+    {
+      "int": {
+        "size": 32,
+        "value": 3n,
+      },
+    },
+  ],
+}
+`;
+
+exports[`"#()" matches snapshot: PatternExpression: #() 1`] = `
+{
+  "tuple": [],
+}
+`;
+
+exports[`"#{foo: x, bar: 42}" matches snapshot: PatternExpression: #{foo: x, bar: 42} 1`] = `
+{
+  "record": [
+    [
+      {
+        "name": "foo",
+      },
+      {
+        "name": "x",
+      },
+    ],
+    [
+      {
+        "name": "bar",
+      },
+      {
+        "int": {
+          "size": 32,
+          "value": 42n,
+        },
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"#{nested: Pair(x, y)}" matches snapshot: PatternExpression: #{nested: Pair(x, y)} 1`] = `
+{
+  "record": [
+    [
+      {
+        "name": "nested",
+      },
+      {
+        "constr": [
+          {
+            "type": "Pair",
+          },
+          [
+            {
+              "name": "x",
+            },
+            {
+              "name": "y",
+            },
+          ],
+        ],
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"Some(#(x, #{y: 1}))" matches snapshot: PatternExpression: Some(#(x, #{y: 1})) 1`] = `
+{
+  "constr": [
+    {
+      "type": "Some",
+    },
+    [
+      {
+        "tuple": [
+          {
+            "name": "x",
+          },
+          {
+            "record": [
+              [
+                {
+                  "name": "y",
+                },
+                {
+                  "int": {
+                    "size": 32,
+                    "value": 1n,
+                  },
+                },
+              ],
+            ],
+          },
+        ],
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"Int" matches snapshot: TypeExpression: Int 1`] = `
+{
+  "type": "Int",
+}
+`;
+
+exports[`"MyNamespace.Type" matches snapshot: TypeExpression: MyNamespace.Type 1`] = `
+{
+  "select": [
+    {
+      "type": "MyNamespace",
+    },
+    {
+      "type": "Type",
+    },
+  ],
+}
+`;
+
+exports[`"(Int) -> Bool" matches snapshot: TypeExpression: (Int) -> Bool 1`] = `
+{
+  "fn": [
+    [
+      {
+        "type": "Int",
+      },
+    ],
+    {
+      "type": "Bool",
+    },
+  ],
+}
+`;
+
+exports[`"(Int, String) -> Bool" matches snapshot: TypeExpression: (Int, String) -> Bool 1`] = `
+{
+  "fn": [
+    [
+      {
+        "type": "Int",
+      },
+      {
+        "type": "String",
+      },
+    ],
+    {
+      "type": "Bool",
+    },
+  ],
+}
+`;
+
+exports[`"() -> Void" matches snapshot: TypeExpression: () -> Void 1`] = `
+{
+  "fn": [
+    [],
+    {
+      "type": "Void",
+    },
+  ],
+}
+`;
+
+exports[`"#(Int, Bool, String)" matches snapshot: TypeExpression: #(Int, Bool, String) 1`] = `
+{
+  "tuple": [
+    {
+      "type": "Int",
+    },
+    {
+      "type": "Bool",
+    },
+    {
+      "type": "String",
+    },
+  ],
+}
+`;
+
+exports[`"#()" matches snapshot: TypeExpression: #() 1`] = `
+{
+  "tuple": [],
+}
+`;
+
+exports[`"#{x: Int, y: Bool}" matches snapshot: TypeExpression: #{x: Int, y: Bool} 1`] = `
+{
+  "record": [
+    [
+      {
+        "name": "x",
+      },
+      {
+        "type": "Int",
+      },
+    ],
+    [
+      {
+        "name": "y",
+      },
+      {
+        "type": "Bool",
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"#{nested: #(Int, String), flag: Bool}" matches snapshot: TypeExpression: #{nested: #(Int, String), flag: Bool} 1`] = `
+{
+  "record": [
+    [
+      {
+        "name": "nested",
+      },
+      {
+        "tuple": [
+          {
+            "type": "Int",
+          },
+          {
+            "type": "String",
+          },
+        ],
+      },
+    ],
+    [
+      {
+        "name": "flag",
+      },
+      {
+        "type": "Bool",
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"#{a: Int}.a" matches snapshot: TypeExpression: #{a: Int}.a 1`] = `
+{
+  "select": [
+    {
+      "record": [
+        [
+          {
+            "name": "a",
+          },
+          {
+            "type": "Int",
+          },
+        ],
+      ],
+    },
+    {
+      "name": "a",
+    },
+  ],
+}
+`;
+
+exports[`"List<Int>" matches snapshot: TypeExpression: List<Int> 1`] = `
+{
+  "application": [
+    {
+      "type": "List",
+    },
+    [
+      {
+        "type": "Int",
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"Map<String, Int>" matches snapshot: TypeExpression: Map<String, Int> 1`] = `
+{
+  "application": [
+    {
+      "type": "Map",
+    },
+    [
+      {
+        "type": "String",
+      },
+      {
+        "type": "Int",
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"Outer.Inner<Nested<T>>" matches snapshot: TypeExpression: Outer.Inner<Nested<T>> 1`] = `
+{
+  "application": [
+    {
+      "select": [
+        {
+          "type": "Outer",
+        },
+        {
+          "type": "Inner",
+        },
+      ],
+    },
+    [
+      {
+        "application": [
+          {
+            "type": "Nested",
+          },
+          [
+            {
+              "type": "T",
+            },
+          ],
+        ],
+      },
+    ],
+  ],
+}
+`;
+
+exports[`"(Int, List<String>) -> Map<String, Int>" matches snapshot: TypeExpression: (Int, List<String>) -> Map<String, Int> 1`] = `
+{
+  "fn": [
+    [
+      {
+        "type": "Int",
+      },
+      {
+        "application": [
+          {
+            "type": "List",
+          },
+          [
+            {
+              "type": "String",
+            },
+          ],
+        ],
+      },
+    ],
+    {
+      "application": [
+        {
+          "type": "Map",
+        },
+        [
+          {
+            "type": "String",
+          },
+          {
+            "type": "Int",
+          },
+        ],
+      ],
+    },
+  ],
+}
+`;
+
+exports[`"(#(Int, Bool)) -> #{ok: String, err: String}" matches snapshot: TypeExpression: (#(Int, Bool)) -> #{ok: String, err: String} 1`] = `
+{
+  "fn": [
+    [
+      {
+        "tuple": [
+          {
+            "type": "Int",
+          },
+          {
+            "type": "Bool",
+          },
+        ],
+      },
+    ],
+    {
+      "record": [
+        [
+          {
+            "name": "ok",
+          },
+          {
+            "type": "String",
+          },
+        ],
+        [
+          {
+            "name": "err",
+          },
+          {
+            "type": "String",
+          },
+        ],
+      ],
+    },
+  ],
 }
 `;

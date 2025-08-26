@@ -325,7 +325,29 @@ const take_string = async (iter: CharIter): Promise<[string | null, Token]> => {
   }
 };
 
-export async function* lex(iter: CharIter, keywords: Iterable<string> = []) {
+export async function* lex(
+  iter: CharIter,
+  keywords: Iterable<string> = [
+    "pub",
+    "fn",
+    "builtin",
+    "type",
+    "let",
+    "trait",
+    "inf",
+    "nan",
+    "import",
+    "memory",
+    "global",
+    "as",
+    "if",
+    "else",
+    "match",
+    "true",
+    "false",
+    "enum",
+  ],
+) {
   const effective_keywords = new Set([...keywords]);
   let next: string | null = null;
   let token: Token;

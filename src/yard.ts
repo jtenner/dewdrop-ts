@@ -65,7 +65,7 @@ export class Yard<TExpression> {
   push_op(op: Operator<TExpression>) {
     if ("postfix" in op) {
       const top = this.pop_expr();
-      this.expr_stack[this.expr_stack.length - 1] = op.postfix[1](top);
+      this.push_expr(op.postfix[1](top));
       return this;
     }
 

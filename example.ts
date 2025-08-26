@@ -1,5 +1,26 @@
 import { chars } from "./src/chars.js";
 import { lex } from "./src/lexer.js";
-import { take_expression } from "./src/parser.js";
+import { take_expression, take_pattern_expression } from "./src/parser.js";
 
-console.log(await take_expression(null, lex(chars("foo(1, 2, bar)"))));
+console.log(
+  await take_pattern_expression(
+    null,
+    lex(chars("#(1, 2, a)"), [
+      "pub",
+      "fn",
+      "builtin",
+      "type",
+      "let",
+      "trait",
+      "inf",
+      "nan",
+      "import",
+      "memory",
+      "global",
+      "as",
+      "if",
+      "else",
+      "match",
+    ]),
+  ),
+);
