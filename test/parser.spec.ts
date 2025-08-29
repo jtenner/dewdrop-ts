@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { lex } from "../src/lexer.js";
 import { chars } from "../src/chars.js";
+import { lex } from "../src/lexer.js";
 import {
   take_expression,
   take_pattern_expression,
@@ -39,6 +39,11 @@ test.each([
   // Match expressions
   {
     expr: `match x { A => 1, B => 2, _ => 3 }`,
+  },
+
+  // arrow bind
+  {
+    expr: "{ a <- try(explosion()) }",
   },
 
   // Nested combinations
@@ -120,3 +125,5 @@ test.each([
   const [, typeExpr] = await take_type_expression(null, lex(chars(expr)));
   expect(typeExpr).toMatchSnapshot(`TypeExpression: ${expr}`);
 });
+
+// body expressions

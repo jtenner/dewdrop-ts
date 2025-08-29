@@ -976,3 +976,34 @@ exports[`"(#(Int, Bool)) -> #{ok: String, err: String}" matches snapshot: TypeEx
   ],
 }
 `;
+
+exports[`"{ a <- try(explosion()) }" matches snapshot: Expression: { a <- try(explosion()) } 1`] = `
+{
+  "block": [
+    {
+      "arrow_bind": [
+        {
+          "name": "a",
+        },
+        {
+          "call": [
+            {
+              "name": "try",
+            },
+            [
+              {
+                "call": [
+                  {
+                    "name": "explosion",
+                  },
+                  [],
+                ],
+              },
+            ],
+          ],
+        },
+      ],
+    },
+  ],
+}
+`;

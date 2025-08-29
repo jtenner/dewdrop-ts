@@ -333,6 +333,7 @@ export async function* lex(
     "builtin",
     "type",
     "let",
+    "impl",
     "trait",
     "inf",
     "nan",
@@ -346,6 +347,7 @@ export async function* lex(
     "true",
     "false",
     "enum",
+    "self",
   ],
 ) {
   const effective_keywords = new Set([...keywords]);
