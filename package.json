@@ -6,7 +6,9 @@
   "devDependencies": {
     "@biomejs/biome": "^2.2.0",
     "@types/bun": "latest",
-    "typescript": "^5"
+    "typescript": "^5",
+    "ts-macros": "^2.6.2",
+    "ts-patch": "^3.3.0"
   },
   "dependencies": {
     "binaryen": "^123.0.0"

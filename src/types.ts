@@ -1,112 +1,194 @@
-export type CoreModule = {
-  type_defs: TypeDef[];
-  term_defs: TermDef[];
-};
+// import type {
+//   EnumDeclaration,
+//   Expression,
+//   TraitFn,
+//   TypeExpression,
+// } from "./parser.js";
 
-export type TypeDef = {
-  name: string;
-  kind: Kind;
-  ty: CoreType;
-};
+// type SubtypeJudgement = { left: TypeExpression; right: TypeExpression };
 
-export type DataConstructor = {
-  name: string;
-  ty: CoreType;
-};
+// type Judgement =
+//   | { subtype: SubtypeJudgement }
+//   | { infer: { term: Expression; ty: TypeExpression } }
+//   | { check: { term: Expression; ty: TypeExpression } }
+//   | {
+//       infcall: {
+//         func_ty: TypeExpression;
+//         args: Expression[];
+//         return_ty: TypeExpression;
+//       };
+//     };
 
-export const data_constructor = (name: string, ty: CoreType) =>
-  ({
-    name,
-    ty,
-  }) as const;
+// type TypeVar =
+//   | { existential: string }
+//   | { solved: TypeExpression }
+//   | { marker: string };
 
-export type TermDef = {
-  name: string;
-  ty: CoreType;
-  body: CoreTerm;
-};
+// type Work = { judgement: Judgement };
 
-export type Kind = { type: "star" } | { type: "arrow"; k1: Kind; k2: Kind };
+// type AliasEntry = {
+//   params: string[];
+//   body: TypeExpression;
+//   base_env: Environment;
+// };
+// type ConstructorEntry = {
+//   arity: number;
+//   decl: EnumDeclaration;
+//   base_env: Environment;
+// };
+// type TraitEntry = { params: string[]; fns: TraitFn[]; base_env: Environment };
 
-export const star_kind = () => ({ type: "star" }) as const;
-export const arrow_kind = (k1: Kind, k2: Kind) =>
-  ({ type: "arrow", k1, k2 }) as const;
+// export class Environment {
+//   id: bigint = 0n;
+//   aliases = new Map<string, AliasEntry>();
+//   constructors = new Map<string, ConstructorEntry>();
+//   traits = new Map<string, TraitEntry>();
+//   etvars = new Map<string, TypeVar>();
+//   utvars = new Set<string>();
 
-export type CoreType =
-  | { type: "var"; name: string }
-  | { type: "etvar"; name: string }
-  | { type: "con"; name: string }
-  | { type: "arrow"; t1: CoreType; t2: CoreType }
-  | { type: "forall"; name: string; t: CoreType }
-  | { type: "app"; f: CoreType; t: CoreType }
-  | { type: "product"; tys: CoreType[] };
+//   clone(): Environment {
+//     const env = new Environment();
+//     env.id = this.id;
+//     env.aliases = new Map([...this.aliases]);
+//     env.constructors = new Map([...this.constructors]);
+//     env.traits = new Map([...this.traits]);
+//     env.etvars = new Map([...this.etvars]);
+//     env.utvars = new Set([...this.utvars]);
+//     return env;
+//   }
 
-export const var_type = (name: string) =>
-  ({
-    type: "var",
-    name,
-  }) as const;
+//   // lookup methods
+//   get_alias(name: string) {
+//     return this.aliases.get(name) ?? null;
+//   }
+//   get_constructor(name: string) {
+//     return this.constructors.get(name) ?? null;
+//   }
+//   get_trait(name: string) {
+//     return this.traits.get(name) ?? null;
+//   }
+//   get_etvar(name: string) {
+//     return this.etvars.get(name) ?? null;
+//   }
 
-export const etvar_type = (name: string) =>
-  ({
-    type: "etvar",
-    name,
-  }) as const;
+//   // extend methods
+//   set_alias(name: string, entry: AliasEntry) {
+//     this.aliases.set(name, entry);
+//     return this;
+//   }
+//   set_constructor(name: string, entry: ConstructorEntry) {
+//     this.constructors.set(name, entry);
+//     return this;
+//   }
+//   set_trait(name: string, entry: TraitEntry) {
+//     this.traits.set(name, entry);
+//     return this;
+//   }
+//   set_etvar(name: string, entry: TypeVar) {
+//     this.etvars.set(name, entry);
+//     return this;
+//   }
+//   set_utvar(name: string) {
+//     this.utvars.add(name);
+//     return this;
+//   }
 
-export const con_type = (name: string) =>
-  ({
-    type: "con",
-    name,
-  }) as const;
+//   // has methods
+//   has_alias(name: string): boolean {
+//     return this.aliases.has(name);
+//   }
+//   has_constructor(name: string): boolean {
+//     return this.constructors.has(name);
+//   }
+//   has_trait(name: string): boolean {
+//     return this.traits.has(name);
+//   }
+//   has_etvar(name: string): boolean {
+//     return this.etvars.has(name);
+//   }
+//   has_utvar(name: string): boolean {
+//     return this.utvars.has(name);
+//   }
 
-export const arrow_type = (t1: CoreType, t2: CoreType) =>
-  ({
-    type: "arrow",
-    t1,
-    t2,
-  }) as const;
+//   fresh_var() {
+//     return `${this.id++}`;
+//   }
 
-export const forall_type = (name: string, t: CoreType) =>
-  ({
-    type: "forall",
-    name,
-    t,
-  }) as const;
+//   substitute(
+//     t: TypeExpression,
+//     subst: Map<string, TypeExpression>,
+//   ): TypeExpression {
+//     throw new Error(`Unexpected TypeExpression kind`, { cause: t });
+//   }
 
-export const app_type = (f: CoreType, t: CoreType) =>
-  ({
-    type: "app",
-    f,
-    t,
-  }) as const;
+//   normalize(t: TypeExpression, fuel = 256): TypeExpression {
+//     if (fuel <= 0) return t;
 
-export const product_type = (tys: CoreType[]) =>
-  ({
-    type: "product",
-    tys,
-  }) as const;
+//     throw new Error(`Unexpected TypeExpression kind`, { cause: t });
+//   }
+// }
 
-export type CoreTerm =
-  | { type: "var"; name: string }
-  | { type: "litint"; value: bigint }
-  | { type: "lambda"; param: string; param_ty: CoreType; body: CoreTerm }
-  | { type: "app"; func: CoreTerm; arg: CoreTerm }
-  | { type: "typelambda"; param: string; body: CoreTerm }
-  | { type: "constructor"; name: string; args: CoreTerm[] }
-  | { type: "case"; scrutinee: CoreTerm; arms: CaseArm[] }
-  | {
-      type: "if";
-      cond: CoreTerm;
-      then_branch: CoreTerm;
-      else_branch: CoreTerm;
-    };
+// export class Worklist {
+//   entries = [] as Work[];
+//   log = [] as string[];
 
-export type CorePattern =
-  | { type: "wildcard" }
-  | { type: "var"; name: string }
-  | { type: "constructor"; name: string; args: CorePattern[] };
+//   constructor(public env: Environment) {}
 
-export type CaseArm = {
-  pattern: CorePattern;
-  body: CoreTerm;
-};
+//   trace(message: string) {
+//     this.log.push(message);
+//     return this;
+//   }
+
+//   solve(name: string, solved: TypeExpression) {
+//     const kind = this.env.get_etvar(name)!;
+//     if (kind) {
+//       if ("solved" in kind) return this;
+//       this.env.set_etvar(name, { solved });
+//       return this;
+//     }
+
+//     throw new Error(`UnboundVariable: Expected ${name}`);
+//   }
+
+//   check(term: Expression, ty: TypeExpression) {
+//     this.push({ judgement: { check: { term, ty } } });
+//   }
+
+//   push(work: Work) {
+//     return this.entries.push(work);
+//   }
+
+//   pop() {
+//     return this.entries.pop() ?? null;
+//   }
+
+//   solve_judgement(judgement: Judgement) {
+//     if ("subtype" in judgement) return this.solve_subtype(judgement.subtype);
+//     if ("infer" in judgement) return this.solve_infer(judgement.infer);
+//     if ("check" in judgement) return this.solve_check(judgement.check);
+//     if ("infcall" in judgement) return this.solve_infcall(judgement.infcall);
+//     throw new Error("Invalid Judgement Kind", { cause: judgement });
+//   }
+
+//   solve_subtype({ left, right }: SubtypeJudgement) {
+//     left = this.resolve_alias(left);
+//     right = this.resolve_alias(right);
+//     if ("fn" in left && "fn" in right)
+//       return this.solve_subtype_fn(left.fn, right.fn);
+//   }
+
+//   solve_subtype_fn(
+//     [left_args, left_ret]: [TypeExpression[], TypeExpression],
+//     [right_args, right_ret]: [TypeExpression[], TypeExpression],
+//   ) {
+//     if (left_args.length !== right_args.length)
+//       throw new Error(`Argument lengths do not match`);
+//     for (let i = 0; i < left_args.length; i++) {
+//       const left = left_args[i]!;
+//       const right = right_args[i]!;
+//       this.push({ judgement: { subtype: { left, right } } });
+//     }
+
+//     this.push({ judgement: { subtype: { left: left_ret, right: right_ret } } });
+//   }
+// }

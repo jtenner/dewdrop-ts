@@ -19,6 +19,8 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
-  }
+    "noPropertyAccessFromIndexSignature": false,
+    "plugins": [{ "transform": "ts-macros", "noComptime": true }]
+  },
+  "include": ["src"]
 }

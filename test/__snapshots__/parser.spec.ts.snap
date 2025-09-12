@@ -388,6 +388,37 @@ exports[`"if a { b }" matches snapshot: Expression: if a { b } 1`] = `
 
 exports[`"match x { A => 1, B => 2, _ => 3 }" matches snapshot: Expression: match x { A => 1, B => 2, _ => 3 } 1`] = `null`;
 
+exports[`"{ a <- try(explosion()) }" matches snapshot: Expression: { a <- try(explosion()) } 1`] = `
+{
+  "block": [
+    {
+      "arrow_bind": [
+        {
+          "name": "a",
+        },
+        {
+          "call": [
+            {
+              "name": "try",
+            },
+            [
+              {
+                "call": [
+                  {
+                    "name": "explosion",
+                  },
+                  [],
+                ],
+              },
+            ],
+          ],
+        },
+      ],
+    },
+  ],
+}
+`;
+
 exports[`"foo(1).bar(2, 3).baz" matches snapshot: Expression: foo(1).bar(2, 3).baz 1`] = `
 {
   "select": [
@@ -683,36 +714,36 @@ exports[`"Int" matches snapshot: TypeExpression: Int 1`] = `
 
 exports[`"MyNamespace.Type" matches snapshot: TypeExpression: MyNamespace.Type 1`] = `
 {
-  "select": [
-    {
-      "type": "MyNamespace",
-    },
-    {
+  "select": {
+    "name": {
       "type": "Type",
     },
-  ],
+    "root": {
+      "type": "MyNamespace",
+    },
+  },
 }
 `;
 
 exports[`"(Int) -> Bool" matches snapshot: TypeExpression: (Int) -> Bool 1`] = `
 {
-  "fn": [
-    [
+  "fn": {
+    "args": [
       {
         "type": "Int",
       },
     ],
-    {
+    "ret": {
       "type": "Bool",
     },
-  ],
+  },
 }
 `;
 
 exports[`"(Int, String) -> Bool" matches snapshot: TypeExpression: (Int, String) -> Bool 1`] = `
 {
-  "fn": [
-    [
+  "fn": {
+    "args": [
       {
         "type": "Int",
       },
@@ -720,21 +751,21 @@ exports[`"(Int, String) -> Bool" matches snapshot: TypeExpression: (Int, String)
         "type": "String",
       },
     ],
-    {
+    "ret": {
       "type": "Bool",
     },
-  ],
+  },
 }
 `;
 
 exports[`"() -> Void" matches snapshot: TypeExpression: () -> Void 1`] = `
 {
-  "fn": [
-    [],
-    {
+  "fn": {
+    "args": [],
+    "ret": {
       "type": "Void",
     },
-  ],
+  },
 }
 `;
 
@@ -763,22 +794,22 @@ exports[`"#()" matches snapshot: TypeExpression: #() 1`] = `
 exports[`"#{x: Int, y: Bool}" matches snapshot: TypeExpression: #{x: Int, y: Bool} 1`] = `
 {
   "record": [
-    [
-      {
+    {
+      "name": {
         "name": "x",
       },
-      {
+      "ty": {
         "type": "Int",
       },
-    ],
-    [
-      {
+    },
+    {
+      "name": {
         "name": "y",
       },
-      {
+      "ty": {
         "type": "Bool",
       },
-    ],
+    },
   ],
 }
 `;
@@ -786,11 +817,11 @@ exports[`"#{x: Int, y: Bool}" matches snapshot: TypeExpression: #{x: Int, y: Boo
 exports[`"#{nested: #(Int, String), flag: Bool}" matches snapshot: TypeExpression: #{nested: #(Int, String), flag: Bool} 1`] = `
 {
   "record": [
-    [
-      {
+    {
+      "name": {
         "name": "nested",
       },
-      {
+      "ty": {
         "tuple": [
           {
             "type": "Int",
@@ -800,63 +831,60 @@ exports[`"#{nested: #(Int, String), flag: Bool}" matches snapshot: TypeExpressio
           },
         ],
       },
-    ],
-    [
-      {
+    },
+    {
+      "name": {
         "name": "flag",
       },
-      {
+      "ty": {
         "type": "Bool",
       },
-    ],
+    },
   ],
 }
 `;
 
 exports[`"#{a: Int}.a" matches snapshot: TypeExpression: #{a: Int}.a 1`] = `
 {
-  "select": [
-    {
-      "record": [
-        [
-          {
-            "name": "a",
-          },
-          {
-            "type": "Int",
-          },
-        ],
-      ],
-    },
-    {
+  "select": {
+    "name": {
       "name": "a",
     },
-  ],
+    "root": {
+      "record": [
+        {
+          "name": {
+            "name": "a",
+          },
+          "ty": {
+            "type": "Int",
+          },
+        },
+      ],
+    },
+  },
 }
 `;
 
 exports[`"List<Int>" matches snapshot: TypeExpression: List<Int> 1`] = `
 {
-  "application": [
-    {
-      "type": "List",
-    },
-    [
+  "app": {
+    "args": [
       {
         "type": "Int",
       },
     ],
-  ],
+    "callee": {
+      "type": "List",
+    },
+  },
 }
 `;
 
 exports[`"Map<String, Int>" matches snapshot: TypeExpression: Map<String, Int> 1`] = `
 {
-  "application": [
-    {
-      "type": "Map",
-    },
-    [
+  "app": {
+    "args": [
       {
         "type": "String",
       },
@@ -864,67 +892,67 @@ exports[`"Map<String, Int>" matches snapshot: TypeExpression: Map<String, Int> 1
         "type": "Int",
       },
     ],
-  ],
+    "callee": {
+      "type": "Map",
+    },
+  },
 }
 `;
 
 exports[`"Outer.Inner<Nested<T>>" matches snapshot: TypeExpression: Outer.Inner<Nested<T>> 1`] = `
 {
-  "application": [
-    {
-      "select": [
-        {
-          "type": "Outer",
-        },
-        {
-          "type": "Inner",
-        },
-      ],
-    },
-    [
+  "app": {
+    "args": [
       {
-        "application": [
-          {
-            "type": "Nested",
-          },
-          [
+        "app": {
+          "args": [
             {
               "type": "T",
             },
           ],
-        ],
+          "callee": {
+            "type": "Nested",
+          },
+        },
       },
     ],
-  ],
+    "callee": {
+      "select": {
+        "name": {
+          "type": "Inner",
+        },
+        "root": {
+          "type": "Outer",
+        },
+      },
+    },
+  },
 }
 `;
 
 exports[`"(Int, List<String>) -> Map<String, Int>" matches snapshot: TypeExpression: (Int, List<String>) -> Map<String, Int> 1`] = `
 {
-  "fn": [
-    [
+  "fn": {
+    "args": [
       {
         "type": "Int",
       },
       {
-        "application": [
-          {
-            "type": "List",
-          },
-          [
+        "app": {
+          "args": [
             {
               "type": "String",
             },
           ],
-        ],
+          "callee": {
+            "type": "List",
+          },
+        },
       },
     ],
-    {
-      "application": [
-        {
-          "type": "Map",
-        },
-        [
+    "ret": {
+      "app": {
+        "args": [
           {
             "type": "String",
           },
@@ -932,16 +960,19 @@ exports[`"(Int, List<String>) -> Map<String, Int>" matches snapshot: TypeExpress
             "type": "Int",
           },
         ],
-      ],
+        "callee": {
+          "type": "Map",
+        },
+      },
     },
-  ],
+  },
 }
 `;
 
 exports[`"(#(Int, Bool)) -> #{ok: String, err: String}" matches snapshot: TypeExpression: (#(Int, Bool)) -> #{ok: String, err: String} 1`] = `
 {
-  "fn": [
-    [
+  "fn": {
+    "args": [
       {
         "tuple": [
           {
@@ -953,57 +984,26 @@ exports[`"(#(Int, Bool)) -> #{ok: String, err: String}" matches snapshot: TypeEx
         ],
       },
     ],
-    {
+    "ret": {
       "record": [
-        [
-          {
+        {
+          "name": {
             "name": "ok",
           },
-          {
+          "ty": {
             "type": "String",
           },
-        ],
-        [
-          {
+        },
+        {
+          "name": {
             "name": "err",
           },
-          {
+          "ty": {
             "type": "String",
           },
-        ],
-      ],
-    },
-  ],
-}
-`;
-
-exports[`"{ a <- try(explosion()) }" matches snapshot: Expression: { a <- try(explosion()) } 1`] = `
-{
-  "block": [
-    {
-      "arrow_bind": [
-        {
-          "name": "a",
-        },
-        {
-          "call": [
-            {
-              "name": "try",
-            },
-            [
-              {
-                "call": [
-                  {
-                    "name": "explosion",
-                  },
-                  [],
-                ],
-              },
-            ],
-          ],
         },
       ],
     },
-  ],
+  },
 }
 `;
