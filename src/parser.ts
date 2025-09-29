@@ -31,9 +31,15 @@ export type TypeExpression =
   | { top: null };
 
 export type BodyExpression =
-  | { arrow_bind: [NameIdentifier, Expression] }
-  | { let_bind: [PatternExpression, Expression] }
-  | { assign: [NameIdentifier, Expression] }
+  | { arrow_bind: { name: NameIdentifier; expression: Expression } }
+  | {
+      let_bind: {
+        pattern: PatternExpression;
+        assert: boolean;
+        expression: Expression;
+      };
+    }
+  | { assign: { name: NameIdentifier; expression: Expression } }
   | { expression: Expression };
 
 export type Expression =
@@ -143,6 +149,7 @@ export type TraitFn = {
 
 export type Fn = {
   name: NameIdentifier | null;
+  type_params: NameIdentifier[];
   params: FnParam[];
   return_type: TypeExpression | null;
   body: Expression;
@@ -631,7 +638,7 @@ export const take_body_expression = async (
 ): Promise<[Token | null, BodyExpression | null]> => {
   let success_token: Token | null = null;
   let expression: Expression | null = null;
-  let pattern_expression: PatternExpression | null = null;
+  let pattern: PatternExpression | null = null;
   let name: NameIdentifier | null = null;
   let op: string | null = null;
 
@@ -659,11 +666,10 @@ export const take_body_expression = async (
     }
 
     if (op === "<-") {
-      console.log("Arrow bind!");
       // arrow bind!
       [next_token, expression] = await take_expression(next_token, tokens);
 
-      if (expression) return [next_token, { arrow_bind: [name, expression] }];
+      if (expression) return [next_token, { arrow_bind: { name, expression } }];
     }
 
     if (op.startsWith("=")) {
@@ -673,13 +679,13 @@ export const take_body_expression = async (
         // simple assignment
         [next_token, expression] = await take_expression(next_token, tokens);
 
-        if (expression) return [next_token, { assign: [name, expression] }];
+        if (expression) return [next_token, { assign: { name, expression } }];
       }
 
       if (next_op in infix_ops) {
         [next_token, expression] = await take_expression(next_token, tokens);
         if (expression) {
-          const assign_expr = {
+          expression = {
             infix: {
               left: name,
               op: next_op as InfixOp,
@@ -687,7 +693,7 @@ export const take_body_expression = async (
             },
           } satisfies Expression;
           const out = {
-            assign: [name, assign_expr],
+            assign: { name, expression },
           } satisfies BodyExpression;
           return [next_token, out];
         }
@@ -729,18 +735,21 @@ export const take_body_expression = async (
   }
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "let");
-
   if (success_token) {
-    [next_token, pattern_expression] = await take_pattern_expression(
+    [next_token, success_token] = await take_keyword(
       next_token,
       tokens,
+      "assert",
     );
-    if (pattern_expression) {
+    const assert = !!success_token;
+
+    [next_token, pattern] = await take_pattern_expression(next_token, tokens);
+    if (pattern) {
       [next_token, success_token] = await take_symbol(next_token, tokens, "=");
       if (success_token) {
         [next_token, expression] = await take_expression(null, tokens);
         if (expression)
-          return [next_token, { let_bind: [pattern_expression, expression] }];
+          return [next_token, { let_bind: { pattern, assert, expression } }];
       }
     }
     return [next_token, null];
@@ -1170,21 +1179,16 @@ export const take_fn_param = async (
   next_token: Token | null,
   tokens: TokenIter,
 ): Promise<[Token | null, FnParam | null]> => {
-  next_token ??= await next(tokens);
-  if (!next_token) return [null, null];
-
+  let success_token: Token | null;
   let name: NameIdentifier | null = null;
-
-  if ("name" in next_token) {
-    name = next_token;
-  } else return [next_token, null];
-
-  next_token ??= await next(tokens);
-  if (!next_token) return [null, null];
-
   let guard: TypeExpression | null = null;
-  if ("symbol" in next_token && next_token.symbol === ":") {
-    [next_token, guard] = await take_type_expression(null, tokens);
+
+  [next_token, name] = await take_name(next_token, tokens);
+  if (!name) return [next_token, null];
+
+  [next_token, success_token] = await take_symbol(next_token, tokens, ":");
+  if (success_token) {
+    [next_token, guard] = await take_type_expression(next_token, tokens);
     if (!guard) return [next_token, null];
   }
 
@@ -1372,7 +1376,7 @@ export const take_import = async (
   }
 
   // type import
-  [next_token, success_token] = await take_symbol(next_token, tokens, "type");
+  [next_token, success_token] = await take_keyword(next_token, tokens, "type");
   if (success_token) {
     [next_token, type] = await take_type(next_token, tokens);
     if (!type) return [next_token, null];
@@ -1387,7 +1391,7 @@ export const take_import = async (
   }
 
   // trait import
-  [next_token, success_token] = await take_symbol(next_token, tokens, "trait");
+  [next_token, success_token] = await take_keyword(next_token, tokens, "trait");
   if (success_token) {
     [next_token, type] = await take_type(next_token, tokens);
     if (!type) return [next_token, null];
@@ -1445,27 +1449,29 @@ export const take_import_declaration = async (
   next_token: Token | null,
   tokens: TokenIter,
 ): Promise<[Token | null, Declaration | null]> => {
-  // "import" String "{" List(ImportDesc, ",", "}")
-  next_token ??= await next(tokens);
-  if (!next_token) return [null, null];
-
-  // import keyword already found
-  // if (!("keyword" in next_token && next_token.keyword === "import"))
-  //   return [next_token, null];
-
-  next_token = await next(tokens);
-  if (!next_token || !("string" in next_token)) return [next_token, null];
-  const import_from = next_token.string;
-
-  next_token = await next(tokens);
-  if (!next_token || !("symbol" in next_token && next_token.symbol === "{"))
-    return [next_token, null];
-
+  let success_token: Token | null;
+  let import_from: StringToken | null;
   let imports: Import[] | null = null;
-  [next_token, imports] = await take_list(null, tokens, take_import, ",", "}");
 
-  if (imports) return [next_token, { import_dec: { import_from, imports } }];
-  return [next_token, null];
+  [next_token, success_token] = await take_keyword(
+    next_token,
+    tokens,
+    "import",
+  );
+  if (!success_token) return [next_token, null];
+
+  [next_token, import_from] = await take_string(next_token, tokens);
+  if (!import_from) return [next_token, null];
+
+  [next_token, success_token] = await take_symbol(next_token, tokens, "{");
+  if (!success_token) return [next_token, null];
+
+  [next_token, imports] = await take_list(null, tokens, take_import, ",", "}");
+  if (!imports) return [next_token, null];
+  return [
+    next_token,
+    { import_dec: { import_from: import_from.string, imports } },
+  ];
 };
 
 export const take_fn = async (
@@ -1474,14 +1480,28 @@ export const take_fn = async (
 ): Promise<[Token | null, Fn | null]> => {
   let success_token: Token | null = null;
   let name: NameIdentifier | null = null;
+  let type_params: NameIdentifier[] | null = null;
   let params: FnParam[] | null = null;
   let return_type: TypeExpression | null = null;
   let body: Expression | null = null;
+  [next_token, success_token] = await take_keyword(next_token, tokens, "fn");
+  if (!success_token) return [next_token, null];
 
   [next_token, name] = await take_name(next_token, tokens);
 
-  [next_token, success_token] = await take_symbol(next_token, tokens, "(");
+  [next_token, success_token] = await take_symbol(next_token, tokens, "<");
+  if (success_token) {
+    [next_token, type_params] = await take_list(
+      next_token,
+      tokens,
+      take_name,
+      ",",
+      ">",
+    );
+    if (!type_params) return [next_token, null];
+  } else type_params = [];
 
+  [next_token, success_token] = await take_symbol(next_token, tokens, "(");
   if (!success_token) return [next_token, null];
 
   [next_token, params] = await take_list(
@@ -1493,9 +1513,6 @@ export const take_fn = async (
   );
   if (!params) return [next_token, null];
 
-  next_token ??= await next(tokens);
-  if (!next_token) return [null, null];
-
   [next_token, success_token] = await take_symbol(next_token, tokens, ":");
   if (success_token) {
     [next_token, return_type] = await take_type_expression(null, tokens);
@@ -1505,21 +1522,25 @@ export const take_fn = async (
   [next_token, body] = await take_expression(next_token, tokens);
   if (!body) return [next_token, null];
 
-  return [next_token, { body, name, params, return_type }];
+  return [next_token, { body, name, type_params, params, return_type }];
 };
 
 const consume_until_keyword_or_semicolon = async (tokens: TokenIter) => {
   while (true) {
     const token = await next(tokens);
     if (!token) return null;
-
+    // consume the semicolon and advance
+    if ("symbol" in token && token.symbol === ";") return null;
     if (
-      ("keyword" in token &&
-        (token.keyword === "builtin" ||
-          token.keyword === "type" ||
-          token.keyword === "let" ||
-          token.keyword === "trait")) ||
-      ("symbol" in token && token.symbol === ";")
+      "keyword" in token &&
+      (token.keyword === "builtin" ||
+        token.keyword === "type" ||
+        token.keyword === "let" ||
+        token.keyword === "trait" ||
+        token.keyword === "pub" ||
+        token.keyword === "fn" ||
+        token.keyword === "impl" ||
+        token.keyword === "enum")
     ) {
       return token;
     }
@@ -1596,13 +1617,17 @@ const take_string = async (
 };
 
 const take_type_declaration = async (
+  next_token: Token | null,
   tokens: TokenIter,
 ): Promise<[Token | null, TypeDeclaration | null]> => {
-  let next_token: Token | null = null;
+  let success_token: Token | null = null;
   let id: TypeIdentifier | null = null;
   let params: NameIdentifier[] | null = null;
   let symbol: Token | null = null;
   let value: TypeExpression | null = null;
+
+  [next_token, success_token] = await take_keyword(next_token, tokens, "type");
+  if (!success_token) return [next_token, null];
 
   [next_token, id] = await take_type(next_token, tokens);
   if (!id) return [next_token, null];
@@ -1624,9 +1649,6 @@ const take_type_declaration = async (
 
   [next_token, value] = await take_type_expression(next_token, tokens);
   if (!value) return [next_token, null];
-
-  [next_token, symbol] = await take_symbol(next_token, tokens, ";");
-  if (!symbol) return [next_token, null];
 
   return [next_token, { type_dec: { pub: false, id, params, value } }];
 };
@@ -1674,13 +1696,16 @@ const take_enum_variant = async (
 };
 
 const take_enum_declaration = async (
+  next_token: Token | null,
   tokens: TokenIter,
 ): Promise<[Token | null, EnumDeclaration | null]> => {
-  let next_token: Token | null = null;
   let success_token: Token | null = null;
   let id: TypeIdentifier | null = null;
   let type_params: NameIdentifier[] | null = null;
   let variants: EnumVariant[] | null = null;
+
+  [next_token, success_token] = await take_keyword(next_token, tokens, "enum");
+  if (!success_token) return [next_token, null];
 
   // enum type name
   [next_token, id] = await take_type(next_token, tokens);
@@ -1780,14 +1805,17 @@ const take_trait_fn = async (
 };
 
 const take_impl_declaration = async (
+  next_token: Token | null,
   tokens: TokenIter,
 ): Promise<[Token | null, ImplDeclaration | null]> => {
-  let next_token: Token | null = null;
   let success_token: Token | null = null;
   let name: TypeIdentifier | null = null;
   let type_params: TypeExpression[] | null = null;
   let impl_for: TypeExpression | null = null;
   let fns: Fn[] | null = null;
+
+  [next_token, success_token] = await take_keyword(next_token, tokens, "impl");
+  if (!success_token) return [next_token, null];
 
   [next_token, name] = await take_type(next_token, tokens);
   if (!name) return [next_token, null];
@@ -1820,13 +1848,16 @@ const take_impl_declaration = async (
 };
 
 const take_trait_declaration = async (
+  next_token: Token | null,
   tokens: TokenIter,
 ): Promise<[Token | null, TraitDeclaration | null]> => {
-  let next_token: Token | null = null;
   let success_token: Token | null = null;
   let id: TypeIdentifier | null = null;
   let type_params: NameIdentifier[] | null = null;
   let fns: TraitFn[] | null = null;
+
+  [next_token, success_token] = await take_keyword(next_token, tokens, "trait");
+  if (!success_token) return [next_token, null];
 
   [next_token, id] = await take_type(next_token, tokens);
   if (!id) return [next_token, null];
@@ -1853,13 +1884,16 @@ const take_trait_declaration = async (
 };
 
 const take_let_declaration = async (
+  next_token: Token | null,
   tokens: TokenIter,
 ): Promise<[Token | null, LetDeclaration | null]> => {
-  let next_token: Token | null = null;
   let success_token: Token | null = null;
   let id: NameIdentifier | null = null;
   let guard: TypeExpression | null = null;
   let value: Expression | null = null;
+
+  [next_token, success_token] = await take_keyword(next_token, tokens, "let");
+  if (!success_token) return [next_token, null];
 
   [next_token, id] = await take_name(next_token, tokens);
   if (!id) return [next_token, null];
@@ -1876,90 +1910,58 @@ const take_let_declaration = async (
   [next_token, value] = await take_expression(next_token, tokens);
   if (!value) return [next_token, value];
 
-  [next_token, success_token] = await take_symbol(next_token, tokens, ";");
-  if (!success_token) return [next_token, null];
-
   return [next_token, { let_dec: { guard, id, pub: false, value } }];
 };
 
 const take_fn_declaration = async (
+  next_token: Token | null,
   tokens: TokenIter,
 ): Promise<[Token | null, FnDeclaration | null]> => {
   let fn: Fn | null = null;
-  let next_token: Token | null = null;
 
-  [next_token, fn] = await take_fn(null, tokens);
-  if (!fn) return [next_token, null];
+  [next_token, fn] = await take_fn(next_token, tokens);
+  if (!fn || !fn.name) return [next_token, null];
 
   return [next_token, { fn: { pub: false, fn } }];
 };
 
-const take_pub = async (tokens: TokenIter): Promise<DeclarationResult> => {
-  let next_token: Token | null = null;
+const take_pub = async (
+  next_token: Token | null,
+  tokens: TokenIter,
+): Promise<DeclarationResult> => {
   let success_token: Token | null = null;
+  let decl: Declaration | null = null;
+  [next_token, success_token] = await take_keyword(next_token, tokens, "pub");
+  if (!success_token) return [next_token, null];
 
-  [next_token, success_token] = await take_keyword(next_token, tokens, "fn");
-  if (success_token) {
-    let fn_decl: FnDeclaration | null = null;
-    [next_token, fn_decl] = await take_fn_declaration(tokens);
-    if (!fn_decl) return [next_token, null];
-    fn_decl.fn.pub = true;
-    return [next_token, fn_decl];
+  [next_token, decl] = await take_fn_declaration(next_token, tokens);
+  if (decl) {
+    decl.fn.pub = true;
+    return [next_token, decl];
   }
 
-  [next_token, success_token] = await take_keyword(
-    next_token,
-    tokens,
-    "builtin",
-  );
-
-  [next_token, success_token] = await take_keyword(next_token, tokens, "type");
-  if (success_token) {
-    let type_dec: TypeDeclaration | null = null;
-    [next_token, type_dec] = await take_type_declaration(tokens);
-    if (type_dec) {
-      type_dec.type_dec.pub = true;
-      return [next_token, type_dec];
-    }
-
-    return [next_token, null];
+  [next_token, decl] = await take_type_declaration(next_token, tokens);
+  if (decl) {
+    decl.type_dec.pub = true;
+    return [next_token, decl];
   }
 
-  [next_token, success_token] = await take_keyword(next_token, tokens, "let");
-  if (success_token) {
-    let let_dec: LetDeclaration | null = null;
-    [next_token, let_dec] = await take_let_declaration(tokens);
-    if (let_dec) {
-      let_dec.let_dec.pub = true;
-      return [next_token, let_dec];
-    }
-
-    return [next_token, null];
+  [next_token, decl] = await take_let_declaration(next_token, tokens);
+  if (decl) {
+    decl.let_dec.pub = true;
+    return [next_token, decl];
   }
 
-  [next_token, success_token] = await take_keyword(next_token, tokens, "enum");
-  if (success_token) {
-    let enum_decl: EnumDeclaration | null = null;
-    [next_token, enum_decl] = await take_enum_declaration(tokens);
-    if (enum_decl) {
-      enum_decl.enum.pub = true;
-      return [next_token, enum_decl];
-    }
-
-    return [next_token, null];
+  [next_token, decl] = await take_enum_declaration(next_token, tokens);
+  if (decl) {
+    decl.enum.pub = true;
+    return [next_token, decl];
   }
 
-  [next_token, success_token] = await take_keyword(next_token, tokens, "trait");
-  if (success_token) {
-    let trait_decl: TraitDeclaration | null = null;
-    [next_token, trait_decl] = await take_trait_declaration(tokens);
-
-    if (trait_decl) {
-      trait_decl.trait.pub = true;
-      return [next_token, trait_decl];
-    }
-
-    return [next_token, null];
+  [next_token, decl] = await take_trait_declaration(next_token, tokens);
+  if (decl) {
+    decl.trait.pub = true;
+    return [next_token, decl];
   }
 
   return [await consume_until_keyword_or_semicolon(tokens), null];
@@ -1981,22 +1983,40 @@ const parse_tokens = async (tokens: TokenIter) => {
       next_token = result;
     }
 
-    [next_token, declaration] = is_fn_keyword(next_token)
-      ? await take_fn_declaration(tokens)
-      : is_enum_keyword(next_token)
-        ? await take_enum_declaration(tokens)
-        : is_type_keyword(next_token)
-          ? await take_type_declaration(tokens)
-          : is_let_keyword(next_token)
-            ? await take_let_declaration(tokens)
-            : is_trait_keyword(next_token)
-              ? await take_trait_declaration(tokens)
-              : is_impl_keyword(next_token)
-                ? take_impl_declaration(tokens)
-                : is_pub_keyword(next_token)
-                  ? await take_pub(tokens)
-                  : [null, null];
-
+    [next_token, declaration] = await take_declaration(next_token, tokens);
     if (declaration) declarations.push(declaration);
   }
 };
+
+export async function take_declaration(
+  next_token: Token | null,
+  tokens: TokenIter,
+): Promise<[Token | null, Declaration | null]> {
+  let decl: Declaration | null;
+  [next_token, decl] = await take_pub(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  [next_token, decl] = await take_fn_declaration(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  [next_token, decl] = await take_enum_declaration(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  [next_token, decl] = await take_type_declaration(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  [next_token, decl] = await take_let_declaration(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  [next_token, decl] = await take_trait_declaration(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  [next_token, decl] = await take_impl_declaration(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  [next_token, decl] = await take_import_declaration(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  next_token = await consume_until_keyword_or_semicolon(tokens);
+  return [next_token, null];
+}

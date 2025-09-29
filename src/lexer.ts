@@ -340,6 +340,8 @@ export async function* lex(
     "import",
     "memory",
     "global",
+    "table",
+    "mut",
     "as",
     "if",
     "else",
@@ -348,6 +350,8 @@ export async function* lex(
     "false",
     "enum",
     "self",
+    "assert",
+    "for",
   ],
 ) {
   const effective_keywords = new Set([...keywords]);

@@ -259,7 +259,6 @@ describe("lexer tokenkinds", () => {
   ])("$token is invalid string", async ({ token }) => {
     const output = await Array.fromAsync(lex(chars(token)));
     expect(output.length).toBeGreaterThan(0);
-    // @ts-expect-error
     expect("unknown" in output[0]).toBeTrue();
   });
 

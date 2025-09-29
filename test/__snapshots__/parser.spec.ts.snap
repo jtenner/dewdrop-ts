@@ -306,17 +306,18 @@ exports[`"{ let x = 1; x + 2 }" matches snapshot: Expression: { let x = 1; x + 2
 {
   "block": [
     {
-      "let_bind": [
-        {
-          "name": "x",
-        },
-        {
+      "let_bind": {
+        "assert": false,
+        "expression": {
           "int": {
             "size": 32,
             "value": 1n,
           },
         },
-      ],
+        "pattern": {
+          "name": "x",
+        },
+      },
     },
     {
       "expression": {
@@ -392,11 +393,8 @@ exports[`"{ a <- try(explosion()) }" matches snapshot: Expression: { a <- try(ex
 {
   "block": [
     {
-      "arrow_bind": [
-        {
-          "name": "a",
-        },
-        {
+      "arrow_bind": {
+        "expression": {
           "call": [
             {
               "name": "try",
@@ -413,7 +411,10 @@ exports[`"{ a <- try(explosion()) }" matches snapshot: Expression: { a <- try(ex
             ],
           ],
         },
-      ],
+        "name": {
+          "name": "a",
+        },
+      },
     },
   ],
 }
@@ -1006,4 +1007,719 @@ exports[`"(#(Int, Bool)) -> #{ok: String, err: String}" matches snapshot: TypeEx
     },
   },
 }
+`;
+
+exports[`"a <- b" matches snapshot: BodyExpression: a <- b 1`] = `
+{
+  "arrow_bind": {
+    "expression": {
+      "name": "b",
+    },
+    "name": {
+      "name": "a",
+    },
+  },
+}
+`;
+
+exports[`"{ a; b; c }" matches snapshot: BodyExpression: { a; b; c } 1`] = `
+{
+  "expression": {
+    "block": [
+      {
+        "expression": {
+          "name": "a",
+        },
+      },
+      {
+        "expression": {
+          "name": "b",
+        },
+      },
+      {
+        "expression": {
+          "name": "c",
+        },
+      },
+    ],
+  },
+}
+`;
+
+exports[`"let a = b" matches snapshot: BodyExpression: let a = b 1`] = `
+{
+  "let_bind": {
+    "assert": false,
+    "expression": {
+      "name": "b",
+    },
+    "pattern": {
+      "name": "a",
+    },
+  },
+}
+`;
+
+exports[`"let Some(a) = b" matches snapshot: BodyExpression: let Some(a) = b 1`] = `
+{
+  "let_bind": {
+    "assert": false,
+    "expression": {
+      "name": "b",
+    },
+    "pattern": {
+      "constr": [
+        {
+          "type": "Some",
+        },
+        [
+          {
+            "name": "a",
+          },
+        ],
+      ],
+    },
+  },
+}
+`;
+
+exports[`"let assert Some(a) = b" matches snapshot: BodyExpression: let assert Some(a) = b 1`] = `
+{
+  "let_bind": {
+    "assert": true,
+    "expression": {
+      "name": "b",
+    },
+    "pattern": {
+      "constr": [
+        {
+          "type": "Some",
+        },
+        [
+          {
+            "name": "a",
+          },
+        ],
+      ],
+    },
+  },
+}
+`;
+
+exports[`"d = a + b" matches snapshot: BodyExpression: d = a + b 1`] = `
+{
+  "assign": {
+    "expression": {
+      "infix": {
+        "left": {
+          "name": "a",
+        },
+        "op": "+",
+        "right": {
+          "name": "b",
+        },
+      },
+    },
+    "name": {
+      "name": "d",
+    },
+  },
+}
+`;
+
+exports[`"fn add(x: I32, y: I32): I32 { x + y }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "fn": {
+      "fn": {
+        "body": {
+          "block": [
+            {
+              "expression": {
+                "infix": {
+                  "left": {
+                    "name": "x",
+                  },
+                  "op": "+",
+                  "right": {
+                    "name": "y",
+                  },
+                },
+              },
+            },
+          ],
+        },
+        "name": {
+          "name": "add",
+        },
+        "params": [
+          {
+            "guard": {
+              "type": "I32",
+            },
+            "name": {
+              "name": "x",
+            },
+          },
+          {
+            "guard": {
+              "type": "I32",
+            },
+            "name": {
+              "name": "y",
+            },
+          },
+        ],
+        "return_type": {
+          "type": "I32",
+        },
+        "type_params": [],
+      },
+      "pub": false,
+    },
+  },
+]
+`;
+
+exports[`"pub fn main() { 42 }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "fn": {
+      "fn": {
+        "body": {
+          "block": [
+            {
+              "expression": {
+                "int": {
+                  "size": 32,
+                  "value": 42n,
+                },
+              },
+            },
+          ],
+        },
+        "name": {
+          "name": "main",
+        },
+        "params": [],
+        "return_type": null,
+        "type_params": [],
+      },
+      "pub": true,
+    },
+  },
+]
+`;
+
+exports[`"fn identity<t>(x: t): t { x }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "fn": {
+      "fn": {
+        "body": {
+          "block": [
+            {
+              "expression": {
+                "name": "x",
+              },
+            },
+          ],
+        },
+        "name": {
+          "name": "identity",
+        },
+        "params": [
+          {
+            "guard": {
+              "name": "t",
+            },
+            "name": {
+              "name": "x",
+            },
+          },
+        ],
+        "return_type": {
+          "name": "t",
+        },
+        "type_params": [
+          {
+            "name": "t",
+          },
+        ],
+      },
+      "pub": false,
+    },
+  },
+]
+`;
+
+exports[`"let x: i32 = 42" matches snapshot 1`] = `
+[
+  null,
+  {
+    "let_dec": {
+      "guard": {
+        "name": "i32",
+      },
+      "id": {
+        "name": "x",
+      },
+      "pub": false,
+      "value": {
+        "int": {
+          "size": 32,
+          "value": 42n,
+        },
+      },
+    },
+  },
+]
+`;
+
+exports[`"pub let pi: f64 = 3.14159" matches snapshot 1`] = `
+[
+  null,
+  {
+    "let_dec": {
+      "guard": {
+        "name": "f64",
+      },
+      "id": {
+        "name": "pi",
+      },
+      "pub": true,
+      "value": {
+        "float": {
+          "size": 64,
+          "value": 3.14159,
+        },
+      },
+    },
+  },
+]
+`;
+
+exports[`"let y = true" matches snapshot 1`] = `
+[
+  null,
+  {
+    "let_dec": {
+      "guard": null,
+      "id": {
+        "name": "y",
+      },
+      "pub": false,
+      "value": {
+        "bool": true,
+      },
+    },
+  },
+]
+`;
+
+exports[`"type MyInt = I32" matches snapshot 1`] = `
+[
+  null,
+  {
+    "type_dec": {
+      "id": {
+        "type": "MyInt",
+      },
+      "params": [],
+      "pub": false,
+      "value": {
+        "type": "I32",
+      },
+    },
+  },
+]
+`;
+
+exports[`"pub enum Result<t, e> { Ok(t), Err(e) }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "enum": {
+      "id": {
+        "type": "Result",
+      },
+      "pub": true,
+      "type_params": [
+        {
+          "name": "t",
+        },
+        {
+          "name": "e",
+        },
+      ],
+      "variants": [
+        {
+          "values": {
+            "id": {
+              "type": "Ok",
+            },
+            "values": [
+              {
+                "name": "t",
+              },
+            ],
+          },
+        },
+        {
+          "values": {
+            "id": {
+              "type": "Err",
+            },
+            "values": [
+              {
+                "name": "e",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"enum Color { Red, Green(I32), Blue { shade: f32 } }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "enum": {
+      "id": {
+        "type": "Color",
+      },
+      "pub": false,
+      "type_params": [],
+      "variants": [
+        {
+          "values": {
+            "id": {
+              "type": "Red",
+            },
+            "values": [],
+          },
+        },
+        {
+          "values": {
+            "id": {
+              "type": "Green",
+            },
+            "values": [
+              {
+                "type": "I32",
+              },
+            ],
+          },
+        },
+        {
+          "fields": {
+            "fields": [
+              {
+                "name": {
+                  "name": "shade",
+                },
+                "ty": {
+                  "name": "f32",
+                },
+              },
+            ],
+            "id": {
+              "type": "Blue",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"pub enum Direction { Up, Down, Left, Right }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "enum": {
+      "id": {
+        "type": "Direction",
+      },
+      "pub": true,
+      "type_params": [],
+      "variants": [
+        {
+          "values": {
+            "id": {
+              "type": "Up",
+            },
+            "values": [],
+          },
+        },
+        {
+          "values": {
+            "id": {
+              "type": "Down",
+            },
+            "values": [],
+          },
+        },
+        {
+          "values": {
+            "id": {
+              "type": "Left",
+            },
+            "values": [],
+          },
+        },
+        {
+          "values": {
+            "id": {
+              "type": "Right",
+            },
+            "values": [],
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"pub trait Eq<t> { fn eq(other: t) : bool }" matches snapshot 1`] = `
+[
+  null,
+  null,
+]
+`;
+
+exports[`"trait Drawable { fn draw(): Void; fn bounds(): Rect }" matches snapshot 1`] = `
+[
+  null,
+  null,
+]
+`;
+
+exports[`"import \\"std\\" { fn print as out }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "std",
+      "imports": [
+        {
+          "fn": {
+            "alias": {
+              "name": "out",
+            },
+            "name": {
+              "name": "print",
+            },
+            "signature": null,
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"import \\"std\\" { memory \\"memory\\": 1 as mem }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "std",
+      "imports": [
+        {
+          "memory": {
+            "alias": {
+              "name": "mem",
+            },
+            "max": null,
+            "min": {
+              "int": 1n,
+            },
+            "name": {
+              "string": "memory",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"import \\"std\\" { global mut count: i32 as cnt }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "std",
+      "imports": [
+        {
+          "global": {
+            "alias": {
+              "name": "cnt",
+            },
+            "global_type": {
+              "name": "i32",
+            },
+            "mut": true,
+            "name": {
+              "name": "count",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"import \\"wasm\\" { table \\"table\\": I32 0 0 as tbl }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "wasm",
+      "imports": [
+        {
+          "table": {
+            "alias": {
+              "name": "tbl",
+            },
+            "max": {
+              "int": 0n,
+            },
+            "min": {
+              "int": 0n,
+            },
+            "name": {
+              "string": "table",
+            },
+            "table_type": {
+              "type": "I32",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"import \\"wasm\\" { type Option as Maybe }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "wasm",
+      "imports": [
+        {
+          "type": {
+            "alias": {
+              "type": "Maybe",
+            },
+            "name": {
+              "type": "Option",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"import \\"wasm\\" { trait Semiring }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "wasm",
+      "imports": [
+        {
+          "trait": {
+            "alias": null,
+            "name": {
+              "type": "Semiring",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"import \\"wasm\\" { builtin \\"i32.add\\" as add }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "wasm",
+      "imports": [
+        {
+          "builtin": {
+            "alias": {
+              "name": "add",
+            },
+            "name": {
+              "string": "i32.add",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"import \\"wasm\\" { item }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "wasm",
+      "imports": [
+        {
+          "name": {
+            "alias": null,
+            "name": {
+              "name": "item",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`"import \\"wasm\\" { item as blah }" matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "wasm",
+      "imports": [
+        {
+          "name": {
+            "alias": {
+              "name": "blah",
+            },
+            "name": {
+              "name": "item",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
 `;
