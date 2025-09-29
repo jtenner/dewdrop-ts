@@ -387,7 +387,63 @@ exports[`"if a { b }" matches snapshot: Expression: if a { b } 1`] = `
 }
 `;
 
-exports[`"match x { A => 1, B => 2, _ => 3 }" matches snapshot: Expression: match x { A => 1, B => 2, _ => 3 } 1`] = `null`;
+exports[`"match x { A => 1, B => 2, _ => 3 }" matches snapshot: Expression: match x { A => 1, B => 2, _ => 3 } 1`] = `
+{
+  "match": [
+    {
+      "name": "x",
+    },
+    [
+      {
+        "body": {
+          "int": {
+            "size": 32,
+            "value": 1n,
+          },
+        },
+        "guard": null,
+        "pattern": {
+          "constr": [
+            {
+              "type": "A",
+            },
+            [],
+          ],
+        },
+      },
+      {
+        "body": {
+          "int": {
+            "size": 32,
+            "value": 2n,
+          },
+        },
+        "guard": null,
+        "pattern": {
+          "constr": [
+            {
+              "type": "B",
+            },
+            [],
+          ],
+        },
+      },
+      {
+        "body": {
+          "int": {
+            "size": 32,
+            "value": 3n,
+          },
+        },
+        "guard": null,
+        "pattern": {
+          "name": "_",
+        },
+      },
+    ],
+  ],
+}
+`;
 
 exports[`"{ a <- try(explosion()) }" matches snapshot: Expression: { a <- try(explosion()) } 1`] = `
 {
@@ -470,7 +526,68 @@ exports[`"foo(1).bar(2, 3).baz" matches snapshot: Expression: foo(1).bar(2, 3).b
 }
 `;
 
-exports[`"if match x { A => true, _ => false } { 1 } else { 0 }" matches snapshot: Expression: if match x { A => true, _ => false } { 1 } else { 0 } 1`] = `null`;
+exports[`"if match x { A => true, _ => false } { 1 } else { 0 }" matches snapshot: Expression: if match x { A => true, _ => false } { 1 } else { 0 } 1`] = `
+{
+  "if_expr": {
+    "cond": {
+      "match": [
+        {
+          "name": "x",
+        },
+        [
+          {
+            "body": {
+              "bool": true,
+            },
+            "guard": null,
+            "pattern": {
+              "constr": [
+                {
+                  "type": "A",
+                },
+                [],
+              ],
+            },
+          },
+          {
+            "body": {
+              "bool": false,
+            },
+            "guard": null,
+            "pattern": {
+              "name": "_",
+            },
+          },
+        ],
+      ],
+    },
+    "else_body": {
+      "block": [
+        {
+          "expression": {
+            "int": {
+              "size": 32,
+              "value": 0n,
+            },
+          },
+        },
+      ],
+    },
+    "if_body": {
+      "block": [
+        {
+          "expression": {
+            "int": {
+              "size": 32,
+              "value": 1n,
+            },
+          },
+        },
+      ],
+    },
+  },
+}
+`;
 
 exports[`"x" matches snapshot: PatternExpression: x 1`] = `
 {

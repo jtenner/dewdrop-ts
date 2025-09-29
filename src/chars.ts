@@ -6,6 +6,7 @@ export async function* chars_from(path: string) {
   const size = 64 * 1024;
   const buffer = new Uint8Array(size);
   let offset = 0;
+
   while (true) {
     const { bytesRead } = await f.read({ buffer, length: size, offset });
     if (bytesRead === 0) return;

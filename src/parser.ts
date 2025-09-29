@@ -238,20 +238,6 @@ const next = async (tokens: TokenIter, skip_whitespace = true) => {
   }
 };
 
-const is_pub_keyword = (token: Token) =>
-  "keyword" in token && token.keyword === "pub";
-const is_fn_keyword = (token: Token) =>
-  "keyword" in token && token.keyword === "fn";
-const is_enum_keyword = (token: Token) =>
-  "keyword" in token && token.keyword === "enum";
-const is_type_keyword = (token: Token) =>
-  "keyword" in token && token.keyword === "type";
-const is_let_keyword = (token: Token) =>
-  "keyword" in token && token.keyword === "let";
-const is_trait_keyword = (token: Token) =>
-  "keyword" in token && token.keyword === "trait";
-const is_impl_keyword = (token: Token) =>
-  "keyword" in token && token.keyword === "impl";
 type DeclarationResult = [Token | null, Declaration | null];
 
 const operators = new Set(Array.from("!%^&*-=+/<>:.?~|"));
@@ -952,7 +938,11 @@ export const take_expression = async (
       }
 
       // match expression
-      [next_token, success_token] = await take_keyword(next_token, tokens);
+      [next_token, success_token] = await take_keyword(
+        next_token,
+        tokens,
+        "match",
+      );
       if (success_token) {
         let scrutinee: Expression | null = null;
         let match_arms: MatchArm[] | null = null;
@@ -1695,6 +1685,7 @@ const take_enum_variant = async (
   return [next_token, { values: { id, values: [] } }];
 };
 
+// enum Option<t> { Some(t), None }
 const take_enum_declaration = async (
   next_token: Token | null,
   tokens: TokenIter,
