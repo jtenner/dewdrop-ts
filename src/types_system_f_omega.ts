@@ -408,8 +408,8 @@ export function typesEqual(left: Type, right: Type): boolean {
     const leftCases = left.variant.cases;
     const rightCases = right.variant.cases;
 
-    const leftLabels = Object.keys(leftCases).sort();
-    const rightLabels = Object.keys(rightCases).sort();
+    const leftLabels = leftCases.map(first).sort();
+    const rightLabels = rightCases.map(first).sort();
 
     // Must have same labels
     if (leftLabels.length !== rightLabels.length) return false;
@@ -419,7 +419,7 @@ export function typesEqual(left: Type, right: Type): boolean {
     return leftLabels.every((label) =>
       typesEqual(
         leftCases.find((t) => t[0] === label)![1],
-        leftCases.find((t) => t[0] === label)![1],
+        rightCases.find((t) => t[0] === label)![1],
       ),
     );
   }
