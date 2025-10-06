@@ -1175,7 +1175,7 @@ export const lam_type = (name: string, kind: Kind, body: Type) => ({
 });
 export const con_type = (con: string) => ({ con });
 export const record_type = (fields: [string, Type][]) => ({
-  records: { fields },
+  record: { fields },
 });
 export const variant_type = (cases: [string, Type][]) => ({
   variant: { cases },
