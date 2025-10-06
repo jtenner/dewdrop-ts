@@ -14,8 +14,8 @@ export type Type =
   | { app: { func: Type; arg: Type } } // type application F τ
   | { lam: { var: string; kind: Kind; body: Type } } // λα::κ.τ
   | { con: string } // type constant (Int, Bool, etc.)
-  | { record: { fields: [string, Type][] } } // {l₁:τ₁, l₂:τ₂, ...}
-  | { variant: { cases: [string, Type][] } }; // <l₁:τ₁ | l₂:τ₂ | ...>
+  | { record: [string, Type][] } // {l₁:τ₁, l₂:τ₂, ...}
+  | { variant: [string, Type][] }; // <l₁:τ₁ | l₂:τ₂ | ...>
 
 // Terms
 export type Term =
@@ -25,7 +25,7 @@ export type Term =
   | { tylam: { var: string; kind: Kind; body: Term } } // Λα::κ.e
   | { tyapp: { term: Term; type: Type } } // e [τ]
   | { con: { name: string; type: Type } } // constants with their types
-  | { record: { fields: [string, Term][] } } // {l₁=e₁, l₂=e₂, ...}
+  | { record: [string, Term][] } // {l₁=e₁, l₂=e₂, ...}
   | { project: { record: Term; label: string } } // e.l
   | { inject: { label: string; value: Term; variantType: Type } } // <l=e> as T
   | {
@@ -86,13 +86,13 @@ export function showType(t: Type): string {
     return `λ${t.lam.var}::${showKind(t.lam.kind)}.${showType(t.lam.body)}`;
   if ("con" in t) return t.con;
   if ("record" in t) {
-    const fields = t.record.fields
+    const fields = t.record
       .map(([label, type]) => `${label}: ${showType(type)}`)
       .join(", ");
     return `{${fields}}`;
   }
   if ("variant" in t) {
-    const cases = t.variant.cases
+    const cases = t.variant
       .map(([label, type]) => `${label}: ${showType(type)}`)
       .join(" | ");
     return `<${cases}>`;
@@ -111,7 +111,7 @@ function showTerm(t: Term): string {
     return `${showTerm(t.tyapp.term)} [${showType(t.tyapp.type)}]`;
   if ("con" in t) return t.con.name;
   if ("record" in t) {
-    const fields = t.record.fields
+    const fields = t.record
       .map(([label, term]) => `${label} = ${showTerm(term)}`)
       .join(", ");
     return `{${fields}}`;
@@ -168,18 +168,18 @@ export function substituteType(
       },
     };
   if ("record" in inType) {
-    const fields: [string, Type][] = [];
-    for (const [label, fieldType] of inType.record.fields) {
-      fields.push([label, substituteType(target, replacement, fieldType)]);
+    const record: [string, Type][] = [];
+    for (const [label, fieldType] of inType.record) {
+      record.push([label, substituteType(target, replacement, fieldType)]);
     }
-    return { record: { fields } };
+    return { record };
   }
   if ("variant" in inType) {
-    const cases: [string, Type][] = [];
-    for (const [label, caseType] of inType.variant.cases) {
-      cases.push([label, substituteType(target, replacement, caseType)]);
+    const variant: [string, Type][] = [];
+    for (const [label, caseType] of inType.variant) {
+      variant.push([label, substituteType(target, replacement, caseType)]);
     }
-    return { variant: { cases } };
+    return { variant };
   }
   return inType;
 }
@@ -303,7 +303,7 @@ export function checkKind(
 
   if ("record" in type) {
     // All field types must have kind *
-    for (const [_, fieldType] of type.record.fields) {
+    for (const [_, fieldType] of type.record) {
       const fieldKind = checkKind(context, fieldType);
       if ("err" in fieldKind) return fieldKind;
 
@@ -321,7 +321,7 @@ export function checkKind(
 
   if ("variant" in type) {
     // All case types must have kind *
-    for (const [_, caseType] of type.variant.cases) {
+    for (const [_, caseType] of type.variant) {
       const caseKind = checkKind(context, caseType);
       if ("err" in caseKind) return caseKind;
 
@@ -385,8 +385,8 @@ export function typesEqual(left: Type, right: Type): boolean {
   }
 
   if ("record" in left && "record" in right) {
-    const leftFields = left.record.fields;
-    const rightFields = right.record.fields;
+    const leftFields = left.record;
+    const rightFields = right.record;
 
     const leftLabels = leftFields.map(first).sort();
     const rightLabels = rightFields.map(first).sort();
@@ -405,8 +405,8 @@ export function typesEqual(left: Type, right: Type): boolean {
   }
 
   if ("variant" in left && "variant" in right) {
-    const leftCases = left.variant.cases;
-    const rightCases = right.variant.cases;
+    const leftCases = left.variant;
+    const rightCases = right.variant;
 
     const leftLabels = leftCases.map(first).sort();
     const rightLabels = rightCases.map(first).sort();
@@ -472,19 +472,19 @@ export function alphaRename(from: string, to: string, type: Type): Type {
   }
 
   if ("record" in type) {
-    const fields: [string, Type][] = [];
-    for (const [label, fieldType] of type.record.fields) {
-      fields.push([label, alphaRename(from, to, fieldType)]);
+    const record: [string, Type][] = [];
+    for (const [label, fieldType] of type.record) {
+      record.push([label, alphaRename(from, to, fieldType)]);
     }
-    return { record: { fields } };
+    return { record };
   }
 
   if ("variant" in type) {
-    const cases: [string, Type][] = [];
-    for (const [label, caseType] of type.variant.cases) {
-      cases.push([label, alphaRename(from, to, caseType)]);
+    const variant: [string, Type][] = [];
+    for (const [label, caseType] of type.variant) {
+      variant.push([label, alphaRename(from, to, caseType)]);
     }
-    return { variant: { cases } };
+    return { variant };
   }
 
   return type;
@@ -554,8 +554,8 @@ export function unifyTypes(
   }
 
   if ("record" in left && "record" in right) {
-    const leftFields = left.record.fields;
-    const rightFields = right.record.fields;
+    const leftFields = left.record;
+    const rightFields = right.record;
 
     const leftLabels = leftFields.map(first).sort();
     const rightLabels = rightFields.map(first).sort();
@@ -589,8 +589,8 @@ export function unifyTypes(
   }
 
   if ("variant" in left && "variant" in right) {
-    const leftCases = left.variant.cases;
-    const rightCases = right.variant.cases;
+    const leftCases = left.variant;
+    const rightCases = right.variant;
 
     const leftLabels = leftCases.map(first).sort();
     const rightLabels = rightCases.map(first).sort();
@@ -692,15 +692,11 @@ export function occursCheck(varName: string, type: Type): boolean {
   }
 
   if ("record" in type) {
-    return type.record.fields.some((fieldType) =>
-      occursCheck(varName, fieldType[1]),
-    );
+    return type.record.some((fieldType) => occursCheck(varName, fieldType[1]));
   }
 
   if ("variant" in type) {
-    return type.variant.cases.some((caseType) =>
-      occursCheck(varName, caseType[1]),
-    );
+    return type.variant.some((caseType) => occursCheck(varName, caseType[1]));
   }
 
   return false;
@@ -756,19 +752,19 @@ export function applySubstitution(subst: Substitution, type: Type): Type {
   }
 
   if ("record" in type) {
-    const fields: [string, Type][] = [];
-    for (const [label, fieldType] of type.record.fields) {
-      fields.push([label, applySubstitution(subst, fieldType)]);
+    const record: [string, Type][] = [];
+    for (const [label, fieldType] of type.record) {
+      record.push([label, applySubstitution(subst, fieldType)]);
     }
-    return { record: { fields } };
+    return { record };
   }
 
   if ("variant" in type) {
-    const cases: [string, Type][] = [];
-    for (const [label, caseType] of type.variant.cases) {
-      cases.push([label, applySubstitution(subst, caseType)]);
+    const variant: [string, Type][] = [];
+    for (const [label, caseType] of type.variant) {
+      variant.push([label, applySubstitution(subst, caseType)]);
     }
-    return { variant: { cases } };
+    return { variant };
   }
 
   return type;
@@ -907,16 +903,16 @@ export function inferType(
   }
 
   if ("record" in term) {
-    const fields: [string, Type][] = [];
+    const record: [string, Type][] = [];
 
-    for (const [label, fieldTerm] of term.record.fields) {
+    for (const [label, fieldTerm] of term.record) {
       const fieldType = inferType(context, fieldTerm);
       if ("err" in fieldType) return fieldType;
 
-      fields.push([label, fieldType.ok]);
+      record.push([label, fieldType.ok]);
     }
 
-    return { ok: { record: { fields } } };
+    return { ok: { record } };
   }
 
   if ("project" in term) {
@@ -929,7 +925,7 @@ export function inferType(
       };
     }
 
-    const fieldType = recordType.ok.record.fields.find(
+    const fieldType = recordType.ok.record.find(
       (t) => t[0] === term.project.label,
     );
     if (!fieldType) {
@@ -958,7 +954,7 @@ export function inferType(
     }
 
     // Check that the label exists in the variant type
-    const expectedType = term.inject.variantType.variant.cases.find(
+    const expectedType = term.inject.variantType.variant.find(
       (t) => t[0] === term.inject.label,
     );
     if (!expectedType) {
@@ -1001,7 +997,7 @@ export function inferType(
       };
     }
 
-    const variantCases = scrutineeType.ok.variant.cases;
+    const variantCases = scrutineeType.ok.variant;
     const matchCases = term.match.cases;
 
     // Check that all variant cases are covered

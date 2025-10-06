@@ -1,12 +1,11 @@
 import { Context, Kind, Type, Term, typecheck, showType, unitType, unitValue } from "./src/types_system_f_omega";
 
 const boolType: Type = {
-  variant: {
-    cases: [
+  variant: [
       ["True", unitType],
       ["False", unitType],
     ],
-  },
+
 };
 
 const trueValue: Term = {
@@ -24,12 +23,11 @@ if ("ok" in result) {
 
 // Example 2: Option type (like Rust's Option<T>)
 const optionType = (t: Type): Type => ({
-  variant: {
-    cases: [
+  variant: [
       ["None", unitType],
       ["Some", t],
     ],
-  },
+
 });
 
 const someInt: Term = {
@@ -131,12 +129,10 @@ if ("ok" in unwrapOrType) {
 
 // Example 5: Result type (like Rust's Result<T, E>)
 const resultType = (t: Type, e: Type): Type => ({
-  variant: {
-    cases: [
-      ["Ok", t],
-      ["Err", e],
-    ],
-  },
+  variant: [
+    ["Ok", t],
+    ["Err", e],
+  ],
 });
 
 const okValue: Term = {
@@ -149,20 +145,17 @@ const okValue: Term = {
 
 // Example 6: Binary tree
 const treeType = (t: Type): Type => ({
-  variant: {
-    cases: [
+  variant:[
       ["Leaf", unitType],
       ["Node", {
-        record: {
-          fields: [
-            ["value", t],
-            ["left", { var: "Tree" }],
-            ["right", { var: "Tree" }],
-          ]
-        },
+        record: [
+          ["value", t],
+          ["left", { var: "Tree" }],
+          ["right", { var: "Tree" }],
+        ]
       }]
     ],
-  },
+
 });
 
 // Example 7: Map over option
