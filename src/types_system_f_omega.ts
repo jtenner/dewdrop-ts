@@ -1,3 +1,6 @@
+// utility function
+const first = <T, U>(tuple: [T, U]) => tuple[0];
+
 // Kinds (types of types)
 export type Kind =
   | { star: null } // * (base kind for proper types)
@@ -10,7 +13,9 @@ export type Type =
   | { forall: { var: string; kind: Kind; body: Type } } // ∀α::κ.τ
   | { app: { func: Type; arg: Type } } // type application F τ
   | { lam: { var: string; kind: Kind; body: Type } } // λα::κ.τ
-  | { con: string }; // type constant (Int, Bool, etc.)
+  | { con: string } // type constant (Int, Bool, etc.)
+  | { record: { fields: [string, Type][] } } // {l₁:τ₁, l₂:τ₂, ...}
+  | { variant: { cases: [string, Type][] } }; // <l₁:τ₁ | l₂:τ₂ | ...>
 
 // Terms
 export type Term =
@@ -19,7 +24,16 @@ export type Term =
   | { app: { callee: Term; arg: Term } } // e₁ e₂
   | { tylam: { var: string; kind: Kind; body: Term } } // Λα::κ.e
   | { tyapp: { term: Term; type: Type } } // e [τ]
-  | { con: { name: string; type: Type } }; // constants with their types
+  | { con: { name: string; type: Type } } // constants with their types
+  | { record: { fields: [string, Term][] } } // {l₁=e₁, l₂=e₂, ...}
+  | { project: { record: Term; label: string } } // e.l
+  | { inject: { label: string; value: Term; variantType: Type } } // <l=e> as T
+  | {
+      match: {
+        scrutinee: Term;
+        cases: [string, { binder: string; body: Term }][];
+      };
+    }; // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
 
 // Context entries for type checking
 export type Binding =
@@ -34,7 +48,13 @@ export type TypeError =
   | { type_mismatch: { expected: Type; actual: Type } }
   | { not_a_function: Type }
   | { not_a_type_function: Type }
-  | { cyclic: string };
+  | { cyclic: string }
+  | { not_a_record: Type }
+  | { missing_field: { record: Type; label: string } }
+  | { not_a_variant: Type }
+  | { invalid_variant_label: { variant: Type; label: string } }
+  | { missing_case: { label: string } }
+  | { extra_case: { label: string } };
 
 export type Result<Err, T> = { ok: T } | { err: Err };
 
@@ -65,10 +85,53 @@ export function showType(t: Type): string {
   if ("lam" in t)
     return `λ${t.lam.var}::${showKind(t.lam.kind)}.${showType(t.lam.body)}`;
   if ("con" in t) return t.con;
+  if ("record" in t) {
+    const fields = t.record.fields
+      .map(([label, type]) => `${label}: ${showType(type)}`)
+      .join(", ");
+    return `{${fields}}`;
+  }
+  if ("variant" in t) {
+    const cases = t.variant.cases
+      .map(([label, type]) => `${label}: ${showType(type)}`)
+      .join(" | ");
+    return `<${cases}>`;
+  }
   return "unknown";
 }
 
-export function substType(
+function showTerm(t: Term): string {
+  if ("var" in t) return t.var;
+  if ("lam" in t)
+    return `λ${t.lam.arg}:${showType(t.lam.type)}.${showTerm(t.lam.body)}`;
+  if ("app" in t) return `(${showTerm(t.app.callee)} ${showTerm(t.app.arg)})`;
+  if ("tylam" in t)
+    return `Λ${t.tylam.var}::${showKind(t.tylam.kind)}.${showTerm(t.tylam.body)}`;
+  if ("tyapp" in t)
+    return `${showTerm(t.tyapp.term)} [${showType(t.tyapp.type)}]`;
+  if ("con" in t) return t.con.name;
+  if ("record" in t) {
+    const fields = t.record.fields
+      .map(([label, term]) => `${label} = ${showTerm(term)}`)
+      .join(", ");
+    return `{${fields}}`;
+  }
+  if ("project" in t) return `${showTerm(t.project.record)}.${t.project.label}`;
+  if ("inject" in t)
+    return `<${t.inject.label}=${showTerm(t.inject.value)}> as ${showType(t.inject.variantType)}`;
+  if ("match" in t) {
+    const cases = t.match.cases
+      .map(
+        ([label, { binder, body }]) =>
+          `${label}(${binder}) => ${showTerm(body)}`,
+      )
+      .join(" | ");
+    return `match ${showTerm(t.match.scrutinee)} { ${cases} }`;
+  }
+  return "unknown";
+}
+
+export function substituteType(
   target: string,
   replacement: Type,
   inType: Type,
@@ -77,8 +140,8 @@ export function substType(
   if ("arrow" in inType)
     return {
       arrow: {
-        from: substType(target, replacement, inType.arrow.from),
-        to: substType(target, replacement, inType.arrow.to),
+        from: substituteType(target, replacement, inType.arrow.from),
+        to: substituteType(target, replacement, inType.arrow.to),
       },
     };
   if ("forall" in inType && inType.forall.var !== target)
@@ -86,24 +149,38 @@ export function substType(
       forall: {
         var: inType.forall.var,
         kind: inType.forall.kind,
-        body: substType(target, replacement, inType.forall.body),
+        body: substituteType(target, replacement, inType.forall.body),
       },
     };
   if ("app" in inType)
     return {
       app: {
-        func: substType(target, replacement, inType.app.func),
-        arg: substType(target, replacement, inType.app.arg),
+        func: substituteType(target, replacement, inType.app.func),
+        arg: substituteType(target, replacement, inType.app.arg),
       },
     };
   if ("lam" in inType)
     return {
       lam: {
-        body: substType(target, replacement, inType.lam.body),
+        body: substituteType(target, replacement, inType.lam.body),
         kind: inType.lam.kind,
         var: inType.lam.var,
       },
     };
+  if ("record" in inType) {
+    const fields: [string, Type][] = [];
+    for (const [label, fieldType] of inType.record.fields) {
+      fields.push([label, substituteType(target, replacement, fieldType)]);
+    }
+    return { record: { fields } };
+  }
+  if ("variant" in inType) {
+    const cases: [string, Type][] = [];
+    for (const [label, caseType] of inType.variant.cases) {
+      cases.push([label, substituteType(target, replacement, caseType)]);
+    }
+    return { variant: { cases } };
+  }
   return inType;
 }
 
@@ -224,6 +301,42 @@ export function checkKind(
     return { ok: funcKind.ok.arrow.to };
   }
 
+  if ("record" in type) {
+    // All field types must have kind *
+    for (const [_, fieldType] of type.record.fields) {
+      const fieldKind = checkKind(context, fieldType);
+      if ("err" in fieldKind) return fieldKind;
+
+      if (!isStarKind(fieldKind.ok)) {
+        return {
+          err: {
+            kind_mismatch: { expected: { star: null }, actual: fieldKind.ok },
+          },
+        };
+      }
+    }
+
+    return { ok: { star: null } };
+  }
+
+  if ("variant" in type) {
+    // All case types must have kind *
+    for (const [_, caseType] of type.variant.cases) {
+      const caseKind = checkKind(context, caseType);
+      if ("err" in caseKind) return caseKind;
+
+      if (!isStarKind(caseKind.ok)) {
+        return {
+          err: {
+            kind_mismatch: { expected: { star: null }, actual: caseKind.ok },
+          },
+        };
+      }
+    }
+
+    return { ok: { star: null } };
+  }
+
   throw new Error(`Unknown type: ${Object.keys(type)[0]}`);
 }
 
@@ -268,6 +381,46 @@ export function typesEqual(left: Type, right: Type): boolean {
     return (
       typesEqual(left.app.func, r.app.func) &&
       typesEqual(left.app.arg, r.app.arg)
+    );
+  }
+
+  if ("record" in left && "record" in right) {
+    const leftFields = left.record.fields;
+    const rightFields = right.record.fields;
+
+    const leftLabels = leftFields.map(first).sort();
+    const rightLabels = rightFields.map(first).sort();
+
+    // Must have same labels
+    if (leftLabels.length !== rightLabels.length) return false;
+    if (!leftLabels.every((l, i) => l === rightLabels[i])) return false;
+
+    // All field types must be equal
+    return leftLabels.every((label) =>
+      typesEqual(
+        leftFields.find((t) => t[0] === label)![1],
+        rightFields.find((t) => t[0] === label)![1],
+      ),
+    );
+  }
+
+  if ("variant" in left && "variant" in right) {
+    const leftCases = left.variant.cases;
+    const rightCases = right.variant.cases;
+
+    const leftLabels = Object.keys(leftCases).sort();
+    const rightLabels = Object.keys(rightCases).sort();
+
+    // Must have same labels
+    if (leftLabels.length !== rightLabels.length) return false;
+    if (!leftLabels.every((l, i) => l === rightLabels[i])) return false;
+
+    // All case types must be equal
+    return leftLabels.every((label) =>
+      typesEqual(
+        leftCases.find((t) => t[0] === label)![1],
+        leftCases.find((t) => t[0] === label)![1],
+      ),
     );
   }
 
@@ -316,6 +469,22 @@ export function alphaRename(from: string, to: string, type: Type): Type {
         arg: alphaRename(from, to, type.app.arg),
       },
     };
+  }
+
+  if ("record" in type) {
+    const fields: [string, Type][] = [];
+    for (const [label, fieldType] of type.record.fields) {
+      fields.push([label, alphaRename(from, to, fieldType)]);
+    }
+    return { record: { fields } };
+  }
+
+  if ("variant" in type) {
+    const cases: [string, Type][] = [];
+    for (const [label, caseType] of type.variant.cases) {
+      cases.push([label, alphaRename(from, to, caseType)]);
+    }
+    return { variant: { cases } };
   }
 
   return type;
@@ -380,6 +549,76 @@ export function unifyTypes(
       right.lam.body,
     );
     worklist.push({ type_eq: { left: left.lam.body, right: renamedRight } });
+
+    return { ok: null };
+  }
+
+  if ("record" in left && "record" in right) {
+    const leftFields = left.record.fields;
+    const rightFields = right.record.fields;
+
+    const leftLabels = leftFields.map(first).sort();
+    const rightLabels = rightFields.map(first).sort();
+
+    // Must have same labels
+    if (leftLabels.length !== rightLabels.length) {
+      return {
+        err: { type_mismatch: { expected: left, actual: right } },
+      };
+    }
+
+    for (let i = 0; i < leftLabels.length; i++) {
+      if (leftLabels[i] !== rightLabels[i]) {
+        return {
+          err: { type_mismatch: { expected: left, actual: right } },
+        };
+      }
+    }
+
+    // Unify all field types
+    for (const label of leftLabels) {
+      worklist.push({
+        type_eq: {
+          left: leftFields.find((t) => t[0] === label)![1],
+          right: rightFields.find((t) => t[0] === label)![1],
+        },
+      });
+    }
+
+    return { ok: null };
+  }
+
+  if ("variant" in left && "variant" in right) {
+    const leftCases = left.variant.cases;
+    const rightCases = right.variant.cases;
+
+    const leftLabels = leftCases.map(first).sort();
+    const rightLabels = rightCases.map(first).sort();
+
+    // Must have same labels
+    if (leftLabels.length !== rightLabels.length) {
+      return {
+        err: { type_mismatch: { expected: left, actual: right } },
+      };
+    }
+
+    for (let i = 0; i < leftLabels.length; i++) {
+      if (leftLabels[i] !== rightLabels[i]) {
+        return {
+          err: { type_mismatch: { expected: left, actual: right } },
+        };
+      }
+    }
+
+    // Unify all case types
+    for (const label of leftLabels) {
+      worklist.push({
+        type_eq: {
+          left: leftCases.find((t) => t[0] === label)![1],
+          right: rightCases.find((t) => t[0] === label)![1],
+        },
+      });
+    }
 
     return { ok: null };
   }
@@ -452,6 +691,18 @@ export function occursCheck(varName: string, type: Type): boolean {
     );
   }
 
+  if ("record" in type) {
+    return type.record.fields.some((fieldType) =>
+      occursCheck(varName, fieldType[1]),
+    );
+  }
+
+  if ("variant" in type) {
+    return type.variant.cases.some((caseType) =>
+      occursCheck(varName, caseType[1]),
+    );
+  }
+
   return false;
 }
 
@@ -502,6 +753,22 @@ export function applySubstitution(subst: Substitution, type: Type): Type {
         arg: applySubstitution(subst, type.app.arg),
       },
     };
+  }
+
+  if ("record" in type) {
+    const fields: [string, Type][] = [];
+    for (const [label, fieldType] of type.record.fields) {
+      fields.push([label, applySubstitution(subst, fieldType)]);
+    }
+    return { record: { fields } };
+  }
+
+  if ("variant" in type) {
+    const cases: [string, Type][] = [];
+    for (const [label, caseType] of type.variant.cases) {
+      cases.push([label, applySubstitution(subst, caseType)]);
+    }
+    return { variant: { cases } };
   }
 
   return type;
@@ -630,13 +897,163 @@ export function inferType(
     }
 
     // Substitute the type argument in the body
-    const substituted = substType(
+    const substituted = substituteType(
       termType.ok.forall.var,
       term.tyapp.type,
       termType.ok.forall.body,
     );
 
     return { ok: substituted };
+  }
+
+  if ("record" in term) {
+    const fields: [string, Type][] = [];
+
+    for (const [label, fieldTerm] of term.record.fields) {
+      const fieldType = inferType(context, fieldTerm);
+      if ("err" in fieldType) return fieldType;
+
+      fields.push([label, fieldType.ok]);
+    }
+
+    return { ok: { record: { fields } } };
+  }
+
+  if ("project" in term) {
+    const recordType = inferType(context, term.project.record);
+    if ("err" in recordType) return recordType;
+
+    if (!("record" in recordType.ok)) {
+      return {
+        err: { not_a_record: recordType.ok },
+      };
+    }
+
+    const fieldType = recordType.ok.record.fields.find(
+      (t) => t[0] === term.project.label,
+    );
+    if (!fieldType) {
+      return {
+        err: {
+          missing_field: {
+            record: recordType.ok,
+            label: term.project.label,
+          },
+        },
+      };
+    }
+
+    return { ok: fieldType[1] };
+  }
+
+  if ("inject" in term) {
+    // Check that the variant type is well-formed
+    const variantKind = checkKind(context, term.inject.variantType);
+    if ("err" in variantKind) return variantKind;
+
+    if (!("variant" in term.inject.variantType)) {
+      return {
+        err: { not_a_variant: term.inject.variantType },
+      };
+    }
+
+    // Check that the label exists in the variant type
+    const expectedType = term.inject.variantType.variant.cases.find(
+      (t) => t[0] === term.inject.label,
+    );
+    if (!expectedType) {
+      return {
+        err: {
+          invalid_variant_label: {
+            variant: term.inject.variantType,
+            label: term.inject.label,
+          },
+        },
+      };
+    }
+
+    // Check that the value has the expected type
+    const valueType = inferType(context, term.inject.value);
+    if ("err" in valueType) return valueType;
+
+    if (!typesEqual(expectedType[1], valueType.ok)) {
+      return {
+        err: {
+          type_mismatch: {
+            expected: expectedType[1],
+            actual: valueType.ok,
+          },
+        },
+      };
+    }
+
+    return { ok: term.inject.variantType };
+  }
+
+  if ("match" in term) {
+    // Infer the type of the scrutinee
+    const scrutineeType = inferType(context, term.match.scrutinee);
+    if ("err" in scrutineeType) return scrutineeType;
+
+    if (!("variant" in scrutineeType.ok)) {
+      return {
+        err: { not_a_variant: scrutineeType.ok },
+      };
+    }
+
+    const variantCases = scrutineeType.ok.variant.cases;
+    const matchCases = term.match.cases;
+
+    // Check that all variant cases are covered
+    const variantLabels = Object.keys(variantCases).sort();
+    const matchLabels = Object.keys(matchCases).sort();
+
+    for (const label of variantLabels) {
+      if (!(label in matchCases)) {
+        return {
+          err: { missing_case: { label } },
+        };
+      }
+    }
+
+    // Check for extra cases
+    for (const label of matchLabels) {
+      if (!(label in variantCases)) {
+        return {
+          err: { extra_case: { label } },
+        };
+      }
+    }
+
+    // Type check each case and ensure they all return the same type
+    let resultType: Type | null = null;
+
+    for (const [label, { binder, body }] of matchCases) {
+      const caseType = variantCases.find((t) => t[0] === label)![1];
+
+      const extendedContext: Context = [
+        ...context,
+        { term: { name: binder, type: caseType } },
+      ];
+
+      const bodyType = inferType(extendedContext, body);
+      if ("err" in bodyType) return bodyType;
+
+      if (resultType === null) {
+        resultType = bodyType.ok;
+      } else if (!typesEqual(resultType, bodyType.ok)) {
+        return {
+          err: {
+            type_mismatch: {
+              expected: resultType,
+              actual: bodyType.ok,
+            },
+          },
+        };
+      }
+    }
+
+    return { ok: resultType! };
   }
 
   throw new Error(`Unknown term: ${Object.keys(term)[0]}`);
@@ -745,16 +1162,8 @@ export function typecheckWithConstraints(
 //   | { app: { func: Type; arg: Type } } // type application F τ
 //   | { lam: { var: string; kind: Kind; body: Type } } // λα::κ.τ
 //   | { con: string }; // type constant (Int, Bool, etc.)
-//
-// // Terms
-// export type Term =
-//   | { var: string } // variable x
-//   | { lam: { arg: string; type: Type; body: Term } } // λx:τ.e
-//   | { app: { callee: Term; arg: Term } } // e₁ e₂
-//   | { tylam: { var: string; kind: Kind; body: Term } } // Λα::κ.e
-//   | { tyapp: { term: Term; type: Type } } // e [τ]
-//   | { con: { name: string; type: Type } }; // constants with their types
-
+//   | { record: { fields: [string, Type][] } } // {l₁:τ₁, l₂:τ₂, ...}
+//   | { variant: { cases: [string, Type][] } }; // <l₁:τ₁ | l₂:τ₂ | ...>
 export const var_type = (name: string) => ({ var: name });
 export const arrow_type = (from: Type, to: Type) => ({ arrow: { from, to } });
 export const forall_type = (name: string, kind: Kind, body: Type) => ({
@@ -765,7 +1174,30 @@ export const lam_type = (name: string, kind: Kind, body: Type) => ({
   lam: { var: name, kind, body },
 });
 export const con_type = (con: string) => ({ con });
+export const record_type = (fields: [string, Type][]) => ({
+  records: { fields },
+});
+export const variant_type = (cases: [string, Type][]) => ({
+  variant: { cases },
+});
 
+// // Terms
+// export type Term =
+//   | { var: string } // variable x
+//   | { lam: { arg: string; type: Type; body: Term } } // λx:τ.e
+//   | { app: { callee: Term; arg: Term } } // e₁ e₂
+//   | { tylam: { var: string; kind: Kind; body: Term } } // Λα::κ.e
+//   | { tyapp: { term: Term; type: Type } } // e [τ]
+//   | { con: { name: string; type: Type } } // constants with their types
+//   | { record: { fields: [string, Term][] } } // {l₁=e₁, l₂=e₂, ...}
+//   | { project: { record: Term; label: string } } // e.l
+//   | { inject: { label: string; value: Term; variantType: Type } } // <l=e> as T
+//   | {
+//       match: {
+//         scrutinee: Term;
+//         cases: [string, { binder: string; body: Term }][];
+//       };
+//     }; // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
 export const var_term = (name: string) => ({ var: name });
 export const lam_term = (arg: string, type: Type, body: Term) => ({
   lam: { arg, type, body },
@@ -774,5 +1206,25 @@ export const app_term = (callee: Term, arg: Term) => ({ app: { callee, arg } });
 export const tylam_term = (name: string, kind: Kind, body: Term) => ({
   tylam: { var: name, kind, body },
 });
-export const tyapp_term = (term: Term, type: Type) => ({ tyapp: { term, type } });
+export const tyapp_term = (term: Term, type: Type) => ({
+  tyapp: { term, type },
+});
 export const con_term = (name: string, type: Type) => ({ con: { name, type } });
+export const record_term = (fields: [string, Term][]) => ({
+  record: { fields },
+});
+export const project_term = (record: Term, label: string) => ({
+  project: { record, label },
+});
+export const inject_term = (label: string, value: Term, variantType: Type) => ({
+  inject: { label, value, variantType },
+});
+export const match_term = (
+  scrutinee: Term,
+  cases: [string, { binder: string; body: Term }][],
+) => ({
+  match: { scrutinee, cases },
+});
+
+export const unitType: Type = { con: "Unit" };
+export const unitValue: Term = { con: { name: "()", type: unitType } };
