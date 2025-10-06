@@ -1,224 +1,107 @@
-import { Context, Kind, Type, Term, typecheck, showType, unitType, unitValue } from "./src/types_system_f_omega";
+import {
+  Context, Kind, Type, Term, typecheck, showType, unitType, unitValue,
+  variant_type, con_type, match_term, var_term, variant_pattern, con_term,
+  lam_term, wildcard_pattern, var_pattern, record_type, record_pattern,
+ } from "./src/types_system_f_omega";
+// Example 1: Simple variant matching with wildcard
+const optionType = variant_type([
+  ["None", unitType],
+  ["Some", con_type("Int")],
+]);
 
-const boolType: Type = {
-  variant: [
-      ["True", unitType],
-      ["False", unitType],
+const unwrap = lam_term(
+  "opt",
+  optionType,
+  match_term(var_term("opt"), [
+    [variant_pattern("None", wildcard_pattern()), con_term("0", con_type("Int"))],
+    [variant_pattern("Some", var_pattern("x")), var_term("x")],
+  ])
+);
+
+// Example 2: Record pattern matching
+const pointType = record_type([
+  ["x", con_type("Int")],
+  ["y", con_type("Int")],
+]);
+
+const getX = lam_term(
+  "p",
+  pointType,
+  match_term(var_term("p"), [
+    [
+      record_pattern([
+        ["x", var_pattern("xVal")],
+        ["y", wildcard_pattern()],
+      ]),
+      var_term("xVal"),
     ],
+  ])
+);
 
-};
+// Example 3: Nested pattern matching
+const resultType = variant_type([
+  ["Ok", con_type("Int")],
+  ["Err", con_type("String")],
+]);
 
-const trueValue: Term = {
-  inject: {
-    label: "True",
-    value: unitValue,
-    variantType: boolType,
-  },
-};
+const nestedOptionResult = variant_type([
+  ["None", unitType],
+  ["Some", resultType],
+]);
 
-const result = typecheck([], trueValue);
-if ("ok" in result) {
-  console.log("Type:", showType(result.ok)); // <False: Unit | True: Unit>
-}
-
-// Example 2: Option type (like Rust's Option<T>)
-const optionType = (t: Type): Type => ({
-  variant: [
-      ["None", unitType],
-      ["Some", t],
+const unwrapAll = lam_term(
+  "x",
+  nestedOptionResult,
+  match_term(var_term("x"), [
+    [variant_pattern("None", wildcard_pattern()), con_term("-1", con_type("Int"))],
+    [
+      variant_pattern("Some", variant_pattern("Ok", var_pattern("val"))),
+      var_term("val"),
     ],
-
-});
-
-const someInt: Term = {
-  inject: {
-    label: "Some",
-    value: { con: { name: "42", type: { con: "Int" } } },
-    variantType: optionType({ con: "Int" }),
-  },
-};
-
-const optResult = typecheck([], someInt);
-if ("ok" in optResult) {
-  console.log("Type:", showType(optResult.ok)); // <None: Unit | Some: Int>
-}
-
-// Example 3: Pattern matching
-const isNone: Term = {
-  lam: {
-    arg: "opt",
-    type: optionType({ con: "Int" }),
-    body: {
-      match: {
-        scrutinee: { var: "opt" },
-        cases: [
-          ["None", {
-            binder: "_",
-            body: {
-              inject: {
-                label: "True",
-                value: unitValue,
-                variantType: boolType,
-              },
-            },
-          }],
-          ["Some", {
-            binder: "_",
-            body: {
-              inject: {
-                label: "False",
-                value: unitValue,
-                variantType: boolType,
-              },
-            },
-          }],
-        ],
-      },
-    },
-  },
-};
-
-const isNoneType = typecheck([], isNone);
-if ("ok" in isNoneType) {
-  console.log("Type:", showType(isNoneType.ok));
-  // <None: Unit | Some: Int> → <False: Unit | True: Unit>
-}
-
-// Example 4: Polymorphic Option type
-// Λα::*.λopt:<None:Unit|Some:α>.λdefault:α.
-//   match opt { None(_) => default | Some(x) => x }
-const unwrapOr: Term = {
-  tylam: {
-    var: "α",
-    kind: { star: null },
-    body: {
-      lam: {
-        arg: "opt",
-        type: optionType({ var: "α" }),
-        body: {
-          lam: {
-            arg: "default",
-            type: { var: "α" },
-            body: {
-              match: {
-                scrutinee: { var: "opt" },
-                cases: [
-                  ["None", {
-                    binder: "_",
-                    body: { var: "default" },
-                  }],
-                  ["Some", {
-                    binder: "x",
-                    body: { var: "x" },
-                  }],
-                ],
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-};
-
-const unwrapOrType = typecheck([], unwrapOr);
-if ("ok" in unwrapOrType) {
-  console.log("Type:", showType(unwrapOrType.ok));
-  // ∀α::*.<None: Unit | Some: α> → (α → α)
-}
-
-// Example 5: Result type (like Rust's Result<T, E>)
-const resultType = (t: Type, e: Type): Type => ({
-  variant: [
-    ["Ok", t],
-    ["Err", e],
-  ],
-});
-
-const okValue: Term = {
-  inject: {
-    label: "Ok",
-    value: { con: { name: "42", type: { con: "Int" } } },
-    variantType: resultType({ con: "Int" }, { con: "String" }),
-  },
-};
-
-// Example 6: Binary tree
-const treeType = (t: Type): Type => ({
-  variant:[
-      ["Leaf", unitType],
-      ["Node", {
-        record: [
-          ["value", t],
-          ["left", { var: "Tree" }],
-          ["right", { var: "Tree" }],
-        ]
-      }]
+    [
+      variant_pattern("Some", variant_pattern("Err", wildcard_pattern())),
+      con_term("-2", con_type("Int")),
     ],
+  ])
+);
 
-});
+// Example 4: Complex record destructuring
+const personType = record_type([
+  ["name", con_type("String")],
+  ["age", con_type("Int")],
+  ["address", record_type([
+    ["street", con_type("String")],
+    ["city", con_type("String")],
+  ])],
+]);
 
-// Example 7: Map over option
-const mapOption: Term = {
-  tylam: {
-    var: "α",
-    kind: { star: null },
-    body: {
-      tylam: {
-        var: "β",
-        kind: { star: null },
-        body: {
-          lam: {
-            arg: "f",
-            type: { arrow: { from: { var: "α" }, to: { var: "β" } } },
-            body: {
-              lam: {
-                arg: "opt",
-                type: optionType({ var: "α" }),
-                body: {
-                  match: {
-                    scrutinee: { var: "opt" },
-                    cases: [
-                      ["None", {
-                        binder: "_",
-                        body: {
-                          inject: {
-                            label: "None",
-                            value: unitValue,
-                            variantType: optionType({ var: "β" }),
-                          },
-                        },
-                      }],
-                      ["Some", {
-                        binder: "x",
-                        body: {
-                          inject: {
-                            label: "Some",
-                            value: {
-                              app: {
-                                callee: { var: "f" },
-                                arg: { var: "x" },
-                              },
-                            },
-                            variantType: optionType({ var: "β" }),
-                          },
-                        },
-                      },
-                    ],
-                  ]
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-};
+const getCity = lam_term(
+  "person",
+  personType,
+  match_term(var_term("person"), [
+    [
+      record_pattern([
+        ["name", wildcard_pattern()],
+        ["age", wildcard_pattern()],
+        ["address", record_pattern([
+          ["street", wildcard_pattern()],
+          ["city", var_pattern("c")],
+        ])],
+      ]),
+      var_term("c"),
+    ],
+  ])
+);
 
-const mapOptionType = typecheck([], mapOption);
-if ("ok" in mapOptionType) {
-  console.log("Type:", showType(mapOptionType.ok));
-  // ∀α::*.∀β::*.(α → β) → (<None: Unit | Some: α> → <None: Unit | Some: β>)
-}
+// Type check examples
+const result1 = typecheck([], unwrap);
+console.log("unwrap type:", "ok" in result1 ? showType(result1.ok) : result1.err);
+
+const result2 = typecheck([], getX);
+console.log("getX type:", "ok" in result2 ? showType(result2.ok) : result2.err);
+
+const result3 = typecheck([], unwrapAll);
+console.log("unwrapAll type:", "ok" in result3 ? showType(result3.ok) : result3.err);
+
+const result4 = typecheck([], getCity);
+console.log("getCity type:", "ok" in result4 ? showType(result4.ok) : result4.err);

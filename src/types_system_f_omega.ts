@@ -6,6 +6,14 @@ export type Kind =
   | { star: null } // * (base kind for proper types)
   | { arrow: { from: Kind; to: Kind } }; // κ₁ → κ₂
 
+// Pattern expressions for match cases
+export type Pattern =
+  | { var: string } // x - bind variable
+  | { wildcard: null } // _ - match anything
+  | { con: { name: string; type: Type } } // literal constant
+  | { record: [string, Pattern][] } // { l1: p1, l2: p2 }
+  | { variant: { label: string; pattern: Pattern } }; // Label(pattern)
+
 // Types
 export type Type =
   | { var: string } // type variable α
@@ -28,12 +36,7 @@ export type Term =
   | { record: [string, Term][] } // {l₁=e₁, l₂=e₂, ...}
   | { project: { record: Term; label: string } } // e.l
   | { inject: { label: string; value: Term; variantType: Type } } // <l=e> as T
-  | {
-      match: {
-        scrutinee: Term;
-        cases: [string, { binder: string; body: Term }][];
-      };
-    }; // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
+  | { match: { scrutinee: Term; cases: [Pattern, Term][] } }; // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
 
 // Context entries for type checking
 export type Binding =
@@ -66,6 +69,48 @@ export type Constraint =
 
 export type Worklist = Constraint[];
 export type Substitution = Map<string, Type>;
+
+// Show patterns for debugging
+export function showPattern(p: Pattern): string {
+  if ("var" in p) return p.var;
+  if ("wildcard" in p) return "_";
+  if ("con" in p) return p.con.name;
+  if ("record" in p) {
+    const fields = p.record
+      .map(([label, pat]) => `${label}: ${showPattern(pat)}`)
+      .join(", ");
+    return `{${fields}}`;
+  }
+  if ("variant" in p) {
+    return `${p.variant.label}(${showPattern(p.variant.pattern)})`;
+  }
+  return "unknown";
+}
+
+// Extract all variable bindings from a pattern
+export function patternBindings(pattern: Pattern): [string, Type][] {
+  if ("var" in pattern) {
+    // We'll need the type from context during type checking
+    return [[pattern.var, { var: "$unknown" }]]; // placeholder
+  }
+  if ("wildcard" in pattern) {
+    return [];
+  }
+  if ("con" in pattern) {
+    return [];
+  }
+  if ("record" in pattern) {
+    const bindings: [string, Type][] = [];
+    for (const [_, subPattern] of pattern.record) {
+      bindings.push(...patternBindings(subPattern));
+    }
+    return bindings;
+  }
+  if ("variant" in pattern) {
+    return patternBindings(pattern.variant.pattern);
+  }
+  return [];
+}
 
 // Pretty printing
 export function showKind(k: Kind): string {
@@ -100,7 +145,7 @@ export function showType(t: Type): string {
   return "unknown";
 }
 
-function showTerm(t: Term): string {
+export function showTerm(t: Term): string {
   if ("var" in t) return t.var;
   if ("lam" in t)
     return `λ${t.lam.arg}:${showType(t.lam.type)}.${showTerm(t.lam.body)}`;
@@ -121,14 +166,140 @@ function showTerm(t: Term): string {
     return `<${t.inject.label}=${showTerm(t.inject.value)}> as ${showType(t.inject.variantType)}`;
   if ("match" in t) {
     const cases = t.match.cases
-      .map(
-        ([label, { binder, body }]) =>
-          `${label}(${binder}) => ${showTerm(body)}`,
-      )
+      .map(([pattern, body]) => `${showPattern(pattern)} => ${showTerm(body)}`)
       .join(" | ");
     return `match ${showTerm(t.match.scrutinee)} { ${cases} }`;
   }
   return "unknown";
+}
+
+// Check if patterns are exhaustive (simplified version)
+export function checkExhaustive(
+  patterns: Pattern[],
+  type: Type,
+): Result<TypeError, null> {
+  if ("variant" in type) {
+    const variantLabels = new Set(type.variant.map(first));
+    const coveredLabels = new Set<string>();
+
+    for (const pattern of patterns) {
+      if ("wildcard" in pattern || "var" in pattern) {
+        // Wildcard or variable covers everything
+        return { ok: null };
+      }
+      if ("variant" in pattern) {
+        coveredLabels.add(pattern.variant.label);
+      }
+    }
+
+    for (const label of variantLabels) {
+      if (!coveredLabels.has(label)) {
+        return { err: { missing_case: { label } } };
+      }
+    }
+  }
+
+  return { ok: null };
+}
+
+// Check if a pattern matches a type and extract bindings
+export function checkPattern(
+  pattern: Pattern,
+  type: Type,
+  context: Context,
+): Result<TypeError, Context> {
+  if ("var" in pattern) {
+    // Variable pattern binds the whole value
+    return { ok: [{ term: { name: pattern.var, type } }] };
+  }
+
+  if ("wildcard" in pattern) {
+    // Wildcard matches anything, no bindings
+    return { ok: [] };
+  }
+
+  if ("con" in pattern) {
+    // Constant pattern must match type exactly
+    if (!typesEqual(pattern.con.type, type)) {
+      return {
+        err: {
+          type_mismatch: { expected: type, actual: pattern.con.type },
+        },
+      };
+    }
+    return { ok: [] };
+  }
+
+  if ("record" in pattern) {
+    if (!("record" in type)) {
+      return { err: { not_a_record: type } };
+    }
+
+    const bindings: Context = [];
+    const patternLabels = pattern.record.map(first).sort();
+    const typeLabels = type.record.map(first).sort();
+
+    // Check that pattern labels match type labels
+    if (patternLabels.length !== typeLabels.length) {
+      return {
+        err: {
+          type_mismatch: {
+            expected: type,
+            actual: { record: pattern.record.map(([l, _]) => [l, unitType]) },
+          },
+        },
+      };
+    }
+
+    for (let i = 0; i < patternLabels.length; i++) {
+      if (patternLabels[i] !== typeLabels[i]) {
+        return {
+          err: {
+            missing_field: { record: type, label: patternLabels[i]! },
+          },
+        };
+      }
+    }
+
+    // Check each field pattern
+    for (const [label, subPattern] of pattern.record) {
+      const fieldType = type.record.find((t) => t[0] === label);
+      if (!fieldType) {
+        return {
+          err: { missing_field: { record: type, label } },
+        };
+      }
+
+      const subResult = checkPattern(subPattern, fieldType[1], context);
+      if ("err" in subResult) return subResult;
+
+      bindings.push(...subResult.ok);
+    }
+
+    return { ok: bindings };
+  }
+
+  if ("variant" in pattern) {
+    if (!("variant" in type)) {
+      return { err: { not_a_variant: type } };
+    }
+
+    const caseType = type.variant.find((t) => t[0] === pattern.variant.label);
+    if (!caseType) {
+      return {
+        err: {
+          invalid_variant_label: {
+            variant: type,
+            label: pattern.variant.label,
+          },
+        },
+      };
+    }
+
+    return checkPattern(pattern.variant.pattern, caseType[1], context);
+  }
+
+  throw new Error(`Unknown pattern: ${Object.keys(pattern)[0]}`);
 }
 
 export function substituteType(
@@ -991,50 +1162,27 @@ export function inferType(
     const scrutineeType = inferType(context, term.match.scrutinee);
     if ("err" in scrutineeType) return scrutineeType;
 
-    if (!("variant" in scrutineeType.ok)) {
-      return {
-        err: { not_a_variant: scrutineeType.ok },
-      };
-    }
+    // Check exhaustiveness (simplified check)
+    const patterns = term.match.cases.map(first);
+    const exhaustCheck = checkExhaustive(patterns, scrutineeType.ok);
+    if ("err" in exhaustCheck) return exhaustCheck;
 
-    const variantCases = scrutineeType.ok.variant;
-    const matchCases = term.match.cases;
-
-    // Check that all variant cases are covered
-    const variantLabels = Object.keys(variantCases).sort();
-    const matchLabels = Object.keys(matchCases).sort();
-
-    for (const label of variantLabels) {
-      if (!(label in matchCases)) {
-        return {
-          err: { missing_case: { label } },
-        };
-      }
-    }
-
-    // Check for extra cases
-    for (const label of matchLabels) {
-      if (!(label in variantCases)) {
-        return {
-          err: { extra_case: { label } },
-        };
-      }
-    }
-
-    // Type check each case and ensure they all return the same type
+    // Type check each case
     let resultType: Type | null = null;
 
-    for (const [label, { binder, body }] of matchCases) {
-      const caseType = variantCases.find((t) => t[0] === label)![1];
+    for (const [pattern, body] of term.match.cases) {
+      // Check pattern and get bindings
+      const patternResult = checkPattern(pattern, scrutineeType.ok, context);
+      if ("err" in patternResult) return patternResult;
 
-      const extendedContext: Context = [
-        ...context,
-        { term: { name: binder, type: caseType } },
-      ];
+      // Extend context with pattern bindings
+      const extendedContext: Context = [...context, ...patternResult.ok];
 
+      // Type check the body
       const bodyType = inferType(extendedContext, body);
       if ("err" in bodyType) return bodyType;
 
+      // Ensure all branches return the same type
       if (resultType === null) {
         resultType = bodyType.ok;
       } else if (!typesEqual(resultType, bodyType.ok)) {
@@ -1051,7 +1199,6 @@ export function inferType(
 
     return { ok: resultType! };
   }
-
   throw new Error(`Unknown term: ${Object.keys(term)[0]}`);
 }
 
@@ -1151,15 +1298,6 @@ export function typecheckWithConstraints(
   return { ok: resultType };
 }
 
-// export type Type =
-//   | { var: string } // type variable α
-//   | { arrow: { from: Type; to: Type } } // τ₁ → τ₂
-//   | { forall: { var: string; kind: Kind; body: Type } } // ∀α::κ.τ
-//   | { app: { func: Type; arg: Type } } // type application F τ
-//   | { lam: { var: string; kind: Kind; body: Type } } // λα::κ.τ
-//   | { con: string }; // type constant (Int, Bool, etc.)
-//   | { record: { fields: [string, Type][] } } // {l₁:τ₁, l₂:τ₂, ...}
-//   | { variant: { cases: [string, Type][] } }; // <l₁:τ₁ | l₂:τ₂ | ...>
 export const var_type = (name: string) => ({ var: name });
 export const arrow_type = (from: Type, to: Type) => ({ arrow: { from, to } });
 export const forall_type = (name: string, kind: Kind, body: Type) => ({
@@ -1173,23 +1311,6 @@ export const con_type = (con: string) => ({ con });
 export const record_type = (record: [string, Type][]) => ({ record });
 export const variant_type = (variant: [string, Type][]) => ({ variant });
 
-// // Terms
-// export type Term =
-//   | { var: string } // variable x
-//   | { lam: { arg: string; type: Type; body: Term } } // λx:τ.e
-//   | { app: { callee: Term; arg: Term } } // e₁ e₂
-//   | { tylam: { var: string; kind: Kind; body: Term } } // Λα::κ.e
-//   | { tyapp: { term: Term; type: Type } } // e [τ]
-//   | { con: { name: string; type: Type } } // constants with their types
-//   | { record: { fields: [string, Term][] } } // {l₁=e₁, l₂=e₂, ...}
-//   | { project: { record: Term; label: string } } // e.l
-//   | { inject: { label: string; value: Term; variantType: Type } } // <l=e> as T
-//   | {
-//       match: {
-//         scrutinee: Term;
-//         cases: [string, { binder: string; body: Term }][];
-//       };
-//     }; // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
 export const var_term = (name: string) => ({ var: name });
 export const lam_term = (arg: string, type: Type, body: Term) => ({
   lam: { arg, type, body },
@@ -1202,9 +1323,7 @@ export const tyapp_term = (term: Term, type: Type) => ({
   tyapp: { term, type },
 });
 export const con_term = (name: string, type: Type) => ({ con: { name, type } });
-export const record_term = (record: [string, Term][]) => ({
-  record,
-});
+export const record_term = (record: [string, Term][]) => ({ record });
 export const project_term = (record: Term, label: string) => ({
   project: { record, label },
 });
@@ -1213,9 +1332,21 @@ export const inject_term = (label: string, value: Term, variantType: Type) => ({
 });
 export const match_term = (
   scrutinee: Term,
-  cases: [string, { binder: string; body: Term }][],
-) => ({
+  cases: [Pattern, Term][],
+): Term => ({
   match: { scrutinee, cases },
+});
+
+export const var_pattern = (name: string): Pattern => ({ var: name });
+export const wildcard_pattern = (): Pattern => ({ wildcard: null });
+export const con_pattern = (name: string, type: Type): Pattern => ({
+  con: { name, type },
+});
+export const record_pattern = (fields: [string, Pattern][]): Pattern => ({
+  record: fields,
+});
+export const variant_pattern = (label: string, pattern: Pattern): Pattern => ({
+  variant: { label, pattern },
 });
 
 export const unitType: Type = { con: "Unit" };
