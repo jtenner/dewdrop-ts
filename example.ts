@@ -2,10 +2,10 @@ import { Context, Kind, Type, Term, typecheck, showType, unitType, unitValue } f
 
 const boolType: Type = {
   variant: {
-    cases: {
-      True: unitType,
-      False: unitType,
-    },
+    cases: [
+      ["True", unitType],
+      ["False", unitType],
+    ],
   },
 };
 
@@ -25,10 +25,10 @@ if ("ok" in result) {
 // Example 2: Option type (like Rust's Option<T>)
 const optionType = (t: Type): Type => ({
   variant: {
-    cases: {
-      None: unitType,
-      Some: t,
-    },
+    cases: [
+      ["None", unitType],
+      ["Some", t],
+    ],
   },
 });
 
@@ -53,8 +53,8 @@ const isNone: Term = {
     body: {
       match: {
         scrutinee: { var: "opt" },
-        cases: {
-          None: {
+        cases: [
+          ["None", {
             binder: "_",
             body: {
               inject: {
@@ -63,8 +63,8 @@ const isNone: Term = {
                 variantType: boolType,
               },
             },
-          },
-          Some: {
+          }],
+          ["Some", {
             binder: "_",
             body: {
               inject: {
@@ -73,8 +73,8 @@ const isNone: Term = {
                 variantType: boolType,
               },
             },
-          },
-        },
+          }],
+        ],
       },
     },
   },
@@ -104,16 +104,16 @@ const unwrapOr: Term = {
             body: {
               match: {
                 scrutinee: { var: "opt" },
-                cases: {
-                  None: {
+                cases: [
+                  ["None", {
                     binder: "_",
                     body: { var: "default" },
-                  },
-                  Some: {
+                  }],
+                  ["Some", {
                     binder: "x",
                     body: { var: "x" },
-                  },
-                },
+                  }],
+                ],
               },
             },
           },
@@ -132,10 +132,10 @@ if ("ok" in unwrapOrType) {
 // Example 5: Result type (like Rust's Result<T, E>)
 const resultType = (t: Type, e: Type): Type => ({
   variant: {
-    cases: {
-      Ok: t,
-      Err: e,
-    },
+    cases: [
+      ["Ok", t],
+      ["Err", e],
+    ],
   },
 });
 
@@ -150,18 +150,18 @@ const okValue: Term = {
 // Example 6: Binary tree
 const treeType = (t: Type): Type => ({
   variant: {
-    cases: {
-      Leaf: unitType,
-      Node: {
+    cases: [
+      ["Leaf", unitType],
+      ["Node", {
         record: {
-          fields: {
-            value: t,
-            left: { var: "Tree" }, // This would need recursive types
-            right: { var: "Tree" },
-          },
+          fields: [
+            ["value", t],
+            ["left", { var: "Tree" }],
+            ["right", { var: "Tree" }],
+          ]
         },
-      },
-    },
+      }]
+    ],
   },
 });
 
@@ -185,8 +185,8 @@ const mapOption: Term = {
                 body: {
                   match: {
                     scrutinee: { var: "opt" },
-                    cases: {
-                      None: {
+                    cases: [
+                      ["None", {
                         binder: "_",
                         body: {
                           inject: {
@@ -195,8 +195,8 @@ const mapOption: Term = {
                             variantType: optionType({ var: "β" }),
                           },
                         },
-                      },
-                      Some: {
+                      }],
+                      ["Some", {
                         binder: "x",
                         body: {
                           inject: {
@@ -211,7 +211,8 @@ const mapOption: Term = {
                           },
                         },
                       },
-                    },
+                    ],
+                  ]
                   },
                 },
               },
