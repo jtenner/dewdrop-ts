@@ -1170,12 +1170,8 @@ export const lam_type = (name: string, kind: Kind, body: Type) => ({
   lam: { var: name, kind, body },
 });
 export const con_type = (con: string) => ({ con });
-export const record_type = (fields: [string, Type][]) => ({
-  record: { fields },
-});
-export const variant_type = (cases: [string, Type][]) => ({
-  variant: { cases },
-});
+export const record_type = (record: [string, Type][]) => ({ record });
+export const variant_type = (variant: [string, Type][]) => ({ variant });
 
 // // Terms
 // export type Term =
@@ -1206,8 +1202,8 @@ export const tyapp_term = (term: Term, type: Type) => ({
   tyapp: { term, type },
 });
 export const con_term = (name: string, type: Type) => ({ con: { name, type } });
-export const record_term = (fields: [string, Term][]) => ({
-  record: { fields },
+export const record_term = (record: [string, Term][]) => ({
+  record,
 });
 export const project_term = (record: Term, label: string) => ({
   project: { record, label },
