@@ -23,7 +23,8 @@ export type Type =
   | { lam: { var: string; kind: Kind; body: Type } } // λα::κ.τ
   | { con: string } // type constant (Int, Bool, etc.)
   | { record: [string, Type][] } // {l₁:τ₁, l₂:τ₂, ...}
-  | { variant: [string, Type][] }; // <l₁:τ₁ | l₂:τ₂ | ...>
+  | { variant: [string, Type][] } // <l₁:τ₁ | l₂:τ₂ | ...>
+  | { mu: { var: string; body: Type } }; // μα.τ - recursive type
 
 // Terms
 export type Term =
@@ -36,7 +37,9 @@ export type Term =
   | { record: [string, Term][] } // {l₁=e₁, l₂=e₂, ...}
   | { project: { record: Term; label: string } } // e.l
   | { inject: { label: string; value: Term; variantType: Type } } // <l=e> as T
-  | { match: { scrutinee: Term; cases: [Pattern, Term][] } }; // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
+  | { match: { scrutinee: Term; cases: [Pattern, Term][] } } // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
+  | { fold: { type: Type; term: Term } } // fold: τ[μα.τ/α] → μα.τ
+  | { unfold: Term }; // unfold: μα.τ → τ[μα.τ/α]
 
 // Context entries for type checking
 export type Binding =
@@ -142,6 +145,9 @@ export function showType(t: Type): string {
       .join(" | ");
     return `<${cases}>`;
   }
+  if ("mu" in t) {
+    return `μ${t.mu.var}.${showType(t.mu.body)}`;
+  }
   return "unknown";
 }
 
@@ -169,6 +175,12 @@ export function showTerm(t: Term): string {
       .map(([pattern, body]) => `${showPattern(pattern)} => ${showTerm(body)}`)
       .join(" | ");
     return `match ${showTerm(t.match.scrutinee)} { ${cases} }`;
+  }
+  if ("fold" in t) {
+    return `fold[${showType(t.fold.type)}](${showTerm(t.fold.term)})`;
+  }
+  if ("unfold" in t) {
+    return `unfold(${showTerm(t.unfold)})`;
   }
   return "unknown";
 }
@@ -352,6 +364,15 @@ export function substituteType(
     }
     return { variant };
   }
+  if ("mu" in inType) {
+    if (inType.mu.var === target) return inType; // bound variable, don't substitute
+    return {
+      mu: {
+        var: inType.mu.var,
+        body: substituteType(target, replacement, inType.mu.body),
+      },
+    };
+  }
   return inType;
 }
 
@@ -508,6 +529,27 @@ export function checkKind(
     return { ok: { star: null } };
   }
 
+  if ("mu" in type) {
+    // μα.τ has kind * if τ has kind * in context extended with α::*
+    const extendedContext: Context = [
+      ...context,
+      { type: { name: type.mu.var, kind: { star: null } } },
+    ];
+
+    const bodyKind = checkKind(extendedContext, type.mu.body);
+    if ("err" in bodyKind) return bodyKind;
+
+    if (!isStarKind(bodyKind.ok)) {
+      return {
+        err: {
+          kind_mismatch: { expected: { star: null }, actual: bodyKind.ok },
+        },
+      };
+    }
+
+    return { ok: { star: null } };
+  }
+
   throw new Error(`Unknown type: ${Object.keys(type)[0]}`);
 }
 
@@ -595,6 +637,12 @@ export function typesEqual(left: Type, right: Type): boolean {
     );
   }
 
+  if ("mu" in left && "mu" in right) {
+    // μα.τ₁ = μβ.τ₂ if τ₁ = τ₂[β/α]
+    const renamedBody = alphaRename(right.mu.var, left.mu.var, right.mu.body);
+    return typesEqual(left.mu.body, renamedBody);
+  }
+
   return false;
 }
 
@@ -656,6 +704,16 @@ export function alphaRename(from: string, to: string, type: Type): Type {
       variant.push([label, alphaRename(from, to, caseType)]);
     }
     return { variant };
+  }
+
+  if ("mu" in type) {
+    if (type.mu.var === from) return type; // shadowed
+    return {
+      mu: {
+        var: type.mu.var,
+        body: alphaRename(from, to, type.mu.body),
+      },
+    };
   }
 
   return type;
@@ -794,6 +852,13 @@ export function unifyTypes(
     return { ok: null };
   }
 
+  if ("mu" in left && "mu" in right) {
+    // Unify bodies after alpha-renaming
+    const renamedRight = alphaRename(right.mu.var, left.mu.var, right.mu.body);
+    worklist.push({ type_eq: { left: left.mu.body, right: renamedRight } });
+    return { ok: null };
+  }
+
   return {
     err: { type_mismatch: { expected: left, actual: right } },
   };
@@ -870,6 +935,11 @@ export function occursCheck(varName: string, type: Type): boolean {
     return type.variant.some((caseType) => occursCheck(varName, caseType[1]));
   }
 
+  if ("mu" in type) {
+    if (type.mu.var === varName) return false; // bound
+    return occursCheck(varName, type.mu.body);
+  }
+
   return false;
 }
 
@@ -936,6 +1006,17 @@ export function applySubstitution(subst: Substitution, type: Type): Type {
       variant.push([label, applySubstitution(subst, caseType)]);
     }
     return { variant };
+  }
+
+  if ("mu" in type) {
+    const newSubst = new Map(subst);
+    newSubst.delete(type.mu.var);
+    return {
+      mu: {
+        var: type.mu.var,
+        body: applySubstitution(newSubst, type.mu.body),
+      },
+    };
   }
 
   return type;
@@ -1199,6 +1280,67 @@ export function inferType(
 
     return { ok: resultType! };
   }
+
+  if ("fold" in term) {
+    // fold: τ[μα.τ/α] → μα.τ
+    // Check that the type is well-formed
+    const muKind = checkKind(context, term.fold.type);
+    if ("err" in muKind) return muKind;
+
+    if (!("mu" in term.fold.type)) {
+      return {
+        err: {
+          type_mismatch: { expected: term.fold.type, actual: term.fold.type },
+        },
+      };
+    }
+
+    // Compute the unfolded type: τ[μα.τ/α]
+    const unfoldedType = substituteType(
+      term.fold.type.mu.var,
+      term.fold.type,
+      term.fold.type.mu.body,
+    );
+
+    // Type check the term against the unfolded type
+    const termType = inferType(context, term.fold.term);
+    if ("err" in termType) return termType;
+
+    if (!typesEqual(unfoldedType, termType.ok)) {
+      return {
+        err: {
+          type_mismatch: {
+            expected: unfoldedType,
+            actual: termType.ok,
+          },
+        },
+      };
+    }
+
+    return { ok: term.fold.type };
+  }
+
+  if ("unfold" in term) {
+    // unfold: μα.τ → τ[μα.τ/α]
+    const termType = inferType(context, term.unfold);
+    if ("err" in termType) return termType;
+
+    if (!("mu" in termType.ok)) {
+      return {
+        err: { not_a_function: termType.ok },
+      };
+    }
+
+    // Compute the unfolded type
+    const unfoldedType = substituteType(
+      termType.ok.mu.var,
+      termType.ok,
+      termType.ok.mu.body,
+    );
+
+    return { ok: unfoldedType };
+  }
+
   throw new Error(`Unknown term: ${Object.keys(term)[0]}`);
 }
 
@@ -1310,6 +1452,9 @@ export const lam_type = (name: string, kind: Kind, body: Type) => ({
 export const con_type = (con: string) => ({ con });
 export const record_type = (record: [string, Type][]) => ({ record });
 export const variant_type = (variant: [string, Type][]) => ({ variant });
+export const mu_type = (var_name: string, body: Type): Type => ({
+  mu: { var: var_name, body },
+});
 
 export const var_term = (name: string) => ({ var: name });
 export const lam_term = (arg: string, type: Type, body: Term) => ({
@@ -1335,6 +1480,13 @@ export const match_term = (
   cases: [Pattern, Term][],
 ): Term => ({
   match: { scrutinee, cases },
+});
+export const fold_term = (type: Type, term: Term): Term => ({
+  fold: { type, term },
+});
+
+export const unfold_term = (term: Term): Term => ({
+  unfold: term,
 });
 
 export const var_pattern = (name: string): Pattern => ({ var: name });

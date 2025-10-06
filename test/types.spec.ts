@@ -32,6 +32,9 @@ import {
   record_pattern,
   unitType,
   unitValue,
+  mu_type,
+  fold_term,
+  unfold_term,
 } from "../src/types_system_f_omega";
 import { test } from "bun:test";
 
@@ -617,3 +620,194 @@ test("Either type with bimap", () => {
   const type = assertOk(result, "should typecheck");
   assert("forall" in type, "should be polymorphic");
 });
+
+test("Natural number type", () => {
+  const natType = mu_type(
+    "N",
+    variant_type([
+      ["Zero", unitType],
+      ["Succ", var_type("N")],
+    ])
+  );
+
+  const kind = checkKind([], natType);
+  const k = assertOk(kind, "should have kind *");
+  assert("star" in k, "should be star kind");
+});
+
+test("Zero value", () => {
+  const natType = mu_type(
+    "N",
+    variant_type([
+      ["Zero", unitType],
+      ["Succ", var_type("N")],
+    ])
+  );
+
+  const zero = fold_term(
+    natType,
+    inject_term("Zero", unitValue, variant_type([
+      ["Zero", unitType],
+      ["Succ", natType],
+    ]))
+  );
+
+  const result = typecheck([], zero);
+  const type = assertOk(result, "should typecheck");
+  assert(typesEqual(type, natType), "should be Nat type");
+});
+
+test("Successor function", () => {
+  const natType = mu_type(
+    "N",
+    variant_type([
+      ["Zero", unitType],
+      ["Succ", var_type("N")],
+    ])
+  );
+
+  const succ = lam_term(
+    "n",
+    natType,
+    fold_term(
+      natType,
+      inject_term("Succ", var_term("n"), variant_type([
+        ["Zero", unitType],
+        ["Succ", natType],
+      ]))
+    )
+  );
+
+  const result = typecheck([], succ);
+  const type = assertOk(result, "should typecheck");
+  assert("arrow" in type, "should be function type");
+  assert(typesEqual(type.arrow.from, natType), "input should be Nat");
+  assert(typesEqual(type.arrow.to, natType), "output should be Nat");
+});
+
+test("Unfold natural number", () => {
+  const natType = mu_type(
+    "N",
+    variant_type([
+      ["Zero", unitType],
+      ["Succ", var_type("N")],
+    ])
+  );
+
+  const ctx: Context = [{ term: { name: "n", type: natType } }];
+  const unfolded = unfold_term(var_term("n"));
+
+  const result = typecheck(ctx, unfolded);
+  const type = assertOk(result, "should typecheck");
+  assert("variant" in type, "should be variant type");
+});
+
+test("List type", () => {
+  const listInt = mu_type(
+    "L",
+    variant_type([
+      ["Nil", unitType],
+      [
+        "Cons",
+        record_type([
+          ["head", con_type("Int")],
+          ["tail", var_type("L")],
+        ]),
+      ],
+    ])
+  );
+
+  const kind = checkKind([], listInt);
+  const k = assertOk(kind, "should have kind *");
+  assert("star" in k, "should be star kind");
+});
+
+test("Empty list", () => {
+  const listInt = mu_type(
+    "L",
+    variant_type([
+      ["Nil", unitType],
+      [
+        "Cons",
+        record_type([
+          ["head", con_type("Int")],
+          ["tail", var_type("L")],
+        ]),
+      ],
+    ])
+  );
+
+  const emptyList = fold_term(
+    listInt,
+    inject_term("Nil", unitValue, variant_type([
+      ["Nil", unitType],
+      [
+        "Cons",
+        record_type([
+          ["head", con_type("Int")],
+          ["tail", listInt],
+        ]),
+      ],
+    ]))
+  );
+
+  const result = typecheck([], emptyList);
+  const type = assertOk(result, "should typecheck");
+  assert(typesEqual(type, listInt), "should be List Int type");
+});
+
+test("Cons cell", () => {
+  const listInt = mu_type(
+    "L",
+    variant_type([
+      ["Nil", unitType],
+      [
+        "Cons",
+        record_type([
+          ["head", con_type("Int")],
+          ["tail", var_type("L")],
+        ]),
+      ],
+    ])
+  );
+
+  const emptyList = fold_term(
+    listInt,
+    inject_term("Nil", unitValue, variant_type([
+      ["Nil", unitType],
+      [
+        "Cons",
+        record_type([
+          ["head", con_type("Int")],
+          ["tail", listInt],
+        ]),
+      ],
+    ]))
+  );
+
+  const oneElementList = fold_term(
+    listInt,
+    inject_term(
+      "Cons",
+      record_term([
+        ["head", con_term("42", con_type("Int"))],
+        ["tail", emptyList],
+      ]),
+      variant_type([
+        ["Nil", unitType],
+        [
+          "Cons",
+          record_type([
+            ["head", con_type("Int")],
+            ["tail", listInt],
+          ]),
+        ],
+      ])
+    )
+  );
+
+  const result = typecheck([], oneElementList);
+  const type = assertOk(result, "should typecheck");
+  assert(typesEqual(type, listInt), "should be List Int type");
+});
+

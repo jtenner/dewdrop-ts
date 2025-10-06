@@ -20,7 +20,6 @@ type NamedTypeExpression = { name: NameIdentifier; ty: TypeExpression };
 
 export type TypeExpression =
   | { name: string }
-  | { etname: string }
   | { type: string }
   | { select: { root: TypeExpression; name: Identifier } }
   | { app: { callee: TypeExpression; args: TypeExpression[] } }
@@ -1962,22 +1961,30 @@ export const parse = (text: string) => parse_tokens(lex(chars(text)));
 
 export const parse_file = (file: string) => parse_tokens(lex(chars_from(file)));
 
-const parse_tokens = async (tokens: TokenIter) => {
-  const declarations = [] as Declaration[];
+const parse_tokens_streaming = async function* (tokens: TokenIter) {
   let next_token: Token | null = null;
   let declaration: Declaration | null = null;
 
   while (true) {
     if (!next_token) {
       const result = await next(tokens);
-      if (!result) return { module: declarations };
+      if (!result) return;
       next_token = result;
     }
 
     [next_token, declaration] = await take_declaration(next_token, tokens);
-    if (declaration) declarations.push(declaration);
+    if (declaration) yield declaration;
   }
 };
+
+const parse_tokens = async (gen: AsyncGenerator<Token, void, unknown>) => {
+  return await Array.fromAsync(gen);
+};
+
+export const parse_streaming = (text: string) =>
+  parse_tokens_streaming(lex(chars(text)));
+export const parse_file_streaming = (file: string) =>
+  parse_tokens_streaming(lex(chars_from(file)));
 
 export async function take_declaration(
   next_token: Token | null,

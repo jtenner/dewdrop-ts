@@ -2,6 +2,7 @@ import {
   Context, Kind, Type, Term, typecheck, showType, unitType, unitValue,
   variant_type, con_type, match_term, var_term, variant_pattern, con_term,
   lam_term, wildcard_pattern, var_pattern, record_type, record_pattern,
+  mu_type, fold_term, inject_term, unfold_term, app_term, var_type,
  } from "./src/types_system_f_omega";
 // Example 1: Simple variant matching with wildcard
 const optionType = variant_type([
