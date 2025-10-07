@@ -8,7 +8,7 @@
 
     // Bundler mode
     "verbatimModuleSyntax": true,
-
+    "outDir": "lib",
     // Best practices
     "strict": true,
     "skipLibCheck": true,

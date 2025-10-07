@@ -16,34 +16,53 @@ export type Module = {
   module: Declaration[];
 };
 
-type NamedTypeExpression = { name: NameIdentifier; ty: TypeExpression };
+export type NamedTypeExpression = { name: NameIdentifier; ty: TypeExpression };
 
+export type NameTypeExpression = { name: string };
+export type SelectTypeExpression = {
+  select: { root: TypeExpression; name: Identifier };
+};
+export type ApplicationTypeExpression = {
+  app: { callee: TypeExpression; args: TypeExpression[] };
+};
+export type FnTypeExpression = {
+  fn: { args: TypeExpression[]; ret: TypeExpression };
+};
+export type RecordTypeExpression = { record: NamedTypeExpression[] };
+export type TupleTypeExpression = { tuple: TypeExpression[] };
 export type TypeExpression =
-  | { name: string }
-  | { type: string }
-  | { select: { root: TypeExpression; name: Identifier } }
-  | { app: { callee: TypeExpression; args: TypeExpression[] } }
-  | { fn: { args: TypeExpression[]; ret: TypeExpression } }
-  | { record: NamedTypeExpression[] }
-  | { tuple: TypeExpression[] }
-  | { bottom: null }
-  | { top: null };
+  | NameIdentifier
+  | TypeIdentifier
+  | SelectTypeExpression
+  | ApplicationTypeExpression
+  | FnTypeExpression
+  | RecordTypeExpression
+  | TupleTypeExpression;
 
+export type ArrowKindBodyExpression = {
+  arrow_bind: { name: NameIdentifier; expression: Expression };
+};
+export type LetBindBodyExpression = {
+  let_bind: {
+    pattern: PatternExpression;
+    assert: boolean;
+    expression: Expression;
+  };
+};
+export type AssignBodyExpression = {
+  assign: { name: NameIdentifier; expression: Expression };
+};
+export type ExpressionBodyExpression = { expression: Expression };
 export type BodyExpression =
-  | { arrow_bind: { name: NameIdentifier; expression: Expression } }
-  | {
-      let_bind: {
-        pattern: PatternExpression;
-        assert: boolean;
-        expression: Expression;
-      };
-    }
-  | { assign: { name: NameIdentifier; expression: Expression } }
-  | { expression: Expression };
+  | ArrowKindBodyExpression
+  | LetBindBodyExpression
+  | AssignBodyExpression
+  | ExpressionBodyExpression;
 
+export type ConstructorExpression = { constr: string };
 export type Expression =
-  | { name: string }
-  | { constr: string }
+  | NameIdentifier
+  | ConstructorExpression
   | { call: [Expression, Expression[]] }
   | { block: BodyExpression[] }
   | {
@@ -79,14 +98,24 @@ export type MatchArm = {
   body: Expression;
 };
 
+export type ConstructorPatternExpression = {
+  constr: [TypeIdentifier, PatternExpression[]];
+};
+export type IntPatternExpression = { int: { value: bigint; size: number } };
+export type FloatPatternExpression = { float: { value: number; size: number } };
+export type StringPatternExpression = { string: string };
+export type RecordPatternExpression = {
+  record: [NameIdentifier, PatternExpression][];
+};
+export type TuplePatternExpression = { tuple: PatternExpression[] };
 export type PatternExpression =
-  | { name: string }
-  | { constr: [TypeIdentifier, PatternExpression[]] }
-  | { int: { value: bigint; size: number } }
-  | { float: { value: number; size: number } }
-  | { string: string }
-  | { record: [NameIdentifier, PatternExpression][] }
-  | { tuple: PatternExpression[] };
+  | NameIdentifier
+  | ConstructorPatternExpression
+  | IntPatternExpression
+  | FloatPatternExpression
+  | StringPatternExpression
+  | RecordPatternExpression
+  | TuplePatternExpression;
 
 export type TypeIdentifier = TypeToken;
 export type NameIdentifier = NameToken;
