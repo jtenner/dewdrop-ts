@@ -1957,9 +1957,13 @@ const take_pub = async (
   return [await consume_until_keyword_or_semicolon(tokens), null];
 };
 
-export const parse = (text: string) => parse_tokens(lex(chars(text)));
+export const parse = async (text: string) => ({
+  module: await Array.fromAsync(parse_tokens_streaming(lex(chars(text)))),
+});
 
-export const parse_file = (file: string) => parse_tokens(lex(chars_from(file)));
+export const parse_file = async (file: string) => ({
+  module: await Array.fromAsync(parse_tokens_streaming(lex(chars_from(file)))),
+});
 
 const parse_tokens_streaming = async function* (tokens: TokenIter) {
   let next_token: Token | null = null;
@@ -1975,10 +1979,6 @@ const parse_tokens_streaming = async function* (tokens: TokenIter) {
     [next_token, declaration] = await take_declaration(next_token, tokens);
     if (declaration) yield declaration;
   }
-};
-
-const parse_tokens = async (gen: AsyncGenerator<Token, void, unknown>) => {
-  return await Array.fromAsync(gen);
 };
 
 export const parse_streaming = (text: string) =>
