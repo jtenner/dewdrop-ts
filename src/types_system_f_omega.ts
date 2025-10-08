@@ -12,7 +12,8 @@ export type Pattern =
   | { wildcard: null } // _ - match anything
   | { con: { name: string; type: Type } } // literal constant
   | { record: [string, Pattern][] } // { l1: p1, l2: p2 }
-  | { variant: { label: string; pattern: Pattern } }; // Label(pattern)
+  | { variant: { label: string; pattern: Pattern } } // Label(pattern)
+  | { tuple: Pattern[] }; // #(...patterns)
 
 // Types
 export type Type =
@@ -24,8 +25,8 @@ export type Type =
   | { con: string } // type constant (Int, Bool, etc.)
   | { record: [string, Type][] } // {l₁:τ₁, l₂:τ₂, ...}
   | { variant: [string, Type][] } // <l₁:τ₁ | l₂:τ₂ | ...>
-  | { mu: { var: string; body: Type } }; // μα.τ - recursive type
-
+  | { mu: { var: string; body: Type } } // μα.τ - recursive type
+  | { tuple: Type[] }; // tuples;
 // Terms
 export type Term =
   | { var: string } // variable x
@@ -39,7 +40,9 @@ export type Term =
   | { inject: { label: string; value: Term; variantType: Type } } // <l=e> as T
   | { match: { scrutinee: Term; cases: [Pattern, Term][] } } // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
   | { fold: { type: Type; term: Term } } // fold: τ[μα.τ/α] → μα.τ
-  | { unfold: Term }; // unfold: μα.τ → τ[μα.τ/α]
+  | { unfold: Term } // unfold: μα.τ → τ[μα.τ/α]
+  | { tuple: Term[] } // tuple: #(l₁, l₂, ...)
+  | { tupleProject: { tuple: Term; index: number } }; // tuple[0]
 
 // Context entries for type checking
 export type Binding =
@@ -60,7 +63,9 @@ export type TypeError =
   | { not_a_variant: Type }
   | { invalid_variant_label: { variant: Type; label: string } }
   | { missing_case: { label: string } }
-  | { extra_case: { label: string } };
+  | { extra_case: { label: string } }
+  | { not_a_tuple: Type }
+  | { tuple_index_out_of_bounds: { tuple: Type; index: number } };
 
 export type Result<Err, T> = { ok: T } | { err: Err };
 
@@ -87,6 +92,10 @@ export function showPattern(p: Pattern): string {
   if ("variant" in p) {
     return `${p.variant.label}(${showPattern(p.variant.pattern)})`;
   }
+  if ("tuple" in p) {
+    const elements = p.tuple.map(showPattern).join(", ");
+    return `(${elements})`;
+  }
   return "unknown";
 }
 
@@ -111,6 +120,13 @@ export function patternBindings(pattern: Pattern): [string, Type][] {
   }
   if ("variant" in pattern) {
     return patternBindings(pattern.variant.pattern);
+  }
+  if ("tuple" in pattern) {
+    const bindings: [string, Type][] = [];
+    for (const subPattern of pattern.tuple) {
+      bindings.push(...patternBindings(subPattern));
+    }
+    return bindings;
   }
   return [];
 }
@@ -148,6 +164,10 @@ export function showType(t: Type): string {
   if ("mu" in t) {
     return `μ${t.mu.var}.${showType(t.mu.body)}`;
   }
+  if ("tuple" in t) {
+    const elements = t.tuple.map(showType).join(", ");
+    return `(${elements})`;
+  }
   return "unknown";
 }
 
@@ -181,6 +201,13 @@ export function showTerm(t: Term): string {
   }
   if ("unfold" in t) {
     return `unfold(${showTerm(t.unfold)})`;
+  }
+  if ("tuple" in t) {
+    const elements = t.tuple.map(showTerm).join(", ");
+    return `(${elements})`;
+  }
+  if ("tupleProject" in t) {
+    return `${showTerm(t.tupleProject.tuple)}.${t.tupleProject.index}`;
   }
   return "unknown";
 }
@@ -311,6 +338,36 @@ export function checkPattern(
     return checkPattern(pattern.variant.pattern, caseType[1], context);
   }
 
+  if ("tuple" in pattern) {
+    if (!("tuple" in type)) {
+      return { err: { not_a_tuple: type } };
+    }
+
+    if (pattern.tuple.length !== type.tuple.length) {
+      return {
+        err: {
+          type_mismatch: {
+            expected: type,
+            actual: { tuple: pattern.tuple.map(() => unitType) },
+          },
+        },
+      };
+    }
+
+    const bindings: Context = [];
+    for (let i = 0; i < pattern.tuple.length; i++) {
+      const subPattern = pattern.tuple[i]!;
+      const elementType = type.tuple[i]!;
+
+      const subResult = checkPattern(subPattern, elementType, context);
+      if ("err" in subResult) return subResult;
+
+      bindings.push(...subResult.ok);
+    }
+
+    return { ok: bindings };
+  }
+
   throw new Error(`Unknown pattern: ${Object.keys(pattern)[0]}`);
 }
 
@@ -320,6 +377,7 @@ export function substituteType(
   inType: Type,
 ): Type {
   if ("var" in inType) return inType.var === target ? replacement : inType;
+
   if ("arrow" in inType)
     return {
       arrow: {
@@ -327,6 +385,7 @@ export function substituteType(
         to: substituteType(target, replacement, inType.arrow.to),
       },
     };
+
   if ("forall" in inType && inType.forall.var !== target)
     return {
       forall: {
@@ -335,6 +394,7 @@ export function substituteType(
         body: substituteType(target, replacement, inType.forall.body),
       },
     };
+
   if ("app" in inType)
     return {
       app: {
@@ -342,6 +402,7 @@ export function substituteType(
         arg: substituteType(target, replacement, inType.app.arg),
       },
     };
+
   if ("lam" in inType)
     return {
       lam: {
@@ -350,6 +411,7 @@ export function substituteType(
         var: inType.lam.var,
       },
     };
+
   if ("record" in inType) {
     const record: [string, Type][] = [];
     for (const [label, fieldType] of inType.record) {
@@ -357,6 +419,7 @@ export function substituteType(
     }
     return { record };
   }
+
   if ("variant" in inType) {
     const variant: [string, Type][] = [];
     for (const [label, caseType] of inType.variant) {
@@ -364,6 +427,7 @@ export function substituteType(
     }
     return { variant };
   }
+
   if ("mu" in inType) {
     if (inType.mu.var === target) return inType; // bound variable, don't substitute
     return {
@@ -371,6 +435,12 @@ export function substituteType(
         var: inType.mu.var,
         body: substituteType(target, replacement, inType.mu.body),
       },
+    };
+  }
+
+  if ("tuple" in inType) {
+    return {
+      tuple: inType.tuple.map((t) => substituteType(target, replacement, t)),
     };
   }
   return inType;
@@ -550,6 +620,27 @@ export function checkKind(
     return { ok: { star: null } };
   }
 
+  if ("tuple" in type) {
+    // All element types must have kind *
+    for (const elementType of type.tuple) {
+      const elementKind = checkKind(context, elementType);
+      if ("err" in elementKind) return elementKind;
+
+      if (!isStarKind(elementKind.ok)) {
+        return {
+          err: {
+            kind_mismatch: {
+              expected: { star: null },
+              actual: elementKind.ok,
+            },
+          },
+        };
+      }
+    }
+
+    return { ok: { star: null } };
+  }
+
   throw new Error(`Unknown type: ${Object.keys(type)[0]}`);
 }
 
@@ -643,6 +734,14 @@ export function typesEqual(left: Type, right: Type): boolean {
     return typesEqual(left.mu.body, renamedBody);
   }
 
+  if ("tuple" in left && "tuple" in right) {
+    if (left.tuple.length !== right.tuple.length) return false;
+
+    return left.tuple.every((leftElem, i) =>
+      typesEqual(leftElem, right.tuple[i]!),
+    );
+  }
+
   return false;
 }
 
@@ -713,6 +812,12 @@ export function alphaRename(from: string, to: string, type: Type): Type {
         var: type.mu.var,
         body: alphaRename(from, to, type.mu.body),
       },
+    };
+  }
+
+  if ("tuple" in type) {
+    return {
+      tuple: type.tuple.map((t) => alphaRename(from, to, t)),
     };
   }
 
@@ -859,6 +964,26 @@ export function unifyTypes(
     return { ok: null };
   }
 
+  if ("tuple" in left && "tuple" in right) {
+    if (left.tuple.length !== right.tuple.length) {
+      return {
+        err: { type_mismatch: { expected: left, actual: right } },
+      };
+    }
+
+    // Unify all element types
+    for (let i = 0; i < left.tuple.length; i++) {
+      worklist.push({
+        type_eq: {
+          left: left.tuple[i]!,
+          right: right.tuple[i]!,
+        },
+      });
+    }
+
+    return { ok: null };
+  }
+
   return {
     err: { type_mismatch: { expected: left, actual: right } },
   };
@@ -940,6 +1065,10 @@ export function occursCheck(varName: string, type: Type): boolean {
     return occursCheck(varName, type.mu.body);
   }
 
+  if ("tuple" in type) {
+    return type.tuple.some((elementType) => occursCheck(varName, elementType));
+  }
+
   return false;
 }
 
@@ -1016,6 +1145,12 @@ export function applySubstitution(subst: Substitution, type: Type): Type {
         var: type.mu.var,
         body: applySubstitution(newSubst, type.mu.body),
       },
+    };
+  }
+
+  if ("tuple" in type) {
+    return {
+      tuple: type.tuple.map((t) => applySubstitution(subst, t)),
     };
   }
 
@@ -1341,6 +1476,44 @@ export function inferType(
     return { ok: unfoldedType };
   }
 
+  if ("tuple" in term) {
+    const elementTypes: Type[] = [];
+
+    for (const element of term.tuple) {
+      const elementType = inferType(context, element);
+      if ("err" in elementType) return elementType;
+
+      elementTypes.push(elementType.ok);
+    }
+
+    return { ok: { tuple: elementTypes } };
+  }
+
+  if ("tupleProject" in term) {
+    const tupleType = inferType(context, term.tupleProject.tuple);
+    if ("err" in tupleType) return tupleType;
+
+    if (!("tuple" in tupleType.ok)) {
+      return {
+        err: { not_a_tuple: tupleType.ok },
+      };
+    }
+
+    const index = term.tupleProject.index;
+    if (index < 0 || index >= tupleType.ok.tuple.length) {
+      return {
+        err: {
+          tuple_index_out_of_bounds: {
+            tuple: tupleType.ok,
+            index,
+          },
+        },
+      };
+    }
+
+    return { ok: tupleType.ok.tuple[index]! };
+  }
+
   throw new Error(`Unknown term: ${Object.keys(term)[0]}`);
 }
 
@@ -1440,6 +1613,7 @@ export function typecheckWithConstraints(
   return { ok: resultType };
 }
 
+// Type Constructors:
 export const var_type = (name: string) => ({ var: name });
 export const arrow_type = (from: Type, to: Type) => ({ arrow: { from, to } });
 export const forall_type = (name: string, kind: Kind, body: Type) => ({
@@ -1455,7 +1629,9 @@ export const variant_type = (variant: [string, Type][]) => ({ variant });
 export const mu_type = (var_name: string, body: Type): Type => ({
   mu: { var: var_name, body },
 });
+export const tuple_type = (elements: Type[]): Type => ({ tuple: elements });
 
+// Term Constructors:
 export const var_term = (name: string) => ({ var: name });
 export const lam_term = (arg: string, type: Type, body: Term) => ({
   lam: { arg, type, body },
@@ -1484,11 +1660,15 @@ export const match_term = (
 export const fold_term = (type: Type, term: Term): Term => ({
   fold: { type, term },
 });
-
 export const unfold_term = (term: Term): Term => ({
   unfold: term,
 });
+export const tuple_term = (elements: Term[]): Term => ({ tuple: elements });
+export const tuple_project_term = (tuple: Term, index: number): Term => ({
+  tupleProject: { tuple, index },
+});
 
+// Pattern Constructors
 export const var_pattern = (name: string): Pattern => ({ var: name });
 export const wildcard_pattern = (): Pattern => ({ wildcard: null });
 export const con_pattern = (name: string, type: Type): Pattern => ({
@@ -1499,6 +1679,9 @@ export const record_pattern = (fields: [string, Pattern][]): Pattern => ({
 });
 export const variant_pattern = (label: string, pattern: Pattern): Pattern => ({
   variant: { label, pattern },
+});
+export const tuple_pattern = (elements: Pattern[]): Pattern => ({
+  tuple: elements,
 });
 
 export const unitType: Type = { con: "Unit" };

@@ -35,6 +35,12 @@ import {
   mu_type,
   fold_term,
   unfold_term,
+  tuple_type,
+  tuple_term,
+  tuple_project_term,
+  tuple_pattern,
+  app_type,
+  lam_type,
 } from "../src/types_system_f_omega";
 import { test } from "bun:test";
 
@@ -811,3 +817,425 @@ test("Cons cell", () => {
   assert(typesEqual(type, listInt), "should be List Int type");
 });
 
+
+test("Simple tuple", () => {
+  const tupleType = tuple_type([con_type("Int"), con_type("String")]);
+  const tuple = tuple_term([
+    con_term("42", con_type("Int")),
+    con_term("\"hello\"", con_type("String")),
+  ]);
+
+  const result = typecheck([], tuple);
+  const type = assertOk(result, "should typecheck");
+  assert("tuple" in type, "should be tuple type");
+  assert(type.tuple.length === 2, "should have 2 elements");
+});
+
+test("Tuple projection", () => {
+  const tuple = tuple_term([
+    con_term("42", con_type("Int")),
+    con_term("\"hello\"", con_type("String")),
+    con_term("true", con_type("Bool")),
+  ]);
+
+  const proj0 = tuple_project_term(tuple, 0);
+  const proj1 = tuple_project_term(tuple, 1);
+  const proj2 = tuple_project_term(tuple, 2);
+
+  const result0 = typecheck([], proj0);
+  const type0 = assertOk(result0, "should typecheck");
+  assert(typesEqual(type0, con_type("Int")), "should be Int");
+
+  const result1 = typecheck([], proj1);
+  const type1 = assertOk(result1, "should typecheck");
+  assert(typesEqual(type1, con_type("String")), "should be String");
+
+  const result2 = typecheck([], proj2);
+  const type2 = assertOk(result2, "should typecheck");
+  assert(typesEqual(type2, con_type("Bool")), "should be Bool");
+});
+
+test("Out of bounds tuple projection", () => {
+  const tuple = tuple_term([
+    con_term("42", con_type("Int")),
+    con_term("\"hello\"", con_type("String")),
+  ]);
+
+  const outOfBounds = tuple_project_term(tuple, 5);
+  const result = typecheck([], outOfBounds);
+  const err = assertErr(result, "should fail");
+  assert("tuple_index_out_of_bounds" in err, "should be out of bounds error");
+});
+
+test("Negative tuple projection", () => {
+  const tuple = tuple_term([con_term("42", con_type("Int"))]);
+  const negative = tuple_project_term(tuple, -1);
+  const result = typecheck([], negative);
+  const err = assertErr(result, "should fail");
+  assert("tuple_index_out_of_bounds" in err, "should be out of bounds error");
+});
+
+test("Empty tuple (unit)", () => {
+  const emptyTuple = tuple_term([]);
+  const result = typecheck([], emptyTuple);
+  const type = assertOk(result, "should typecheck");
+  assert("tuple" in type, "should be tuple type");
+  assert(type.tuple.length === 0, "should be empty");
+});
+
+test("Nested tuples", () => {
+  const innerTuple = tuple_term([
+    con_term("1", con_type("Int")),
+    con_term("2", con_type("Int")),
+  ]);
+  
+  const outerTuple = tuple_term([
+    innerTuple,
+    con_term("\"outer\"", con_type("String")),
+  ]);
+
+  const getInnerFirst = tuple_project_term(
+    tuple_project_term(outerTuple, 0),
+    0
+  );
+
+  const result = typecheck([], getInnerFirst);
+  const type = assertOk(result, "should typecheck");
+  assert(typesEqual(type, con_type("Int")), "should be Int");
+});
+
+test("Tuple pattern matching", () => {
+  const pairType = tuple_type([con_type("Int"), con_type("String")]);
+  
+  const swap = lam_term(
+    "p",
+    pairType,
+    match_term(var_term("p"), [
+      [
+        tuple_pattern([var_pattern("x"), var_pattern("y")]),
+        tuple_term([var_term("y"), var_term("x")]),
+      ],
+    ])
+  );
+
+  const result = typecheck([], swap);
+  const type = assertOk(result, "should typecheck");
+  assert("arrow" in type, "should be function type");
+});
+
+test("Tuple with wildcard pattern", () => {
+  const tripleType = tuple_type([
+    con_type("Int"),
+    con_type("String"),
+    con_type("Bool"),
+  ]);
+
+  const getFirst = lam_term(
+    "t",
+    tripleType,
+    match_term(var_term("t"), [
+      [
+        tuple_pattern([
+          var_pattern("x"),
+          wildcard_pattern(),
+          wildcard_pattern(),
+        ]),
+        var_term("x"),
+      ],
+    ])
+  );
+
+  const result = typecheck([], getFirst);
+  const type = assertOk(result, "should typecheck");
+  assert("arrow" in type, "should be function type");
+  assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
+});
+
+test("Polymorphic fst function", () => {
+  const fst = tylam_term(
+    "A",
+    { star: null },
+    tylam_term(
+      "B",
+      { star: null },
+      lam_term(
+        "p",
+        tuple_type([var_type("A"), var_type("B")]),
+        tuple_project_term(var_term("p"), 0)
+      )
+    )
+  );
+
+  const result = typecheck([], fst);
+  const type = assertOk(result, "should typecheck");
+  assert("forall" in type, "should be polymorphic");
+});
+
+test("Polymorphic snd function", () => {
+  const snd = tylam_term(
+    "A",
+    { star: null },
+    tylam_term(
+      "B",
+      { star: null },
+      lam_term(
+        "p",
+        tuple_type([var_type("A"), var_type("B")]),
+        tuple_project_term(var_term("p"), 1)
+      )
+    )
+  );
+
+  const result = typecheck([], snd);
+  const type = assertOk(result, "should typecheck");
+  assert("forall" in type, "should be polymorphic");
+});
+
+test("Map function", () => {
+  const map = tylam_term(
+    "A",
+    { star: null },
+    tylam_term(
+      "B",
+      { star: null },
+      lam_term(
+        "f",
+        arrow_type(var_type("A"), var_type("B")),
+        lam_term(
+          "x",
+          var_type("A"),
+          app_term(var_term("f"), var_term("x"))
+        )
+      )
+    )
+  );
+
+  const result = typecheck([], map);
+  assertOk(result, "should typecheck");
+});
+
+test("Compose function", () => {
+  const compose = tylam_term(
+    "A",
+    { star: null },
+    tylam_term(
+      "B",
+      { star: null },
+      tylam_term(
+        "C",
+        { star: null },
+        lam_term(
+          "f",
+          arrow_type(var_type("B"), var_type("C")),
+          lam_term(
+            "g",
+            arrow_type(var_type("A"), var_type("B")),
+            lam_term(
+              "x",
+              var_type("A"),
+              app_term(
+                var_term("f"),
+                app_term(var_term("g"), var_term("x"))
+              )
+            )
+          )
+        )
+      )
+    )
+  );
+
+  const result = typecheck([], compose);
+  assertOk(result, "should typecheck");
+});
+
+test("Flip function", () => {
+  const flip = tylam_term(
+    "A",
+    { star: null },
+    tylam_term(
+      "B",
+      { star: null },
+      tylam_term(
+        "C",
+        { star: null },
+        lam_term(
+          "f",
+          arrow_type(var_type("A"), arrow_type(var_type("B"), var_type("C"))),
+          lam_term(
+            "b",
+            var_type("B"),
+            lam_term(
+              "a",
+              var_type("A"),
+              app_term(app_term(var_term("f"), var_term("a")), var_term("b"))
+            )
+          )
+        )
+      )
+    )
+  );
+
+  const result = typecheck([], flip);
+  assertOk(result, "should typecheck");
+});
+
+test("Type constructor application", () => {
+  const listCon = lam_type(
+    "T",
+    { star: null },
+    mu_type(
+      "L",
+      variant_type([
+        ["Nil", unitType],
+        ["Cons", record_type([["head", var_type("T")], ["tail", var_type("L")]])],
+      ])
+    )
+  );
+
+  const listInt = app_type(listCon, con_type("Int"));
+  const kind = checkKind([], listInt);
+  assertOk(kind, "should have valid kind");
+});
+
+test("Type constructor kind mismatch", () => {
+  const ctx: Context = [
+    { type: { name: "F", kind: { arrow: { from: { star: null }, to: { star: null } } } } },
+  ];
+  
+  // Try to apply F to something that's not kind *
+  const badApp = app_type(
+    var_type("F"),
+    lam_type("X", { star: null }, var_type("X"))
+  );
+  
+  const result = checkKind(ctx, badApp);
+  const err = assertErr(result, "should fail");
+  assert("kind_mismatch" in err, "should be kind mismatch");
+});
+
+test("Self-application (should fail)", () => {
+  // λx. x x - this should fail in simply typed lambda calculus
+  const selfApp = lam_term(
+    "x",
+    arrow_type(var_type("T"), var_type("T")),
+    app_term(var_term("x"), var_term("x"))
+  );
+
+  const result = typecheck([], selfApp);
+  // This might succeed in System F with proper polymorphism,
+  // but worth testing the behavior
+});
+
+test("Deep nesting", () => {
+  // Deeply nested records
+  let deepRecord: Term = con_term("42", con_type("Int"));
+  for (let i = 0; i < 10; i++) {
+    deepRecord = record_term([["inner", deepRecord]]);
+  }
+
+  const result = typecheck([], deepRecord);
+  assertOk(result, "should handle deep nesting");
+});
+
+test("Large record", () => {
+  const fields: [string, Term][] = [];
+  for (let i = 0; i < 100; i++) {
+    fields.push([`field${i}`, con_term(`${i}`, con_type("Int"))]);
+  }
+  
+  const largeRecord = record_term(fields);
+  const result = typecheck([], largeRecord);
+  assertOk(result, "should handle large records");
+});
+
+test("Shadowed variables", () => {
+  const shadowed = lam_term(
+    "x",
+    con_type("Int"),
+    lam_term(
+      "x",
+      con_type("String"),
+      var_term("x")
+    )
+  );
+
+  const result = typecheck([], shadowed);
+  const type = assertOk(result, "should typecheck");
+  assert("arrow" in type, "should be function type");
+  // Inner x shadows outer x, so result should be String
+});
+
+test("Binary tree type", () => {
+  const treeInt = mu_type(
+    "T",
+    variant_type([
+      ["Leaf", con_type("Int")],
+      [
+        "Node",
+        record_type([
+          ["left", var_type("T")],
+          ["right", var_type("T")],
+        ]),
+      ],
+    ])
+  );
+
+  const kind = checkKind([], treeInt);
+  assertOk(kind, "should have kind *");
+});
+
+test("Infinite list (stream) type", () => {
+  const streamInt = mu_type(
+    "S",
+    record_type([
+      ["head", con_type("Int")],
+      ["tail", var_type("S")],
+    ])
+  );
+
+  const kind = checkKind([], streamInt);
+  assertOk(kind, "should have kind *");
+});
+
+test("Multiple patterns same match", () => {
+  const eitherType = variant_type([
+    ["Left", con_type("Int")],
+    ["Right", con_type("Int")],
+  ]);
+
+  const toInt = lam_term(
+    "e",
+    eitherType,
+    match_term(var_term("e"), [
+      [variant_pattern("Left", var_pattern("x")), var_term("x")],
+      [variant_pattern("Right", var_pattern("y")), var_term("y")],
+    ])
+  );
+
+  const result = typecheck([], toInt);
+  assertOk(result, "should typecheck");
+});
+
+test("Nested tuple and record patterns", () => {
+  const complexType = record_type([
+    ["data", tuple_type([con_type("Int"), con_type("String")])],
+    ["flag", con_type("Bool")],
+  ]);
+
+  const extract = lam_term(
+    "x",
+    complexType,
+    match_term(var_term("x"), [
+      [
+        record_pattern([
+          ["data", tuple_pattern([var_pattern("n"), wildcard_pattern()])],
+          ["flag", wildcard_pattern()],
+        ]),
+        var_term("n"),
+      ],
+    ])
+  );
+
+  const result = typecheck([], extract);
+  assertOk(result, "should typecheck");
+});
