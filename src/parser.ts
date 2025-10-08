@@ -415,7 +415,7 @@ const get_prefix_op = (op: string): Operator<Expression> | null =>
 const get_postfix_op = (op: string): Operator<Expression> | null =>
   postfix_ops.includes(op as PostfixOp)
     ? {
-        prefix: [
+        postfix: [
           op,
           (operand) => ({ postfix: { op: op as PostfixOp, operand } }),
         ],

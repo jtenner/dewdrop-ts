@@ -4,13 +4,13 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@biomejs/biome": "^2.2.0",
+    "@biomejs/biome": "^2.2.5",
     "@types/bun": "latest",
     "ts-macros": "^2.6.2",
     "ts-patch": "^3.3.0",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
-    "binaryen": "^123.0.0"
+    "binaryen": "124"
   }
 }

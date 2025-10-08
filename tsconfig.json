@@ -20,7 +20,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
-    "plugins": [{ "transform": "ts-macros", "noComptime": true }]
+    "plugins": []
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts"]
 }

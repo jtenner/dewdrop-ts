@@ -1,3 +1,10 @@
+import * as path from "node:path";
+
+export type FileEntry = {
+  absolute: string;
+  relative: string;
+};
+
 type Tagged<T, TKind extends string> = Readonly<T & { __kind: TKind }>;
 
 type IndexRecord<TValue, TKind extends string> = {
@@ -172,3 +179,18 @@ export class Scope {
     return this.memories.get(name) ?? this.parent?.get_memory_id(name) ?? null;
   }
 }
+
+export const to_file_entry = (entry: string, basedir: string): FileEntry => {
+  if (path.isAbsolute(entry))
+    return {
+      absolute: entry,
+      relative: path.relative(basedir, entry),
+    };
+
+  return {
+    absolute: path.resolve(path.join(basedir, entry)),
+    relative: entry,
+  };
+};
+
+export type Result<TErr, TOk> = { ok: TOk } | { err: TErr };
