@@ -51,7 +51,7 @@ export type Binding =
 
 export type Context = Binding[];
 
-export type TypeError =
+export type TypingError =
   | { unbound: string }
   | { kind_mismatch: { expected: Kind; actual: Kind } }
   | { type_mismatch: { expected: Type; actual: Type } }
@@ -216,7 +216,7 @@ export function showTerm(t: Term): string {
 export function checkExhaustive(
   patterns: Pattern[],
   type: Type,
-): Result<TypeError, null> {
+): Result<TypingError, null> {
   if ("variant" in type) {
     const variantLabels = new Set(type.variant.map(first));
     const coveredLabels = new Set<string>();
@@ -246,7 +246,7 @@ export function checkPattern(
   pattern: Pattern,
   type: Type,
   context: Context,
-): Result<TypeError, Context> {
+): Result<TypingError, Context> {
   if ("var" in pattern) {
     // Variable pattern binds the whole value
     return { ok: [{ term: { name: pattern.var, type } }] };
@@ -467,7 +467,7 @@ export function kindsEqual(left: Kind, right: Kind): boolean {
 export function checkKind(
   context: Context,
   type: Type,
-): Result<TypeError, Kind> {
+): Result<TypingError, Kind> {
   if ("var" in type) {
     const binding = context.find(
       (b) => "type" in b && b.type.name === type.var,
@@ -829,7 +829,7 @@ export function unifyTypes(
   right: Type,
   worklist: Worklist,
   subst: Substitution,
-): Result<TypeError, null> {
+): Result<TypingError, null> {
   if (typesEqual(left, right)) {
     return { ok: null };
   }
@@ -993,7 +993,7 @@ export function unifyVariable(
   varName: string,
   type: Type,
   subst: Substitution,
-): Result<TypeError, null> {
+): Result<TypingError, null> {
   if (subst.has(varName)) {
     const existing = subst.get(varName)!;
     if (!typesEqual(existing, type)) {
@@ -1015,7 +1015,7 @@ export function unifyVariable(
   return { ok: null };
 }
 
-export function unifyKinds(left: Kind, right: Kind): Result<TypeError, null> {
+export function unifyKinds(left: Kind, right: Kind): Result<TypingError, null> {
   if (kindsEqual(left, right)) {
     return { ok: null };
   }
@@ -1161,7 +1161,7 @@ export function applySubstitution(subst: Substitution, type: Type): Type {
 export function inferType(
   context: Context,
   term: Term,
-): Result<TypeError, Type> {
+): Result<TypingError, Type> {
   if ("var" in term) {
     const binding = context.find(
       (b) => "term" in b && b.term.name === term.var,
@@ -1521,7 +1521,7 @@ export function inferType(
 export function solveConstraints(
   worklist: Worklist,
   subst: Substitution = new Map(),
-): Result<TypeError, Substitution> {
+): Result<TypingError, Substitution> {
   while (worklist.length > 0) {
     const constraint = worklist.shift()!;
 
@@ -1536,7 +1536,7 @@ export function processConstraint(
   constraint: Constraint,
   worklist: Worklist,
   subst: Substitution,
-): Result<TypeError, null> {
+): Result<TypingError, null> {
   if ("type_eq" in constraint) {
     const left = applySubstitution(subst, constraint.type_eq.left);
     const right = applySubstitution(subst, constraint.type_eq.right);
@@ -1587,7 +1587,7 @@ export function processConstraint(
 export function typecheck(
   context: Context,
   term: Term,
-): Result<TypeError, Type> {
+): Result<TypingError, Type> {
   return inferType(context, term);
 }
 
@@ -1595,7 +1595,7 @@ export function typecheck(
 export function typecheckWithConstraints(
   context: Context,
   term: Term,
-): Result<TypeError, Type> {
+): Result<TypingError, Type> {
   const worklist: Worklist = [
     { has_type: { term, ty: { var: "$result" }, context } },
   ];

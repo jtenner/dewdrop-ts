@@ -719,3 +719,473 @@ export class BaseVisitor implements ASTVisitor {
     return node;
   }
 }
+
+import type {
+  Kind,
+  Type,
+  Term,
+  Pattern,
+  Context,
+  Binding,
+  TypingError,
+  Constraint,
+} from "./types_system_f_omega.js";
+
+// Visitor interface with transform capability
+export interface TypeSystemVisitor {
+  // Kinds
+  visitStarKind?(node: { star: null }): Kind;
+  visitArrowKind?(node: { arrow: { from: Kind; to: Kind } }): Kind;
+
+  // Types
+  visitVarType?(node: { var: string }): Type;
+  visitArrowType?(node: { arrow: { from: Type; to: Type } }): Type;
+  visitForallType?(node: {
+    forall: { var: string; kind: Kind; body: Type };
+  }): Type;
+  visitAppType?(node: { app: { func: Type; arg: Type } }): Type;
+  visitLamType?(node: { lam: { var: string; kind: Kind; body: Type } }): Type;
+  visitConType?(node: { con: string }): Type;
+  visitRecordType?(node: { record: [string, Type][] }): Type;
+  visitVariantType?(node: { variant: [string, Type][] }): Type;
+  visitMuType?(node: { mu: { var: string; body: Type } }): Type;
+  visitTupleType?(node: { tuple: Type[] }): Type;
+
+  // Terms
+  visitVarTerm?(node: { var: string }): Term;
+  visitLamTerm?(node: { lam: { arg: string; type: Type; body: Term } }): Term;
+  visitAppTerm?(node: { app: { callee: Term; arg: Term } }): Term;
+  visitTyLamTerm?(node: {
+    tylam: { var: string; kind: Kind; body: Term };
+  }): Term;
+  visitTyAppTerm?(node: { tyapp: { term: Term; type: Type } }): Term;
+  visitConTerm?(node: { con: { name: string; type: Type } }): Term;
+  visitRecordTerm?(node: { record: [string, Term][] }): Term;
+  visitProjectTerm?(node: { project: { record: Term; label: string } }): Term;
+  visitInjectTerm?(node: {
+    inject: { label: string; value: Term; variantType: Type };
+  }): Term;
+  visitMatchTerm?(node: {
+    match: { scrutinee: Term; cases: [Pattern, Term][] };
+  }): Term;
+  visitFoldTerm?(node: { fold: { type: Type; term: Term } }): Term;
+  visitUnfoldTerm?(node: { unfold: Term }): Term;
+  visitTupleTerm?(node: { tuple: Term[] }): Term;
+  visitTupleProjectTerm?(node: {
+    tupleProject: { tuple: Term; index: number };
+  }): Term;
+
+  // Patterns
+  visitVarPattern?(node: { var: string }): Pattern;
+  visitWildcardPattern?(node: { wildcard: null }): Pattern;
+  visitConPattern?(node: { con: { name: string; type: Type } }): Pattern;
+  visitRecordPattern?(node: { record: [string, Pattern][] }): Pattern;
+  visitVariantPattern?(node: {
+    variant: { label: string; pattern: Pattern };
+  }): Pattern;
+  visitTuplePattern?(node: { tuple: Pattern[] }): Pattern;
+
+  // Context and Bindings
+  visitTermBinding?(node: { term: { name: string; type: Type } }): Binding;
+  visitTypeBinding?(node: { type: { name: string; kind: Kind } }): Binding;
+  visitContext?(node: Context): Context;
+
+  // Errors (optional - for error transformations)
+  visitTypeError?(node: TypingError): TypingError;
+
+  // Constraints (optional - for constraint transformations)
+  visitConstraint?(node: Constraint): Constraint;
+}
+
+// Default visitor that recursively visits and reconstructs the tree
+export class BaseTypeSystemVisitor implements TypeSystemVisitor {
+  // Kinds
+  visitKind(node: Kind): Kind {
+    if ("star" in node) return this.visitStarKind(node);
+    if ("arrow" in node) return this.visitArrowKind(node);
+    throw new Error("Unknown kind type");
+  }
+
+  visitStarKind(node: { star: null }): Kind {
+    return node;
+  }
+
+  visitArrowKind(node: { arrow: { from: Kind; to: Kind } }): Kind {
+    return {
+      arrow: {
+        from: this.visitKind(node.arrow.from),
+        to: this.visitKind(node.arrow.to),
+      },
+    };
+  }
+
+  // Types
+  visitType(node: Type): Type {
+    if ("var" in node) return this.visitVarType(node);
+    if ("arrow" in node) return this.visitArrowType(node);
+    if ("forall" in node) return this.visitForallType(node);
+    if ("app" in node) return this.visitAppType(node);
+    if ("lam" in node) return this.visitLamType(node);
+    if ("con" in node) return this.visitConType(node);
+    if ("record" in node) return this.visitRecordType(node);
+    if ("variant" in node) return this.visitVariantType(node);
+    if ("mu" in node) return this.visitMuType(node);
+    if ("tuple" in node) return this.visitTupleType(node);
+    throw new Error("Unknown type");
+  }
+
+  visitVarType(node: { var: string }): Type {
+    return node;
+  }
+
+  visitArrowType(node: { arrow: { from: Type; to: Type } }): Type {
+    return {
+      arrow: {
+        from: this.visitType(node.arrow.from),
+        to: this.visitType(node.arrow.to),
+      },
+    };
+  }
+
+  visitForallType(node: {
+    forall: { var: string; kind: Kind; body: Type };
+  }): Type {
+    return {
+      forall: {
+        var: node.forall.var,
+        kind: this.visitKind(node.forall.kind),
+        body: this.visitType(node.forall.body),
+      },
+    };
+  }
+
+  visitAppType(node: { app: { func: Type; arg: Type } }): Type {
+    return {
+      app: {
+        func: this.visitType(node.app.func),
+        arg: this.visitType(node.app.arg),
+      },
+    };
+  }
+
+  visitLamType(node: { lam: { var: string; kind: Kind; body: Type } }): Type {
+    return {
+      lam: {
+        var: node.lam.var,
+        kind: this.visitKind(node.lam.kind),
+        body: this.visitType(node.lam.body),
+      },
+    };
+  }
+
+  visitConType(node: { con: string }): Type {
+    return node;
+  }
+
+  visitRecordType(node: { record: [string, Type][] }): Type {
+    return {
+      record: node.record.map(
+        ([label, type]) => [label, this.visitType(type)] as [string, Type],
+      ),
+    };
+  }
+
+  visitVariantType(node: { variant: [string, Type][] }): Type {
+    return {
+      variant: node.variant.map(
+        ([label, type]) => [label, this.visitType(type)] as [string, Type],
+      ),
+    };
+  }
+
+  visitMuType(node: { mu: { var: string; body: Type } }): Type {
+    return {
+      mu: {
+        var: node.mu.var,
+        body: this.visitType(node.mu.body),
+      },
+    };
+  }
+
+  visitTupleType(node: { tuple: Type[] }): Type {
+    return {
+      tuple: node.tuple.map((t) => this.visitType(t)),
+    };
+  }
+
+  // Terms
+  visitTerm(node: Term): Term {
+    if ("var" in node) return this.visitVarTerm(node);
+    if ("lam" in node) return this.visitLamTerm(node);
+    if ("app" in node) return this.visitAppTerm(node);
+    if ("tylam" in node) return this.visitTyLamTerm(node);
+    if ("tyapp" in node) return this.visitTyAppTerm(node);
+    if ("con" in node) return this.visitConTerm(node);
+    if ("record" in node) return this.visitRecordTerm(node);
+    if ("project" in node) return this.visitProjectTerm(node);
+    if ("inject" in node) return this.visitInjectTerm(node);
+    if ("match" in node) return this.visitMatchTerm(node);
+    if ("fold" in node) return this.visitFoldTerm(node);
+    if ("unfold" in node) return this.visitUnfoldTerm(node);
+    if ("tuple" in node) return this.visitTupleTerm(node);
+    if ("tupleProject" in node) return this.visitTupleProjectTerm(node);
+    throw new Error("Unknown term");
+  }
+
+  visitVarTerm(node: { var: string }): Term {
+    return node;
+  }
+
+  visitLamTerm(node: { lam: { arg: string; type: Type; body: Term } }): Term {
+    return {
+      lam: {
+        arg: node.lam.arg,
+        type: this.visitType(node.lam.type),
+        body: this.visitTerm(node.lam.body),
+      },
+    };
+  }
+
+  visitAppTerm(node: { app: { callee: Term; arg: Term } }): Term {
+    return {
+      app: {
+        callee: this.visitTerm(node.app.callee),
+        arg: this.visitTerm(node.app.arg),
+      },
+    };
+  }
+
+  visitTyLamTerm(node: {
+    tylam: { var: string; kind: Kind; body: Term };
+  }): Term {
+    return {
+      tylam: {
+        var: node.tylam.var,
+        kind: this.visitKind(node.tylam.kind),
+        body: this.visitTerm(node.tylam.body),
+      },
+    };
+  }
+
+  visitTyAppTerm(node: { tyapp: { term: Term; type: Type } }): Term {
+    return {
+      tyapp: {
+        term: this.visitTerm(node.tyapp.term),
+        type: this.visitType(node.tyapp.type),
+      },
+    };
+  }
+
+  visitConTerm(node: { con: { name: string; type: Type } }): Term {
+    return {
+      con: {
+        name: node.con.name,
+        type: this.visitType(node.con.type),
+      },
+    };
+  }
+
+  visitRecordTerm(node: { record: [string, Term][] }): Term {
+    return {
+      record: node.record.map(
+        ([label, term]) => [label, this.visitTerm(term)] as [string, Term],
+      ),
+    };
+  }
+
+  visitProjectTerm(node: { project: { record: Term; label: string } }): Term {
+    return {
+      project: {
+        record: this.visitTerm(node.project.record),
+        label: node.project.label,
+      },
+    };
+  }
+
+  visitInjectTerm(node: {
+    inject: { label: string; value: Term; variantType: Type };
+  }): Term {
+    return {
+      inject: {
+        label: node.inject.label,
+        value: this.visitTerm(node.inject.value),
+        variantType: this.visitType(node.inject.variantType),
+      },
+    };
+  }
+
+  visitMatchTerm(node: {
+    match: { scrutinee: Term; cases: [Pattern, Term][] };
+  }): Term {
+    return {
+      match: {
+        scrutinee: this.visitTerm(node.match.scrutinee),
+        cases: node.match.cases.map(
+          ([pattern, term]) =>
+            [this.visitPattern(pattern), this.visitTerm(term)] as [
+              Pattern,
+              Term,
+            ],
+        ),
+      },
+    };
+  }
+
+  visitFoldTerm(node: { fold: { type: Type; term: Term } }): Term {
+    return {
+      fold: {
+        type: this.visitType(node.fold.type),
+        term: this.visitTerm(node.fold.term),
+      },
+    };
+  }
+
+  visitUnfoldTerm(node: { unfold: Term }): Term {
+    return {
+      unfold: this.visitTerm(node.unfold),
+    };
+  }
+
+  visitTupleTerm(node: { tuple: Term[] }): Term {
+    return {
+      tuple: node.tuple.map((t) => this.visitTerm(t)),
+    };
+  }
+
+  visitTupleProjectTerm(node: {
+    tupleProject: { tuple: Term; index: number };
+  }): Term {
+    return {
+      tupleProject: {
+        tuple: this.visitTerm(node.tupleProject.tuple),
+        index: node.tupleProject.index,
+      },
+    };
+  }
+
+  // Patterns
+  visitPattern(node: Pattern): Pattern {
+    if ("var" in node) return this.visitVarPattern(node);
+    if ("wildcard" in node) return this.visitWildcardPattern(node);
+    if ("con" in node) return this.visitConPattern(node);
+    if ("record" in node) return this.visitRecordPattern(node);
+    if ("variant" in node) return this.visitVariantPattern(node);
+    if ("tuple" in node) return this.visitTuplePattern(node);
+    throw new Error("Unknown pattern");
+  }
+
+  visitVarPattern(node: { var: string }): Pattern {
+    return node;
+  }
+
+  visitWildcardPattern(node: { wildcard: null }): Pattern {
+    return node;
+  }
+
+  visitConPattern(node: { con: { name: string; type: Type } }): Pattern {
+    return {
+      con: {
+        name: node.con.name,
+        type: this.visitType(node.con.type),
+      },
+    };
+  }
+
+  visitRecordPattern(node: { record: [string, Pattern][] }): Pattern {
+    return {
+      record: node.record.map(
+        ([label, pattern]) =>
+          [label, this.visitPattern(pattern)] as [string, Pattern],
+      ),
+    };
+  }
+
+  visitVariantPattern(node: {
+    variant: { label: string; pattern: Pattern };
+  }): Pattern {
+    return {
+      variant: {
+        label: node.variant.label,
+        pattern: this.visitPattern(node.variant.pattern),
+      },
+    };
+  }
+
+  visitTuplePattern(node: { tuple: Pattern[] }): Pattern {
+    return {
+      tuple: node.tuple.map((p) => this.visitPattern(p)),
+    };
+  }
+
+  // Context and Bindings
+  visitBinding(node: Binding): Binding {
+    if ("term" in node) return this.visitTermBinding(node);
+    if ("type" in node) return this.visitTypeBinding(node);
+    throw new Error("Unknown binding type");
+  }
+
+  visitTermBinding(node: { term: { name: string; type: Type } }): Binding {
+    return {
+      term: {
+        name: node.term.name,
+        type: this.visitType(node.term.type),
+      },
+    };
+  }
+
+  visitTypeBinding(node: { type: { name: string; kind: Kind } }): Binding {
+    return {
+      type: {
+        name: node.type.name,
+        kind: this.visitKind(node.type.kind),
+      },
+    };
+  }
+
+  visitContext(node: Context): Context {
+    return node.map((binding) => this.visitBinding(binding));
+  }
+
+  // Optional: Error and Constraint visitors
+  visitTypeError(node: TypingError): TypingError {
+    return node; // Base implementation doesn't transform errors
+  }
+
+  visitConstraint(node: Constraint): Constraint {
+    if ("type_eq" in node) {
+      return {
+        type_eq: {
+          left: this.visitType(node.type_eq.left),
+          right: this.visitType(node.type_eq.right),
+        },
+      };
+    }
+    if ("kind_eq" in node) {
+      return {
+        kind_eq: {
+          left: this.visitKind(node.kind_eq.left),
+          right: this.visitKind(node.kind_eq.right),
+        },
+      };
+    }
+    if ("has_kind" in node) {
+      return {
+        has_kind: {
+          ty: this.visitType(node.has_kind.ty),
+          kind: this.visitKind(node.has_kind.kind),
+          context: this.visitContext(node.has_kind.context),
+        },
+      };
+    }
+    if ("has_type" in node) {
+      return {
+        has_type: {
+          term: this.visitTerm(node.has_type.term),
+          ty: this.visitType(node.has_type.ty),
+          context: this.visitContext(node.has_type.context),
+        },
+      };
+    }
+    throw new Error("Unknown constraint type");
+  }
+}

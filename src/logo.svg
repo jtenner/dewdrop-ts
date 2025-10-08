@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Dewdrop Circle Logo</title>
+  <defs>
+    <style>
+      .navy { fill: #0b2746; }
+      .stroke { stroke: #0b2746; stroke-width: 28; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <!-- Outer circle -->
+  <circle cx="256" cy="256" r="220" class="stroke"/>
+
+  <!-- Dewdrop -->
+  <!-- Built from smooth bezier curves for a balanced teardrop shape -->
+  <path class="navy" d="
+    M256 104
+    C 256 104, 238 139, 210 178
+      184 214, 168 246, 168 284
+      168 345, 214 392, 256 392
+      298 392, 344 345, 344 284
+      344 246, 328 214, 302 178
+      274 139, 256 104, 256 104 Z" />
+
+  <!-- Subtle highlight inside the droplet -->
+  <path fill="#1a3a61" opacity="0.65" d="
+    M232 208
+    C 214 234, 204 260, 204 282
+      204 320, 230 348, 262 348
+      270 348, 278 347, 286 345
+      265 338, 246 322, 236 302
+      226 281, 226 251, 232 208 Z" />
+</svg>
