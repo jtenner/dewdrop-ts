@@ -60,37 +60,58 @@ export type BodyExpression =
   | ExpressionBodyExpression;
 
 export type ConstructorExpression = { constr: string };
+export type CallExpression = { call: [Expression, Expression[]] };
+export type BlockExpression = { block: BodyExpression[] };
+export type IfExpression = {
+  if_expr: {
+    cond: Expression;
+    if_body: Expression;
+    else_body: Expression | null;
+  };
+};
+export type SelectExpression = { select: [Expression, NameIdentifier] };
+export type MatchExpression = { match: [Expression, MatchArm[]] };
+export type FloatExpression = { float: { value: number; size: number } };
+export type IntExpression = { int: { value: bigint; size: number } };
+export type BoolExpression = { bool: boolean };
+export type PrefixExpression = {
+  prefix: { op: PrefixOp; operand: Expression };
+};
+export type PostfixExpression = {
+  postfix: { op: PostfixOp; operand: Expression };
+};
+export type InfixExpression = {
+  infix: { op: InfixOp; left: Expression; right: Expression };
+};
+export type FnExpression = {
+  fn: {
+    params: FnParam[];
+    return_type: TypeExpression | null;
+    body: Expression;
+  };
+};
+export type RecordExpression = { record: [NameIdentifier, Expression][] };
+export type TupleExpression = { tuple: Expression[] };
+export type SelfExpression = { self: null };
 export type Expression =
   | NameIdentifier
   | ConstructorExpression
-  | { call: [Expression, Expression[]] }
-  | { block: BodyExpression[] }
-  | {
-      if_expr: {
-        cond: Expression;
-        if_body: Expression;
-        else_body: Expression | null;
-      };
-    }
-  | { select: [Expression, NameIdentifier] }
-  | { match: [Expression, MatchArm[]] }
-  | { float: { value: number; size: number } }
-  | { int: { value: bigint; size: number } }
-  | { bool: boolean }
-  | { prefix: { op: PrefixOp; operand: Expression } }
-  | { postfix: { op: PostfixOp; operand: Expression } }
-  | { infix: { op: InfixOp; left: Expression; right: Expression } }
-  | { string: string }
-  | {
-      fn: {
-        params: FnParam[];
-        return_type: TypeExpression | null;
-        body: Expression;
-      };
-    }
-  | { record: [NameIdentifier, Expression][] }
-  | { tuple: Expression[] }
-  | { self: null };
+  | CallExpression
+  | BlockExpression
+  | IfExpression
+  | SelectExpression
+  | MatchExpression
+  | FloatExpression
+  | IntExpression
+  | BoolExpression
+  | PrefixExpression
+  | PostfixExpression
+  | InfixExpression
+  | StringToken
+  | FnExpression
+  | RecordExpression
+  | TupleExpression
+  | SelfExpression;
 
 export type MatchArm = {
   pattern: PatternExpression;
@@ -129,45 +150,61 @@ export type FnSignature = {
 };
 
 export type Int = { int: bigint };
-
+export type TypeImport = {
+  type: { name: TypeIdentifier; alias: TypeIdentifier | null };
+};
+export type FnImport = {
+  fn: {
+    name: NameIdentifier | WasmName;
+    signature: FnSignature | null;
+    alias: NameIdentifier | null;
+  };
+};
+export type GlobalImport = {
+  global: {
+    mut: boolean;
+    name: NameIdentifier | WasmName;
+    global_type: TypeExpression;
+    alias: NameIdentifier | null;
+  };
+};
+export type TableImport = {
+  table: {
+    name: NameIdentifier | WasmName;
+    table_type: TypeExpression;
+    min: IntToken | null;
+    max: IntToken | null;
+    alias: NameIdentifier | null;
+  };
+};
+export type StarImport = { star: TypeIdentifier };
+export type MemoryImport = {
+  memory: {
+    name: NameIdentifier | WasmName;
+    min: IntToken | null;
+    max: IntToken | null;
+    alias: NameIdentifier | null;
+  };
+};
+export type NameImport = {
+  name: { name: NameIdentifier; alias: NameIdentifier | null };
+};
+export type TraitImport = {
+  trait: { name: TypeIdentifier; alias: TypeIdentifier | null };
+};
+export type BuiltinImport = {
+  builtin: { name: StringToken; alias: NameIdentifier };
+};
 export type Import =
-  | { type: { name: TypeIdentifier; alias: TypeIdentifier | null } }
-  | {
-      fn: {
-        name: NameIdentifier | WasmName;
-        signature: FnSignature | null;
-        alias: NameIdentifier | null;
-      };
-    }
-  | {
-      global: {
-        mut: boolean;
-        name: NameIdentifier | WasmName;
-        global_type: TypeExpression;
-        alias: NameIdentifier | null;
-      };
-    }
-  | {
-      table: {
-        name: NameIdentifier | WasmName;
-        table_type: TypeExpression;
-        min: IntToken | null;
-        max: IntToken | null;
-        alias: NameIdentifier | null;
-      };
-    }
-  | { star: TypeIdentifier }
-  | {
-      memory: {
-        name: NameIdentifier | WasmName;
-        min: IntToken | null;
-        max: IntToken | null;
-        alias: NameIdentifier | null;
-      };
-    }
-  | { name: { name: NameIdentifier; alias: NameIdentifier | null } }
-  | { trait: { name: TypeIdentifier; alias: TypeIdentifier | null } }
-  | { builtin: { name: StringToken; alias: NameIdentifier } };
+  | TypeImport
+  | FnImport
+  | GlobalImport
+  | TableImport
+  | StarImport
+  | MemoryImport
+  | NameImport
+  | TraitImport
+  | BuiltinImport;
 
 export type TraitFn = {
   name: NameIdentifier;
@@ -362,9 +399,9 @@ const get_infix_op = (op: string): Operator<Expression> | null =>
 const prefix_ops = ["!", ".!", "!.", "~", ".~", "~.", "-", ".-", "-."] as const;
 const postfix_ops = ["!", "?", ".!", "!.", ".?", "?."] as const;
 
-type PrefixOp = (typeof prefix_ops)[number];
-type PostfixOp = (typeof postfix_ops)[number];
-type InfixOp = keyof typeof infix_ops;
+export type PrefixOp = (typeof prefix_ops)[number];
+export type PostfixOp = (typeof postfix_ops)[number];
+export type InfixOp = keyof typeof infix_ops;
 
 const get_prefix_op = (op: string): Operator<Expression> | null =>
   prefix_ops.includes(op as PrefixOp)
