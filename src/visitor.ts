@@ -64,6 +64,48 @@ import type {
   TypeExpression,
   TypeImport,
 } from "./parser.js";
+import type {
+  AppTerm,
+  AppType,
+  ArrowType,
+  Binding,
+  ConPattern,
+  Constraint,
+  ConTerm,
+  ConType,
+  Context,
+  FoldTerm,
+  ForallType,
+  InjectTerm,
+  Kind,
+  LamTerm,
+  LamType,
+  MatchTerm,
+  MuType,
+  Pattern,
+  ProjectTerm,
+  RecordPattern,
+  RecordTerm,
+  RecordType,
+  Term,
+  TermBinding,
+  TuplePattern,
+  TupleProjectTerm,
+  TupleTerm,
+  TupleType,
+  TyAppTerm,
+  TyLamTerm,
+  Type,
+  TypeBinding,
+  TypingError,
+  UnfoldTerm,
+  VariantPattern,
+  VariantType,
+  VarPattern,
+  VarTerm,
+  VarType,
+  WildcardPattern,
+} from "./types_system_f_omega.js";
 
 // Visitor interface with transform capability
 export interface ASTVisitor {
@@ -720,17 +762,6 @@ export class BaseVisitor implements ASTVisitor {
   }
 }
 
-import type {
-  Kind,
-  Type,
-  Term,
-  Pattern,
-  Context,
-  Binding,
-  TypingError,
-  Constraint,
-} from "./types_system_f_omega.js";
-
 // Visitor interface with transform capability
 export interface TypeSystemVisitor {
   // Kinds
@@ -738,56 +769,44 @@ export interface TypeSystemVisitor {
   visitArrowKind?(node: { arrow: { from: Kind; to: Kind } }): Kind;
 
   // Types
-  visitVarType?(node: { var: string }): Type;
-  visitArrowType?(node: { arrow: { from: Type; to: Type } }): Type;
-  visitForallType?(node: {
-    forall: { var: string; kind: Kind; body: Type };
-  }): Type;
-  visitAppType?(node: { app: { func: Type; arg: Type } }): Type;
-  visitLamType?(node: { lam: { var: string; kind: Kind; body: Type } }): Type;
-  visitConType?(node: { con: string }): Type;
-  visitRecordType?(node: { record: [string, Type][] }): Type;
-  visitVariantType?(node: { variant: [string, Type][] }): Type;
-  visitMuType?(node: { mu: { var: string; body: Type } }): Type;
-  visitTupleType?(node: { tuple: Type[] }): Type;
+  visitVarType?(node: VarType): Type;
+  visitArrowType?(node: ArrowType): Type;
+  visitForallType?(node: ForallType): Type;
+  visitAppType?(node: AppType): Type;
+  visitLamType?(node: LamType): Type;
+  visitConType?(node: ConType): Type;
+  visitRecordType?(node: RecordType): Type;
+  visitVariantType?(node: VariantType): Type;
+  visitMuType?(node: MuType): Type;
+  visitTupleType?(node: TupleType): Type;
 
   // Terms
-  visitVarTerm?(node: { var: string }): Term;
-  visitLamTerm?(node: { lam: { arg: string; type: Type; body: Term } }): Term;
-  visitAppTerm?(node: { app: { callee: Term; arg: Term } }): Term;
-  visitTyLamTerm?(node: {
-    tylam: { var: string; kind: Kind; body: Term };
-  }): Term;
-  visitTyAppTerm?(node: { tyapp: { term: Term; type: Type } }): Term;
-  visitConTerm?(node: { con: { name: string; type: Type } }): Term;
-  visitRecordTerm?(node: { record: [string, Term][] }): Term;
-  visitProjectTerm?(node: { project: { record: Term; label: string } }): Term;
-  visitInjectTerm?(node: {
-    inject: { label: string; value: Term; variantType: Type };
-  }): Term;
-  visitMatchTerm?(node: {
-    match: { scrutinee: Term; cases: [Pattern, Term][] };
-  }): Term;
-  visitFoldTerm?(node: { fold: { type: Type; term: Term } }): Term;
-  visitUnfoldTerm?(node: { unfold: Term }): Term;
-  visitTupleTerm?(node: { tuple: Term[] }): Term;
-  visitTupleProjectTerm?(node: {
-    tupleProject: { tuple: Term; index: number };
-  }): Term;
+  visitVarTerm?(node: VarTerm): Term;
+  visitLamTerm?(node: LamTerm): Term;
+  visitAppTerm?(node: AppTerm): Term;
+  visitTyLamTerm?(node: TyLamTerm): Term;
+  visitTyAppTerm?(node: TyAppTerm): Term;
+  visitConTerm?(node: ConTerm): Term;
+  visitRecordTerm?(node: RecordTerm): Term;
+  visitProjectTerm?(node: ProjectTerm): Term;
+  visitInjectTerm?(node: InjectTerm): Term;
+  visitMatchTerm?(node: MatchTerm): Term;
+  visitFoldTerm?(node: FoldTerm): Term;
+  visitUnfoldTerm?(node: UnfoldTerm): Term;
+  visitTupleTerm?(node: TupleTerm): Term;
+  visitTupleProjectTerm?(node: TupleProjectTerm): Term;
 
   // Patterns
-  visitVarPattern?(node: { var: string }): Pattern;
-  visitWildcardPattern?(node: { wildcard: null }): Pattern;
-  visitConPattern?(node: { con: { name: string; type: Type } }): Pattern;
-  visitRecordPattern?(node: { record: [string, Pattern][] }): Pattern;
-  visitVariantPattern?(node: {
-    variant: { label: string; pattern: Pattern };
-  }): Pattern;
-  visitTuplePattern?(node: { tuple: Pattern[] }): Pattern;
+  visitVarPattern?(node: VarPattern): Pattern;
+  visitWildcardPattern?(node: WildcardPattern): Pattern;
+  visitConPattern?(node: ConPattern): Pattern;
+  visitRecordPattern?(node: RecordPattern): Pattern;
+  visitVariantPattern?(node: VariantPattern): Pattern;
+  visitTuplePattern?(node: TuplePattern): Pattern;
 
   // Context and Bindings
-  visitTermBinding?(node: { term: { name: string; type: Type } }): Binding;
-  visitTypeBinding?(node: { type: { name: string; kind: Kind } }): Binding;
+  visitTermBinding?(node: TermBinding): Binding;
+  visitTypeBinding?(node: TypeBinding): Binding;
   visitContext?(node: Context): Context;
 
   // Errors (optional - for error transformations)
@@ -834,11 +853,11 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     throw new Error("Unknown type");
   }
 
-  visitVarType(node: { var: string }): Type {
+  visitVarType(node: VarType): Type {
     return node;
   }
 
-  visitArrowType(node: { arrow: { from: Type; to: Type } }): Type {
+  visitArrowType(node: ArrowType): Type {
     return {
       arrow: {
         from: this.visitType(node.arrow.from),
@@ -847,9 +866,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitForallType(node: {
-    forall: { var: string; kind: Kind; body: Type };
-  }): Type {
+  visitForallType(node: ForallType): Type {
     return {
       forall: {
         var: node.forall.var,
@@ -859,7 +876,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitAppType(node: { app: { func: Type; arg: Type } }): Type {
+  visitAppType(node: AppType): Type {
     return {
       app: {
         func: this.visitType(node.app.func),
@@ -868,7 +885,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitLamType(node: { lam: { var: string; kind: Kind; body: Type } }): Type {
+  visitLamType(node: LamType): Type {
     return {
       lam: {
         var: node.lam.var,
@@ -878,11 +895,11 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitConType(node: { con: string }): Type {
+  visitConType(node: ConType): Type {
     return node;
   }
 
-  visitRecordType(node: { record: [string, Type][] }): Type {
+  visitRecordType(node: RecordType): Type {
     return {
       record: node.record.map(
         ([label, type]) => [label, this.visitType(type)] as [string, Type],
@@ -890,7 +907,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitVariantType(node: { variant: [string, Type][] }): Type {
+  visitVariantType(node: VariantType): Type {
     return {
       variant: node.variant.map(
         ([label, type]) => [label, this.visitType(type)] as [string, Type],
@@ -898,7 +915,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitMuType(node: { mu: { var: string; body: Type } }): Type {
+  visitMuType(node: MuType): Type {
     return {
       mu: {
         var: node.mu.var,
@@ -907,7 +924,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitTupleType(node: { tuple: Type[] }): Type {
+  visitTupleType(node: TupleType): Type {
     return {
       tuple: node.tuple.map((t) => this.visitType(t)),
     };
@@ -932,11 +949,11 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     throw new Error("Unknown term");
   }
 
-  visitVarTerm(node: { var: string }): Term {
+  visitVarTerm(node: VarTerm): Term {
     return node;
   }
 
-  visitLamTerm(node: { lam: { arg: string; type: Type; body: Term } }): Term {
+  visitLamTerm(node: LamTerm): Term {
     return {
       lam: {
         arg: node.lam.arg,
@@ -946,7 +963,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitAppTerm(node: { app: { callee: Term; arg: Term } }): Term {
+  visitAppTerm(node: AppTerm): Term {
     return {
       app: {
         callee: this.visitTerm(node.app.callee),
@@ -955,9 +972,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitTyLamTerm(node: {
-    tylam: { var: string; kind: Kind; body: Term };
-  }): Term {
+  visitTyLamTerm(node: TyLamTerm): Term {
     return {
       tylam: {
         var: node.tylam.var,
@@ -967,7 +982,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitTyAppTerm(node: { tyapp: { term: Term; type: Type } }): Term {
+  visitTyAppTerm(node: TyAppTerm): Term {
     return {
       tyapp: {
         term: this.visitTerm(node.tyapp.term),
@@ -976,7 +991,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitConTerm(node: { con: { name: string; type: Type } }): Term {
+  visitConTerm(node: ConTerm): Term {
     return {
       con: {
         name: node.con.name,
@@ -985,7 +1000,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitRecordTerm(node: { record: [string, Term][] }): Term {
+  visitRecordTerm(node: RecordTerm): Term {
     return {
       record: node.record.map(
         ([label, term]) => [label, this.visitTerm(term)] as [string, Term],
@@ -993,7 +1008,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitProjectTerm(node: { project: { record: Term; label: string } }): Term {
+  visitProjectTerm(node: ProjectTerm): Term {
     return {
       project: {
         record: this.visitTerm(node.project.record),
@@ -1002,21 +1017,17 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitInjectTerm(node: {
-    inject: { label: string; value: Term; variantType: Type };
-  }): Term {
+  visitInjectTerm(node: InjectTerm): Term {
     return {
       inject: {
         label: node.inject.label,
         value: this.visitTerm(node.inject.value),
-        variantType: this.visitType(node.inject.variantType),
+        variant_type: this.visitType(node.inject.variant_type),
       },
     };
   }
 
-  visitMatchTerm(node: {
-    match: { scrutinee: Term; cases: [Pattern, Term][] };
-  }): Term {
+  visitMatchTerm(node: MatchTerm): Term {
     return {
       match: {
         scrutinee: this.visitTerm(node.match.scrutinee),
@@ -1031,7 +1042,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitFoldTerm(node: { fold: { type: Type; term: Term } }): Term {
+  visitFoldTerm(node: FoldTerm): Term {
     return {
       fold: {
         type: this.visitType(node.fold.type),
@@ -1040,21 +1051,19 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitUnfoldTerm(node: { unfold: Term }): Term {
+  visitUnfoldTerm(node: UnfoldTerm): Term {
     return {
       unfold: this.visitTerm(node.unfold),
     };
   }
 
-  visitTupleTerm(node: { tuple: Term[] }): Term {
+  visitTupleTerm(node: TupleTerm): Term {
     return {
       tuple: node.tuple.map((t) => this.visitTerm(t)),
     };
   }
 
-  visitTupleProjectTerm(node: {
-    tupleProject: { tuple: Term; index: number };
-  }): Term {
+  visitTupleProjectTerm(node: TupleProjectTerm): Term {
     return {
       tupleProject: {
         tuple: this.visitTerm(node.tupleProject.tuple),
@@ -1074,15 +1083,15 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     throw new Error("Unknown pattern");
   }
 
-  visitVarPattern(node: { var: string }): Pattern {
+  visitVarPattern(node: VarPattern): Pattern {
     return node;
   }
 
-  visitWildcardPattern(node: { wildcard: null }): Pattern {
+  visitWildcardPattern(node: WildcardPattern): Pattern {
     return node;
   }
 
-  visitConPattern(node: { con: { name: string; type: Type } }): Pattern {
+  visitConPattern(node: ConPattern): Pattern {
     return {
       con: {
         name: node.con.name,
@@ -1091,7 +1100,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitRecordPattern(node: { record: [string, Pattern][] }): Pattern {
+  visitRecordPattern(node: RecordPattern): Pattern {
     return {
       record: node.record.map(
         ([label, pattern]) =>
@@ -1100,9 +1109,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitVariantPattern(node: {
-    variant: { label: string; pattern: Pattern };
-  }): Pattern {
+  visitVariantPattern(node: VariantPattern): Pattern {
     return {
       variant: {
         label: node.variant.label,
@@ -1111,7 +1118,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitTuplePattern(node: { tuple: Pattern[] }): Pattern {
+  visitTuplePattern(node: TuplePattern): Pattern {
     return {
       tuple: node.tuple.map((p) => this.visitPattern(p)),
     };
@@ -1124,7 +1131,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     throw new Error("Unknown binding type");
   }
 
-  visitTermBinding(node: { term: { name: string; type: Type } }): Binding {
+  visitTermBinding(node: TermBinding): Binding {
     return {
       term: {
         name: node.term.name,
@@ -1133,7 +1140,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitTypeBinding(node: { type: { name: string; kind: Kind } }): Binding {
+  visitTypeBinding(node: TypeBinding): Binding {
     return {
       type: {
         name: node.type.name,

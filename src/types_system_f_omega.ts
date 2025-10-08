@@ -7,47 +7,84 @@ export type Kind =
   | { arrow: { from: Kind; to: Kind } }; // κ₁ → κ₂
 
 // Pattern expressions for match cases
+export type VarPattern = { var: string };
+export type WildcardPattern = { wildcard: null };
+export type ConPattern = { con: { name: string; type: Type } };
+export type RecordPattern = { record: [string, Pattern][] };
+export type VariantPattern = { variant: { label: string; pattern: Pattern } };
+export type TuplePattern = { tuple: Pattern[] };
 export type Pattern =
-  | { var: string } // x - bind variable
-  | { wildcard: null } // _ - match anything
-  | { con: { name: string; type: Type } } // literal constant
-  | { record: [string, Pattern][] } // { l1: p1, l2: p2 }
-  | { variant: { label: string; pattern: Pattern } } // Label(pattern)
-  | { tuple: Pattern[] }; // #(...patterns)
+  | VarPattern // x - bind variable
+  | WildcardPattern // _ - match anything
+  | ConPattern // literal constant
+  | RecordPattern // { l1: p1, l2: p2 }
+  | VariantPattern // Label(pattern)
+  | TuplePattern; // #(...patterns)
 
 // Types
+export type VarType = { var: string };
+export type ArrowType = { arrow: { from: Type; to: Type } };
+export type ForallType = { forall: { var: string; kind: Kind; body: Type } };
+export type AppType = { app: { func: Type; arg: Type } };
+export type LamType = { lam: { var: string; kind: Kind; body: Type } };
+export type ConType = { con: string };
+export type RecordType = { record: [string, Type][] };
+export type VariantType = { variant: [string, Type][] };
+export type MuType = { mu: { var: string; body: Type } };
+export type TupleType = { tuple: Type[] };
+
 export type Type =
-  | { var: string } // type variable α
-  | { arrow: { from: Type; to: Type } } // τ₁ → τ₂
-  | { forall: { var: string; kind: Kind; body: Type } } // ∀α::κ.τ
-  | { app: { func: Type; arg: Type } } // type application F τ
-  | { lam: { var: string; kind: Kind; body: Type } } // λα::κ.τ
-  | { con: string } // type constant (Int, Bool, etc.)
-  | { record: [string, Type][] } // {l₁:τ₁, l₂:τ₂, ...}
-  | { variant: [string, Type][] } // <l₁:τ₁ | l₂:τ₂ | ...>
-  | { mu: { var: string; body: Type } } // μα.τ - recursive type
-  | { tuple: Type[] }; // tuples;
+  | VarType // type variable α
+  | ArrowType // τ₁ → τ₂
+  | ForallType // ∀α::κ.τ
+  | AppType // type application F τ
+  | LamType // λα::κ.τ
+  | ConType // type constant (Int, Bool, etc.)
+  | RecordType // {l₁:τ₁, l₂:τ₂, ...}
+  | VariantType // <l₁:τ₁ | l₂:τ₂ | ...>
+  | MuType // μα.τ - recursive type
+  | TupleType; // tuples;
 // Terms
+export type VarTerm = { var: string };
+export type LamTerm = { lam: { arg: string; type: Type; body: Term } };
+export type AppTerm = { app: { callee: Term; arg: Term } };
+export type TyLamTerm = { tylam: { var: string; kind: Kind; body: Term } };
+export type TyAppTerm = { tyapp: { term: Term; type: Type } };
+export type ConTerm = { con: { name: string; type: Type } };
+export type RecordTerm = { record: [string, Term][] };
+export type ProjectTerm = { project: { record: Term; label: string } };
+export type InjectTerm = {
+  inject: { label: string; value: Term; variant_type: Type };
+};
+export type MatchTerm = {
+  match: { scrutinee: Term; cases: [Pattern, Term][] };
+};
+export type FoldTerm = { fold: { type: Type; term: Term } };
+export type UnfoldTerm = { unfold: Term };
+export type TupleTerm = { tuple: Term[] };
+export type TupleProjectTerm = { tupleProject: { tuple: Term; index: number } };
 export type Term =
-  | { var: string } // variable x
-  | { lam: { arg: string; type: Type; body: Term } } // λx:τ.e
-  | { app: { callee: Term; arg: Term } } // e₁ e₂
-  | { tylam: { var: string; kind: Kind; body: Term } } // Λα::κ.e
-  | { tyapp: { term: Term; type: Type } } // e [τ]
-  | { con: { name: string; type: Type } } // constants with their types
-  | { record: [string, Term][] } // {l₁=e₁, l₂=e₂, ...}
-  | { project: { record: Term; label: string } } // e.l
-  | { inject: { label: string; value: Term; variantType: Type } } // <l=e> as T
-  | { match: { scrutinee: Term; cases: [Pattern, Term][] } } // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
-  | { fold: { type: Type; term: Term } } // fold: τ[μα.τ/α] → μα.τ
-  | { unfold: Term } // unfold: μα.τ → τ[μα.τ/α]
-  | { tuple: Term[] } // tuple: #(l₁, l₂, ...)
-  | { tupleProject: { tuple: Term; index: number } }; // tuple[0]
+  | VarTerm // variable x
+  | LamTerm // λx:τ.e
+  | AppTerm // e₁ e₂
+  | TyLamTerm // Λα::κ.e
+  | TyAppTerm // e [τ]
+  | ConTerm // constants with their types
+  | RecordTerm // {l₁=e₁, l₂=e₂, ...}
+  | ProjectTerm // e.l
+  | InjectTerm // <l=e> as T
+  | MatchTerm // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
+  | FoldTerm // fold: τ[μα.τ/α] → μα.τ
+  | UnfoldTerm // unfold: μα.τ → τ[μα.τ/α]
+  | TupleTerm // tuple: #(l₁, l₂, ...)
+  | TupleProjectTerm; // tuple[0]
 
 // Context entries for type checking
+export type TermBinding = { term: { name: string; type: Type } };
+export type TypeBinding = { type: { name: string; kind: Kind } };
 export type Binding =
-  | { term: { name: string; type: Type } } // x : τ
-  | { type: { name: string; kind: Kind } }; // α :: κ
+  | TermBinding // x : τ
+  | TypeBinding; // α :: κ
 
 export type Context = Binding[];
 
@@ -189,7 +226,7 @@ export function showTerm(t: Term): string {
   }
   if ("project" in t) return `${showTerm(t.project.record)}.${t.project.label}`;
   if ("inject" in t)
-    return `<${t.inject.label}=${showTerm(t.inject.value)}> as ${showType(t.inject.variantType)}`;
+    return `<${t.inject.label}=${showTerm(t.inject.value)}> as ${showType(t.inject.variant_type)}`;
   if ("match" in t) {
     const cases = t.match.cases
       .map(([pattern, body]) => `${showPattern(pattern)} => ${showTerm(body)}`)
@@ -1331,24 +1368,24 @@ export function inferType(
 
   if ("inject" in term) {
     // Check that the variant type is well-formed
-    const variantKind = checkKind(context, term.inject.variantType);
+    const variantKind = checkKind(context, term.inject.variant_type);
     if ("err" in variantKind) return variantKind;
 
-    if (!("variant" in term.inject.variantType)) {
+    if (!("variant" in term.inject.variant_type)) {
       return {
-        err: { not_a_variant: term.inject.variantType },
+        err: { not_a_variant: term.inject.variant_type },
       };
     }
 
     // Check that the label exists in the variant type
-    const expectedType = term.inject.variantType.variant.find(
+    const expectedType = term.inject.variant_type.variant.find(
       (t) => t[0] === term.inject.label,
     );
     if (!expectedType) {
       return {
         err: {
           invalid_variant_label: {
-            variant: term.inject.variantType,
+            variant: term.inject.variant_type,
             label: term.inject.label,
           },
         },
@@ -1370,7 +1407,7 @@ export function inferType(
       };
     }
 
-    return { ok: term.inject.variantType };
+    return { ok: term.inject.variant_type };
   }
 
   if ("match" in term) {
@@ -1648,8 +1685,12 @@ export const record_term = (record: [string, Term][]) => ({ record });
 export const project_term = (record: Term, label: string) => ({
   project: { record, label },
 });
-export const inject_term = (label: string, value: Term, variantType: Type) => ({
-  inject: { label, value, variantType },
+export const inject_term = (
+  label: string,
+  value: Term,
+  variant_type: Type,
+) => ({
+  inject: { label, value, variant_type },
 });
 export const match_term = (
   scrutinee: Term,
