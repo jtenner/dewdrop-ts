@@ -1645,12 +1645,38 @@ exports[`pub trait Eq<t> { fn eq(other: t) : bool } matches snapshot 1`] = `
 ]
 `;
 
-exports[`trait Drawable { fn draw(): Void; fn bounds(): Rect } matches snapshot 1`] = `
+exports[`trait Drawable { fn draw(): Void fn bounds(): Rect } matches snapshot 1`] = `
 [
-  {
-    "keyword": "fn",
-  },
   null,
+  {
+    "trait": {
+      "fns": [
+        {
+          "name": {
+            "name": "draw",
+          },
+          "params": [],
+          "return_type": {
+            "type": "Void",
+          },
+        },
+        {
+          "name": {
+            "name": "bounds",
+          },
+          "params": [],
+          "return_type": {
+            "type": "Rect",
+          },
+        },
+      ],
+      "id": {
+        "type": "Drawable",
+      },
+      "pub": false,
+      "type_params": [],
+    },
+  },
 ]
 `;
 

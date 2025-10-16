@@ -153,7 +153,7 @@ test.each([
   { decl: `enum Color { Red, Green(I32), Blue { shade: f32 } }` },
   { decl: `pub enum Direction { Up, Down, Left, Right }` },
   { decl: `pub trait Eq<t> { fn eq(other: t) : bool }` },
-  { decl: `trait Drawable { fn draw(): Void; fn bounds(): Rect }` },
+  { decl: `trait Drawable { fn draw(): Void fn bounds(): Rect }` },
   { decl: `import "std" { fn print as out }` },
   { decl: `import "std" { memory "memory": 1 as mem }` },
   { decl: `import "std" { global mut count: i32 as cnt }` },
