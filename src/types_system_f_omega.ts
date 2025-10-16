@@ -2,9 +2,11 @@
 const first = <T, U>(tuple: [T, U]) => tuple[0];
 
 // Kinds (types of types)
+export type StarKind = { star: null };
+export type ArrowKind = { arrow: { from: Kind; to: Kind } };
 export type Kind =
-  | { star: null } // * (base kind for proper types)
-  | { arrow: { from: Kind; to: Kind } }; // κ₁ → κ₂
+  | StarKind // * (base kind for proper types)
+  | ArrowKind; // κ₁ → κ₂
 
 // Pattern expressions for match cases
 export type VarPattern = { var: string };
@@ -44,6 +46,7 @@ export type Type =
   | VariantType // <l₁:τ₁ | l₂:τ₂ | ...>
   | MuType // μα.τ - recursive type
   | TupleType; // tuples;
+
 // Terms
 export type VarTerm = { var: string };
 export type LamTerm = { lam: { arg: string; type: Type; body: Term } };
@@ -51,6 +54,7 @@ export type AppTerm = { app: { callee: Term; arg: Term } };
 export type TyLamTerm = { tylam: { var: string; kind: Kind; body: Term } };
 export type TyAppTerm = { tyapp: { term: Term; type: Type } };
 export type ConTerm = { con: { name: string; type: Type } };
+export type LetTerm = { let: { name: string; value: Term; body: Term } };
 export type RecordTerm = { record: [string, Term][] };
 export type ProjectTerm = { project: { record: Term; label: string } };
 export type InjectTerm = {
@@ -65,6 +69,7 @@ export type TupleTerm = { tuple: Term[] };
 export type TupleProjectTerm = { tupleProject: { tuple: Term; index: number } };
 export type Term =
   | VarTerm // variable x
+  | LetTerm
   | LamTerm // λx:τ.e
   | AppTerm // e₁ e₂
   | TyLamTerm // Λα::κ.e
@@ -88,21 +93,45 @@ export type Binding =
 
 export type Context = Binding[];
 
+export type UnboundTypeError = { unbound: string };
+export type KindMismatchTypeError = {
+  kind_mismatch: { expected: Kind; actual: Kind };
+};
+export type TypeMismatchTypeError = {
+  type_mismatch: { expected: Type; actual: Type };
+};
+export type NotAFunctionTypeError = { not_a_function: Type };
+export type NotATypeFunctionTypeError = { not_a_type_function: Type };
+export type CyclicTypeError = { cyclic: string };
+export type NotARecordTypeError = { not_a_record: Type };
+export type MissingFieldTypeError = {
+  missing_field: { record: Type; label: string };
+};
+export type NotAVariantTypeError = { not_a_variant: Type };
+export type InvalidVariantTypeError = {
+  invalid_variant_label: { variant: Type; label: string };
+};
+export type MissingCaseTypeError = { missing_case: { label: string } };
+export type ExtraCaseTypeError = { extra_case: { label: string } };
+export type NotATupleTypeError = { not_a_tuple: Type };
+export type TupleIndexOutofBoundsTypeError = {
+  tuple_index_out_of_bounds: { tuple: Type; index: number };
+};
 export type TypingError =
-  | { unbound: string }
-  | { kind_mismatch: { expected: Kind; actual: Kind } }
-  | { type_mismatch: { expected: Type; actual: Type } }
-  | { not_a_function: Type }
-  | { not_a_type_function: Type }
-  | { cyclic: string }
-  | { not_a_record: Type }
-  | { missing_field: { record: Type; label: string } }
-  | { not_a_variant: Type }
-  | { invalid_variant_label: { variant: Type; label: string } }
-  | { missing_case: { label: string } }
-  | { extra_case: { label: string } }
-  | { not_a_tuple: Type }
-  | { tuple_index_out_of_bounds: { tuple: Type; index: number } };
+  | UnboundTypeError
+  | KindMismatchTypeError
+  | TypeMismatchTypeError
+  | NotAFunctionTypeError
+  | NotATypeFunctionTypeError
+  | CyclicTypeError
+  | NotARecordTypeError
+  | MissingFieldTypeError
+  | NotAVariantTypeError
+  | InvalidVariantTypeError
+  | MissingCaseTypeError
+  | ExtraCaseTypeError
+  | NotATupleTypeError
+  | TupleIndexOutofBoundsTypeError;
 
 export type Result<Err, T> = { ok: T } | { err: Err };
 
@@ -218,6 +247,9 @@ export function showTerm(t: Term): string {
   if ("tyapp" in t)
     return `${showTerm(t.tyapp.term)} [${showType(t.tyapp.type)}]`;
   if ("con" in t) return t.con.name;
+  if ("let" in t)
+    return `let ${t.let.name} = ${showTerm(t.let.value)} in ${showTerm(t.let.body)}`;
+
   if ("record" in t) {
     const fields = t.record
       .map(([label, term]) => `${label} = ${showTerm(term)}`)
@@ -412,14 +444,20 @@ export function substituteType(
   target: string,
   replacement: Type,
   inType: Type,
+  avoidInfinite: Set<string> = new Set(),
 ): Type {
   if ("var" in inType) return inType.var === target ? replacement : inType;
 
   if ("arrow" in inType)
     return {
       arrow: {
-        from: substituteType(target, replacement, inType.arrow.from),
-        to: substituteType(target, replacement, inType.arrow.to),
+        from: substituteType(
+          target,
+          replacement,
+          inType.arrow.from,
+          avoidInfinite,
+        ),
+        to: substituteType(target, replacement, inType.arrow.to, avoidInfinite),
       },
     };
 
@@ -428,22 +466,37 @@ export function substituteType(
       forall: {
         var: inType.forall.var,
         kind: inType.forall.kind,
-        body: substituteType(target, replacement, inType.forall.body),
+        body: substituteType(
+          target,
+          replacement,
+          inType.forall.body,
+          avoidInfinite,
+        ),
       },
     };
 
   if ("app" in inType)
     return {
       app: {
-        func: substituteType(target, replacement, inType.app.func),
-        arg: substituteType(target, replacement, inType.app.arg),
+        func: substituteType(
+          target,
+          replacement,
+          inType.app.func,
+          avoidInfinite,
+        ),
+        arg: substituteType(target, replacement, inType.app.arg, avoidInfinite),
       },
     };
 
   if ("lam" in inType)
     return {
       lam: {
-        body: substituteType(target, replacement, inType.lam.body),
+        body: substituteType(
+          target,
+          replacement,
+          inType.lam.body,
+          avoidInfinite,
+        ),
         kind: inType.lam.kind,
         var: inType.lam.var,
       },
@@ -452,7 +505,10 @@ export function substituteType(
   if ("record" in inType) {
     const record: [string, Type][] = [];
     for (const [label, fieldType] of inType.record) {
-      record.push([label, substituteType(target, replacement, fieldType)]);
+      record.push([
+        label,
+        substituteType(target, replacement, fieldType, avoidInfinite),
+      ]);
     }
     return { record };
   }
@@ -460,24 +516,43 @@ export function substituteType(
   if ("variant" in inType) {
     const variant: [string, Type][] = [];
     for (const [label, caseType] of inType.variant) {
-      variant.push([label, substituteType(target, replacement, caseType)]);
+      variant.push([
+        label,
+        substituteType(target, replacement, caseType, avoidInfinite),
+      ]);
     }
     return { variant };
   }
 
   if ("mu" in inType) {
     if (inType.mu.var === target) return inType; // bound variable, don't substitute
+
+    // Check if we're about to create an infinite recursion
+    if (avoidInfinite.has(inType.mu.var)) {
+      return inType; // Stop recursion
+    }
+
+    const newAvoidInfinite = new Set(avoidInfinite);
+    newAvoidInfinite.add(inType.mu.var);
+
     return {
       mu: {
         var: inType.mu.var,
-        body: substituteType(target, replacement, inType.mu.body),
+        body: substituteType(
+          target,
+          replacement,
+          inType.mu.body,
+          newAvoidInfinite,
+        ),
       },
     };
   }
 
   if ("tuple" in inType) {
     return {
-      tuple: inType.tuple.map((t) => substituteType(target, replacement, t)),
+      tuple: inType.tuple.map((t) =>
+        substituteType(target, replacement, t, avoidInfinite),
+      ),
     };
   }
   return inType;
@@ -682,6 +757,9 @@ export function checkKind(
 }
 
 export function typesEqual(left: Type, right: Type): boolean {
+  left = normalizeType(left);
+  right = normalizeType(right);
+
   if ("var" in left && "var" in right && left.var === right.var) return true;
 
   if ("con" in left && "con" in right && left.con === right.con) return true;
@@ -1266,6 +1344,28 @@ export function inferType(
     return { ok: calleeType.ok.arrow.to };
   }
 
+  if ("let" in term) {
+    console.log("type checking a let");
+    // Type check the value expression
+    const valueType = inferType(context, term.let.value);
+    if ("err" in valueType) return valueType;
+    console.log("value inferred");
+
+    // Extend the context with the new binding
+    const extendedContext: Context = [
+      ...context,
+      { term: { name: term.let.name, type: valueType.ok } },
+    ];
+
+    // Type check the body with the extended context
+    const bodyType = inferType(extendedContext, term.let.body);
+    if ("err" in bodyType) return bodyType;
+    console.log("body inferred");
+
+    // The type of the let expression is the type of the body
+    return { ok: bodyType.ok };
+  }
+
   if ("tylam" in term) {
     const extendedContext: Context = [
       ...context,
@@ -1367,25 +1467,37 @@ export function inferType(
   }
 
   if ("inject" in term) {
+    let variantType = term.inject.variant_type;
+
+    // If the variant type is a mu type, unfold it
+    if ("mu" in variantType) {
+      variantType = substituteType(
+        variantType.mu.var,
+        variantType,
+        variantType.mu.body,
+        new Set([variantType.mu.var]),
+      );
+    }
+
     // Check that the variant type is well-formed
-    const variantKind = checkKind(context, term.inject.variant_type);
+    const variantKind = checkKind(context, variantType);
     if ("err" in variantKind) return variantKind;
 
-    if (!("variant" in term.inject.variant_type)) {
+    if (!("variant" in variantType)) {
       return {
-        err: { not_a_variant: term.inject.variant_type },
+        err: { not_a_variant: variantType },
       };
     }
 
     // Check that the label exists in the variant type
-    const expectedType = term.inject.variant_type.variant.find(
+    const expectedType = variantType.variant.find(
       (t) => t[0] === term.inject.label,
     );
     if (!expectedType) {
       return {
         err: {
           invalid_variant_label: {
-            variant: term.inject.variant_type,
+            variant: variantType,
             label: term.inject.label,
           },
         },
@@ -1472,6 +1584,7 @@ export function inferType(
       term.fold.type.mu.var,
       term.fold.type,
       term.fold.type.mu.body,
+      new Set([term.fold.type.mu.var]),
     );
 
     // Type check the term against the unfolded type
@@ -1508,6 +1621,7 @@ export function inferType(
       termType.ok.mu.var,
       termType.ok,
       termType.ok.mu.body,
+      new Set([termType.ok.mu.var]),
     );
 
     return { ok: unfoldedType };
@@ -1578,7 +1692,12 @@ export function processConstraint(
     const left = applySubstitution(subst, constraint.type_eq.left);
     const right = applySubstitution(subst, constraint.type_eq.right);
 
-    return unifyTypes(left, right, worklist, subst);
+    return unifyTypes(
+      normalizeType(left),
+      normalizeType(right),
+      worklist,
+      subst,
+    );
   }
 
   if ("kind_eq" in constraint) {
@@ -1650,6 +1769,186 @@ export function typecheckWithConstraints(
   return { ok: resultType };
 }
 
+export function normalizeType(type: Type, seen = new Set<string>()): Type {
+  // First, normalize any subtypes
+  const normalized = normalizeSubtypes(type, seen);
+
+  // Then apply specific normalization rules
+  return applyNormalizationRules(normalized, seen);
+}
+
+function normalizeSubtypes(type: Type, seen: Set<string>): Type {
+  if ("var" in type || "con" in type) {
+    return type;
+  }
+
+  if ("arrow" in type) {
+    return {
+      arrow: {
+        from: normalizeType(type.arrow.from, seen),
+        to: normalizeType(type.arrow.to, seen),
+      },
+    };
+  }
+
+  if ("forall" in type) {
+    return {
+      forall: {
+        var: type.forall.var,
+        kind: type.forall.kind,
+        body: normalizeType(type.forall.body, seen),
+      },
+    };
+  }
+
+  if ("app" in type) {
+    return {
+      app: {
+        func: normalizeType(type.app.func, seen),
+        arg: normalizeType(type.app.arg, seen),
+      },
+    };
+  }
+
+  if ("lam" in type) {
+    return {
+      lam: {
+        var: type.lam.var,
+        kind: type.lam.kind,
+        body: normalizeType(type.lam.body, seen),
+      },
+    };
+  }
+
+  if ("record" in type) {
+    const record: [string, Type][] = [];
+    for (const [label, fieldType] of type.record) {
+      record.push([label, normalizeType(fieldType, seen)]);
+    }
+    return { record };
+  }
+
+  if ("variant" in type) {
+    const variant: [string, Type][] = [];
+    for (const [label, caseType] of type.variant) {
+      variant.push([label, normalizeType(caseType, seen)]);
+    }
+    return { variant };
+  }
+
+  if ("mu" in type) {
+    if (seen.has(type.mu.var)) {
+      return type;
+    }
+    const newSeen = new Set(seen);
+    newSeen.add(type.mu.var);
+
+    return {
+      mu: {
+        var: type.mu.var,
+        body: normalizeType(type.mu.body, newSeen),
+      },
+    };
+  }
+
+  if ("tuple" in type) {
+    return {
+      tuple: type.tuple.map((t) => normalizeType(t, seen)),
+    };
+  }
+
+  return type;
+}
+
+function applyNormalizationRules(type: Type, seen: Set<string>): Type {
+  // Rule 1: Beta-reduce type applications
+  if ("app" in type && "lam" in type.app.func) {
+    const lam = type.app.func;
+    // Substitute the argument for the lambda variable in the body
+    return normalizeType(
+      substituteType(lam.lam.var, type.app.arg, lam.lam.body),
+      seen,
+    );
+  }
+
+  // Rule 2: Simplify trivial forall types
+  if (
+    "forall" in type &&
+    !typeVariablesInType(type.forall.body, new Set([type.forall.var]))
+  ) {
+    // If the forall variable doesn't appear in the body, we can drop it
+    return normalizeType(type.forall.body, seen);
+  }
+
+  // Rule 3: Simplify records with empty fields
+  if ("record" in type && type.record.length === 0) {
+    return unitType;
+  }
+
+  // Rule 4: Simplify tuples with one element
+  if ("tuple" in type && type.tuple.length === 1) {
+    return normalizeType(type.tuple[0]!, seen);
+  }
+
+  return type;
+}
+
+function typeVariablesInType(type: Type, vars: Set<string>): boolean {
+  if ("var" in type) {
+    return vars.has(type.var);
+  }
+
+  if ("arrow" in type) {
+    return (
+      typeVariablesInType(type.arrow.from, vars) ||
+      typeVariablesInType(type.arrow.to, vars)
+    );
+  }
+
+  if ("forall" in type) {
+    const newVars = new Set(vars);
+    newVars.add(type.forall.var);
+    return typeVariablesInType(type.forall.body, newVars);
+  }
+
+  if ("app" in type) {
+    return (
+      typeVariablesInType(type.app.func, vars) ||
+      typeVariablesInType(type.app.arg, vars)
+    );
+  }
+
+  if ("lam" in type) {
+    const newVars = new Set(vars);
+    newVars.add(type.lam.var);
+    return typeVariablesInType(type.lam.body, newVars);
+  }
+
+  if ("record" in type) {
+    return type.record.some(([_, fieldType]) =>
+      typeVariablesInType(fieldType, vars),
+    );
+  }
+
+  if ("variant" in type) {
+    return type.variant.some(([_, caseType]) =>
+      typeVariablesInType(caseType, vars),
+    );
+  }
+
+  if ("mu" in type) {
+    const newVars = new Set(vars);
+    newVars.add(type.mu.var);
+    return typeVariablesInType(type.mu.body, newVars);
+  }
+
+  if ("tuple" in type) {
+    return type.tuple.some((t) => typeVariablesInType(t, vars));
+  }
+
+  return false;
+}
+
 // Type Constructors:
 export const var_type = (name: string) => ({ var: name });
 export const arrow_type = (from: Type, to: Type) => ({ arrow: { from, to } });
@@ -1707,6 +2006,9 @@ export const unfold_term = (term: Term): Term => ({
 export const tuple_term = (elements: Term[]): Term => ({ tuple: elements });
 export const tuple_project_term = (tuple: Term, index: number): Term => ({
   tupleProject: { tuple, index },
+});
+export const let_term = (name: string, value: Term, body: Term): Term => ({
+  let: { name, value, body },
 });
 
 // Pattern Constructors

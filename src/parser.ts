@@ -1813,7 +1813,10 @@ const take_many = async <T>(
     if (success_token) return [next_token, results];
 
     [next_token, value] = await take(next_token, tokens);
-    if (value) results.push(value);
+    if (value) {
+      results.push(value);
+      continue;
+    }
 
     return [next_token, null];
   }
@@ -1846,18 +1849,19 @@ const take_trait_fn = async (
   );
   if (!params) return [next_token, null];
 
-  [next_token, success_token] = await take_symbol(next_token, tokens, "-");
+  [next_token, success_token] = await take_symbol(next_token, tokens, ":");
   if (!success_token) return [next_token, null];
 
   // take the next token immediately but don't skip whitespace
-  next_token = await next(tokens, false);
-  [next_token, success_token] = await take_symbol(next_token, tokens, ">");
-  if (!success_token) return [next_token, null];
+  if (success_token) {
+    [next_token, return_type] = await take_type_expression(next_token, tokens);
+    if (!return_type) return [next_token, null];
 
-  [next_token, return_type] = await take_type_expression(next_token, tokens);
-  if (!return_type) return [next_token, null];
+    return [next_token, { name, params, return_type }];
+  }
 
-  return [next_token, { name, params, return_type }];
+  if (next_token && "whitespace" in next_token) return [null, null];
+  return [next_token, null];
 };
 
 const take_impl_declaration = async (

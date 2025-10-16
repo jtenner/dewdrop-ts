@@ -80,6 +80,7 @@ import type {
   Kind,
   LamTerm,
   LamType,
+  LetTerm,
   MatchTerm,
   MuType,
   Pattern,
@@ -946,6 +947,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     if ("unfold" in node) return this.visitUnfoldTerm(node);
     if ("tuple" in node) return this.visitTupleTerm(node);
     if ("tupleProject" in node) return this.visitTupleProjectTerm(node);
+    if ("let" in node) return this.visitLetTerm(node);
     throw new Error("Unknown term");
   }
 
@@ -1068,6 +1070,16 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
       tupleProject: {
         tuple: this.visitTerm(node.tupleProject.tuple),
         index: node.tupleProject.index,
+      },
+    };
+  }
+
+  visitLetTerm(node: LetTerm): Term {
+    return {
+      let: {
+        name: node.let.name,
+        body: this.visitTerm(node.let.body),
+        value: this.visitTerm(node.let.value),
       },
     };
   }

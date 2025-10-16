@@ -41,6 +41,10 @@ import {
   tuple_pattern,
   app_type,
   lam_type,
+  let_term,
+  normalizeType,
+  substituteType,
+  MuType,
 } from "../src/types_system_f_omega";
 import { test } from "bun:test";
 
@@ -1238,4 +1242,150 @@ test("Nested tuple and record patterns", () => {
 
   const result = typecheck([], extract);
   assertOk(result, "should typecheck");
+});
+
+test("let term", () => {
+  let intType = con_type("Int");
+  const context: Context = [
+    { term: { name: "+", type: arrow_type(intType, arrow_type(intType, intType)) } }
+  ];
+  
+  const testTerm = let_term(
+    "x",
+    con_term("5", intType),
+    // Fix: Apply "+" to "x" first, then apply the result to "3"
+    app_term(
+      app_term(
+        var_term("+"),
+        var_term("x")
+      ),
+      con_term("3", intType)
+    )
+  );
+  
+  const result = typecheck(context, testTerm);
+  assertOk(result, "should typecheck");
+});
+
+test("type normalization", () => {
+  // Test 1: Beta-reduction of type application
+  const idType = lam_type("T", { star: null }, var_type("T"));
+  const intType = con_type("Int");
+  const appliedType = app_type(idType, intType);
+  
+  const normalized = normalizeType(appliedType);
+  const expected = intType;
+  
+  assert(
+    typesEqual(normalized, expected),
+    `Test 1 failed: Expected ${showType(expected)} but got ${showType(normalized)}`
+  );
+  
+  // Test 2: Nested beta-reductions
+  const doubleApp = lam_type("A", { star: null }, 
+    lam_type("B", { star: null }, 
+      arrow_type(var_type("A"), var_type("B"))
+    )
+  );
+  const applied = app_type(
+    app_type(doubleApp, con_type("Int")), 
+    con_type("Bool")
+  );
+  
+  const normalized2 = normalizeType(applied);
+  const expected2 = arrow_type(con_type("Int"), con_type("Bool"));
+  
+  assert(
+    typesEqual(normalized2, expected2),
+    `Test 2 failed: Expected ${showType(expected2)} but got ${showType(normalized2)}`
+  );
+  
+  // Test 3: Trivial forall elimination (unused type variable)
+  const trivialForall = forall_type(
+    "X", 
+    { star: null }, 
+    con_type("Int")
+  );
+  
+  const normalized3 = normalizeType(trivialForall);
+  const expected3 = con_type("Int");
+  
+  assert(
+    typesEqual(normalized3, expected3),
+    `Test 3 failed: Expected ${showType(expected3)} but got ${showType(normalized3)}`
+  );
+  
+  // Test 4: Mu types should NOT unfold during normalization
+  const listType = mu_type("L", variant_type([
+    ["Nil", unitType],
+    ["Cons", tuple_type([con_type("Int"), var_type("L")])]
+  ]));
+  
+  const normalized4 = normalizeType(listType);
+  
+  // It should still be a mu type after normalization
+  assert(
+    "mu" in normalized4,
+    `Test 4 failed: Mu type should not unfold during normalization`
+  );
+  assert(
+    typesEqual(normalized4, listType),
+    `Test 4 failed: Mu type should remain unchanged`
+  );
+  
+  // Test 5: Single-element tuple simplification
+  const singleTuple = tuple_type([con_type("Int")]);
+  const normalized5 = normalizeType(singleTuple);
+  const expected5 = con_type("Int");
+  
+  assert(
+    typesEqual(normalized5, expected5),
+    `Test 5 failed: Expected ${showType(expected5)} but got ${showType(normalized5)}`
+  );
+  
+  // Test 6: Empty record simplification
+  const emptyRecord = record_type([]);
+  const normalized6 = normalizeType(emptyRecord);
+  
+  assert(
+    typesEqual(normalized6, unitType),
+    `Test 6 failed: Empty record should normalize to Unit`
+  );
+  
+  // Test 7: Complex nested application
+  const constType = lam_type("A", { star: null },
+    lam_type("B", { star: null },
+      var_type("A")
+    )
+  );
+  const applied7 = app_type(
+    app_type(constType, con_type("String")),
+    con_type("Bool")
+  );
+  
+  const normalized7 = normalizeType(applied7);
+  const expected7 = con_type("String");
+  
+  assert(
+    typesEqual(normalized7, expected7),
+    `Test 7 failed: Expected ${showType(expected7)} but got ${showType(normalized7)}`
+  );
+  
+  // Test 8: Normalization preserves used forall variables
+  const usedForall = forall_type(
+    "T",
+    { star: null },
+    arrow_type(var_type("T"), var_type("T"))
+  );
+  
+  const normalized8 = normalizeType(usedForall);
+  
+  assert(
+    "forall" in normalized8,
+    `Test 8 failed: Forall with used variable should be preserved`
+  );
+  assert(
+    typesEqual(normalized8, usedForall),
+    `Test 8 failed: Used forall should remain unchanged`
+  );
 });

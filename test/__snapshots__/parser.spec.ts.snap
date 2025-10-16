@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`"1" matches snapshot: Expression: 1 1`] = `
+exports[`1 matches snapshot: Expression: 1 1`] = `
 {
   "int": {
     "size": 32,
@@ -9,19 +9,19 @@ exports[`"1" matches snapshot: Expression: 1 1`] = `
 }
 `;
 
-exports[`"a" matches snapshot: Expression: a 1`] = `
+exports[`a matches snapshot: Expression: a 1`] = `
 {
   "name": "a",
 }
 `;
 
-exports[`"\\"testing\\"" matches snapshot: Expression: "testing" 1`] = `
+exports[`"testing" matches snapshot: Expression: "testing" 1`] = `
 {
   "string": "testing",
 }
 `;
 
-exports[`"a + b * c - d" matches snapshot: Expression: a + b * c - d 1`] = `
+exports[`a + b * c - d matches snapshot: Expression: a + b * c - d 1`] = `
 {
   "infix": {
     "left": {
@@ -51,7 +51,7 @@ exports[`"a + b * c - d" matches snapshot: Expression: a + b * c - d 1`] = `
 }
 `;
 
-exports[`"a + b + c + d" matches snapshot: Expression: a + b + c + d 1`] = `
+exports[`a + b + c + d matches snapshot: Expression: a + b + c + d 1`] = `
 {
   "infix": {
     "left": {
@@ -81,7 +81,7 @@ exports[`"a + b + c + d" matches snapshot: Expression: a + b + c + d 1`] = `
 }
 `;
 
-exports[`"a ** b ** c ** d" matches snapshot: Expression: a ** b ** c ** d 1`] = `
+exports[`a ** b ** c ** d matches snapshot: Expression: a ** b ** c ** d 1`] = `
 {
   "infix": {
     "left": {
@@ -111,7 +111,7 @@ exports[`"a ** b ** c ** d" matches snapshot: Expression: a ** b ** c ** d 1`] =
 }
 `;
 
-exports[`"(a + b) * c" matches snapshot: Expression: (a + b) * c 1`] = `
+exports[`(a + b) * c matches snapshot: Expression: (a + b) * c 1`] = `
 {
   "infix": {
     "left": {
@@ -133,7 +133,7 @@ exports[`"(a + b) * c" matches snapshot: Expression: (a + b) * c 1`] = `
 }
 `;
 
-exports[`"foo()" matches snapshot: Expression: foo() 1`] = `
+exports[`foo() matches snapshot: Expression: foo() 1`] = `
 {
   "call": [
     {
@@ -144,7 +144,7 @@ exports[`"foo()" matches snapshot: Expression: foo() 1`] = `
 }
 `;
 
-exports[`"foo(1, 2, bar)" matches snapshot: Expression: foo(1, 2, bar) 1`] = `
+exports[`foo(1, 2, bar) matches snapshot: Expression: foo(1, 2, bar) 1`] = `
 {
   "call": [
     {
@@ -171,7 +171,7 @@ exports[`"foo(1, 2, bar)" matches snapshot: Expression: foo(1, 2, bar) 1`] = `
 }
 `;
 
-exports[`"obj.field" matches snapshot: Expression: obj.field 1`] = `
+exports[`obj.field matches snapshot: Expression: obj.field 1`] = `
 {
   "select": [
     {
@@ -184,7 +184,7 @@ exports[`"obj.field" matches snapshot: Expression: obj.field 1`] = `
 }
 `;
 
-exports[`"obj.method(x, y)" matches snapshot: Expression: obj.method(x, y) 1`] = `
+exports[`obj.method(x, y) matches snapshot: Expression: obj.method(x, y) 1`] = `
 {
   "call": [
     {
@@ -209,13 +209,13 @@ exports[`"obj.method(x, y)" matches snapshot: Expression: obj.method(x, y) 1`] =
 }
 `;
 
-exports[`"MyType" matches snapshot: Expression: MyType 1`] = `
+exports[`MyType matches snapshot: Expression: MyType 1`] = `
 {
   "constr": "MyType",
 }
 `;
 
-exports[`"MyType()" matches snapshot: Expression: MyType() 1`] = `
+exports[`MyType() matches snapshot: Expression: MyType() 1`] = `
 {
   "call": [
     {
@@ -226,7 +226,7 @@ exports[`"MyType()" matches snapshot: Expression: MyType() 1`] = `
 }
 `;
 
-exports[`"#(1, 2, 3)" matches snapshot: Expression: #(1, 2, 3) 1`] = `
+exports[`#(1, 2, 3) matches snapshot: Expression: #(1, 2, 3) 1`] = `
 {
   "tuple": [
     {
@@ -251,7 +251,7 @@ exports[`"#(1, 2, 3)" matches snapshot: Expression: #(1, 2, 3) 1`] = `
 }
 `;
 
-exports[`"#{x: 1, y: 2}" matches snapshot: Expression: #{x: 1, y: 2} 1`] = `
+exports[`#{x: 1, y: 2} matches snapshot: Expression: #{x: 1, y: 2} 1`] = `
 {
   "record": [
     [
@@ -280,7 +280,7 @@ exports[`"#{x: 1, y: 2}" matches snapshot: Expression: #{x: 1, y: 2} 1`] = `
 }
 `;
 
-exports[`"{ a; b; c }" matches snapshot: Expression: { a; b; c } 1`] = `
+exports[`{ a; b; c } matches snapshot: Expression: { a; b; c } 1`] = `
 {
   "block": [
     {
@@ -302,7 +302,7 @@ exports[`"{ a; b; c }" matches snapshot: Expression: { a; b; c } 1`] = `
 }
 `;
 
-exports[`"{ let x = 1; x + 2 }" matches snapshot: Expression: { let x = 1; x + 2 } 1`] = `
+exports[`{ let x = 1; x + 2 } matches snapshot: Expression: { let x = 1; x + 2 } 1`] = `
 {
   "block": [
     {
@@ -339,7 +339,7 @@ exports[`"{ let x = 1; x + 2 }" matches snapshot: Expression: { let x = 1; x + 2
 }
 `;
 
-exports[`"if a { b } else { c }" matches snapshot: Expression: if a { b } else { c } 1`] = `
+exports[`if a { b } else { c } matches snapshot: Expression: if a { b } else { c } 1`] = `
 {
   "if_expr": {
     "cond": {
@@ -367,7 +367,7 @@ exports[`"if a { b } else { c }" matches snapshot: Expression: if a { b } else {
 }
 `;
 
-exports[`"if a { b }" matches snapshot: Expression: if a { b } 1`] = `
+exports[`if a { b } matches snapshot: Expression: if a { b } 1`] = `
 {
   "if_expr": {
     "cond": {
@@ -387,7 +387,7 @@ exports[`"if a { b }" matches snapshot: Expression: if a { b } 1`] = `
 }
 `;
 
-exports[`"match x { A => 1, B => 2, _ => 3 }" matches snapshot: Expression: match x { A => 1, B => 2, _ => 3 } 1`] = `
+exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match x { A => 1, B => 2, _ => 3 } 1`] = `
 {
   "match": [
     {
@@ -445,7 +445,7 @@ exports[`"match x { A => 1, B => 2, _ => 3 }" matches snapshot: Expression: matc
 }
 `;
 
-exports[`"{ a <- try(explosion()) }" matches snapshot: Expression: { a <- try(explosion()) } 1`] = `
+exports[`{ a <- try(explosion()) } matches snapshot: Expression: { a <- try(explosion()) } 1`] = `
 {
   "block": [
     {
@@ -476,7 +476,7 @@ exports[`"{ a <- try(explosion()) }" matches snapshot: Expression: { a <- try(ex
 }
 `;
 
-exports[`"foo(1).bar(2, 3).baz" matches snapshot: Expression: foo(1).bar(2, 3).baz 1`] = `
+exports[`foo(1).bar(2, 3).baz matches snapshot: Expression: foo(1).bar(2, 3).baz 1`] = `
 {
   "select": [
     {
@@ -526,7 +526,7 @@ exports[`"foo(1).bar(2, 3).baz" matches snapshot: Expression: foo(1).bar(2, 3).b
 }
 `;
 
-exports[`"if match x { A => true, _ => false } { 1 } else { 0 }" matches snapshot: Expression: if match x { A => true, _ => false } { 1 } else { 0 } 1`] = `
+exports[`if match x { A => true, _ => false } { 1 } else { 0 } matches snapshot: Expression: if match x { A => true, _ => false } { 1 } else { 0 } 1`] = `
 {
   "if_expr": {
     "cond": {
@@ -589,19 +589,19 @@ exports[`"if match x { A => true, _ => false } { 1 } else { 0 }" matches snapsho
 }
 `;
 
-exports[`"x" matches snapshot: PatternExpression: x 1`] = `
+exports[`x matches snapshot: PatternExpression: x 1`] = `
 {
   "name": "x",
 }
 `;
 
-exports[`"_wild" matches snapshot: PatternExpression: _wild 1`] = `
+exports[`_wild matches snapshot: PatternExpression: _wild 1`] = `
 {
   "name": "_wild",
 }
 `;
 
-exports[`"Some" matches snapshot: PatternExpression: Some 1`] = `
+exports[`Some matches snapshot: PatternExpression: Some 1`] = `
 {
   "constr": [
     {
@@ -612,7 +612,7 @@ exports[`"Some" matches snapshot: PatternExpression: Some 1`] = `
 }
 `;
 
-exports[`"Some(42)" matches snapshot: PatternExpression: Some(42) 1`] = `
+exports[`Some(42) matches snapshot: PatternExpression: Some(42) 1`] = `
 {
   "constr": [
     {
@@ -630,7 +630,7 @@ exports[`"Some(42)" matches snapshot: PatternExpression: Some(42) 1`] = `
 }
 `;
 
-exports[`"Pair(1, x)" matches snapshot: PatternExpression: Pair(1, x) 1`] = `
+exports[`Pair(1, x) matches snapshot: PatternExpression: Pair(1, x) 1`] = `
 {
   "constr": [
     {
@@ -651,7 +651,7 @@ exports[`"Pair(1, x)" matches snapshot: PatternExpression: Pair(1, x) 1`] = `
 }
 `;
 
-exports[`"123" matches snapshot: PatternExpression: 123 1`] = `
+exports[`123 matches snapshot: PatternExpression: 123 1`] = `
 {
   "int": {
     "size": 32,
@@ -660,7 +660,7 @@ exports[`"123" matches snapshot: PatternExpression: 123 1`] = `
 }
 `;
 
-exports[`"3.14" matches snapshot: PatternExpression: 3.14 1`] = `
+exports[`3.14 matches snapshot: PatternExpression: 3.14 1`] = `
 {
   "float": {
     "size": 64,
@@ -669,13 +669,13 @@ exports[`"3.14" matches snapshot: PatternExpression: 3.14 1`] = `
 }
 `;
 
-exports[`"\\"hello\\"" matches snapshot: PatternExpression: "hello" 1`] = `
+exports[`"hello" matches snapshot: PatternExpression: "hello" 1`] = `
 {
   "string": "hello",
 }
 `;
 
-exports[`"nan" matches snapshot: PatternExpression: nan 1`] = `
+exports[`nan matches snapshot: PatternExpression: nan 1`] = `
 {
   "float": {
     "size": 64,
@@ -684,7 +684,7 @@ exports[`"nan" matches snapshot: PatternExpression: nan 1`] = `
 }
 `;
 
-exports[`"inf" matches snapshot: PatternExpression: inf 1`] = `
+exports[`inf matches snapshot: PatternExpression: inf 1`] = `
 {
   "float": {
     "size": 64,
@@ -693,7 +693,7 @@ exports[`"inf" matches snapshot: PatternExpression: inf 1`] = `
 }
 `;
 
-exports[`"#(x, y)" matches snapshot: PatternExpression: #(x, y) 1`] = `
+exports[`#(x, y) matches snapshot: PatternExpression: #(x, y) 1`] = `
 {
   "tuple": [
     {
@@ -706,7 +706,7 @@ exports[`"#(x, y)" matches snapshot: PatternExpression: #(x, y) 1`] = `
 }
 `;
 
-exports[`"#(1, 2, 3)" matches snapshot: PatternExpression: #(1, 2, 3) 1`] = `
+exports[`#(1, 2, 3) matches snapshot: PatternExpression: #(1, 2, 3) 1`] = `
 {
   "tuple": [
     {
@@ -731,13 +731,13 @@ exports[`"#(1, 2, 3)" matches snapshot: PatternExpression: #(1, 2, 3) 1`] = `
 }
 `;
 
-exports[`"#()" matches snapshot: PatternExpression: #() 1`] = `
+exports[`#() matches snapshot: PatternExpression: #() 1`] = `
 {
   "tuple": [],
 }
 `;
 
-exports[`"#{foo: x, bar: 42}" matches snapshot: PatternExpression: #{foo: x, bar: 42} 1`] = `
+exports[`#{foo: x, bar: 42} matches snapshot: PatternExpression: #{foo: x, bar: 42} 1`] = `
 {
   "record": [
     [
@@ -763,7 +763,7 @@ exports[`"#{foo: x, bar: 42}" matches snapshot: PatternExpression: #{foo: x, bar
 }
 `;
 
-exports[`"#{nested: Pair(x, y)}" matches snapshot: PatternExpression: #{nested: Pair(x, y)} 1`] = `
+exports[`#{nested: Pair(x, y)} matches snapshot: PatternExpression: #{nested: Pair(x, y)} 1`] = `
 {
   "record": [
     [
@@ -790,7 +790,7 @@ exports[`"#{nested: Pair(x, y)}" matches snapshot: PatternExpression: #{nested: 
 }
 `;
 
-exports[`"Some(#(x, #{y: 1}))" matches snapshot: PatternExpression: Some(#(x, #{y: 1})) 1`] = `
+exports[`Some(#(x, #{y: 1})) matches snapshot: PatternExpression: Some(#(x, #{y: 1})) 1`] = `
 {
   "constr": [
     {
@@ -824,13 +824,13 @@ exports[`"Some(#(x, #{y: 1}))" matches snapshot: PatternExpression: Some(#(x, #{
 }
 `;
 
-exports[`"Int" matches snapshot: TypeExpression: Int 1`] = `
+exports[`Int matches snapshot: TypeExpression: Int 1`] = `
 {
   "type": "Int",
 }
 `;
 
-exports[`"MyNamespace.Type" matches snapshot: TypeExpression: MyNamespace.Type 1`] = `
+exports[`MyNamespace.Type matches snapshot: TypeExpression: MyNamespace.Type 1`] = `
 {
   "select": {
     "name": {
@@ -843,7 +843,7 @@ exports[`"MyNamespace.Type" matches snapshot: TypeExpression: MyNamespace.Type 1
 }
 `;
 
-exports[`"(Int) -> Bool" matches snapshot: TypeExpression: (Int) -> Bool 1`] = `
+exports[`(Int) -> Bool matches snapshot: TypeExpression: (Int) -> Bool 1`] = `
 {
   "fn": {
     "args": [
@@ -858,7 +858,7 @@ exports[`"(Int) -> Bool" matches snapshot: TypeExpression: (Int) -> Bool 1`] = `
 }
 `;
 
-exports[`"(Int, String) -> Bool" matches snapshot: TypeExpression: (Int, String) -> Bool 1`] = `
+exports[`(Int, String) -> Bool matches snapshot: TypeExpression: (Int, String) -> Bool 1`] = `
 {
   "fn": {
     "args": [
@@ -876,7 +876,7 @@ exports[`"(Int, String) -> Bool" matches snapshot: TypeExpression: (Int, String)
 }
 `;
 
-exports[`"() -> Void" matches snapshot: TypeExpression: () -> Void 1`] = `
+exports[`() -> Void matches snapshot: TypeExpression: () -> Void 1`] = `
 {
   "fn": {
     "args": [],
@@ -887,7 +887,7 @@ exports[`"() -> Void" matches snapshot: TypeExpression: () -> Void 1`] = `
 }
 `;
 
-exports[`"#(Int, Bool, String)" matches snapshot: TypeExpression: #(Int, Bool, String) 1`] = `
+exports[`#(Int, Bool, String) matches snapshot: TypeExpression: #(Int, Bool, String) 1`] = `
 {
   "tuple": [
     {
@@ -903,13 +903,13 @@ exports[`"#(Int, Bool, String)" matches snapshot: TypeExpression: #(Int, Bool, S
 }
 `;
 
-exports[`"#()" matches snapshot: TypeExpression: #() 1`] = `
+exports[`#() matches snapshot: TypeExpression: #() 1`] = `
 {
   "tuple": [],
 }
 `;
 
-exports[`"#{x: Int, y: Bool}" matches snapshot: TypeExpression: #{x: Int, y: Bool} 1`] = `
+exports[`#{x: Int, y: Bool} matches snapshot: TypeExpression: #{x: Int, y: Bool} 1`] = `
 {
   "record": [
     {
@@ -932,7 +932,7 @@ exports[`"#{x: Int, y: Bool}" matches snapshot: TypeExpression: #{x: Int, y: Boo
 }
 `;
 
-exports[`"#{nested: #(Int, String), flag: Bool}" matches snapshot: TypeExpression: #{nested: #(Int, String), flag: Bool} 1`] = `
+exports[`#{nested: #(Int, String), flag: Bool} matches snapshot: TypeExpression: #{nested: #(Int, String), flag: Bool} 1`] = `
 {
   "record": [
     {
@@ -962,7 +962,7 @@ exports[`"#{nested: #(Int, String), flag: Bool}" matches snapshot: TypeExpressio
 }
 `;
 
-exports[`"#{a: Int}.a" matches snapshot: TypeExpression: #{a: Int}.a 1`] = `
+exports[`#{a: Int}.a matches snapshot: TypeExpression: #{a: Int}.a 1`] = `
 {
   "select": {
     "name": {
@@ -984,7 +984,7 @@ exports[`"#{a: Int}.a" matches snapshot: TypeExpression: #{a: Int}.a 1`] = `
 }
 `;
 
-exports[`"List<Int>" matches snapshot: TypeExpression: List<Int> 1`] = `
+exports[`List<Int> matches snapshot: TypeExpression: List<Int> 1`] = `
 {
   "app": {
     "args": [
@@ -999,7 +999,7 @@ exports[`"List<Int>" matches snapshot: TypeExpression: List<Int> 1`] = `
 }
 `;
 
-exports[`"Map<String, Int>" matches snapshot: TypeExpression: Map<String, Int> 1`] = `
+exports[`Map<String, Int> matches snapshot: TypeExpression: Map<String, Int> 1`] = `
 {
   "app": {
     "args": [
@@ -1017,7 +1017,7 @@ exports[`"Map<String, Int>" matches snapshot: TypeExpression: Map<String, Int> 1
 }
 `;
 
-exports[`"Outer.Inner<Nested<T>>" matches snapshot: TypeExpression: Outer.Inner<Nested<T>> 1`] = `
+exports[`Outer.Inner<Nested<T>> matches snapshot: TypeExpression: Outer.Inner<Nested<T>> 1`] = `
 {
   "app": {
     "args": [
@@ -1048,7 +1048,7 @@ exports[`"Outer.Inner<Nested<T>>" matches snapshot: TypeExpression: Outer.Inner<
 }
 `;
 
-exports[`"(Int, List<String>) -> Map<String, Int>" matches snapshot: TypeExpression: (Int, List<String>) -> Map<String, Int> 1`] = `
+exports[`(Int, List<String>) -> Map<String, Int> matches snapshot: TypeExpression: (Int, List<String>) -> Map<String, Int> 1`] = `
 {
   "fn": {
     "args": [
@@ -1087,7 +1087,7 @@ exports[`"(Int, List<String>) -> Map<String, Int>" matches snapshot: TypeExpress
 }
 `;
 
-exports[`"(#(Int, Bool)) -> #{ok: String, err: String}" matches snapshot: TypeExpression: (#(Int, Bool)) -> #{ok: String, err: String} 1`] = `
+exports[`(#(Int, Bool)) -> #{ok: String, err: String} matches snapshot: TypeExpression: (#(Int, Bool)) -> #{ok: String, err: String} 1`] = `
 {
   "fn": {
     "args": [
@@ -1126,7 +1126,7 @@ exports[`"(#(Int, Bool)) -> #{ok: String, err: String}" matches snapshot: TypeEx
 }
 `;
 
-exports[`"a <- b" matches snapshot: BodyExpression: a <- b 1`] = `
+exports[`a <- b matches snapshot: BodyExpression: a <- b 1`] = `
 {
   "arrow_bind": {
     "expression": {
@@ -1139,7 +1139,7 @@ exports[`"a <- b" matches snapshot: BodyExpression: a <- b 1`] = `
 }
 `;
 
-exports[`"{ a; b; c }" matches snapshot: BodyExpression: { a; b; c } 1`] = `
+exports[`{ a; b; c } matches snapshot: BodyExpression: { a; b; c } 1`] = `
 {
   "expression": {
     "block": [
@@ -1163,7 +1163,7 @@ exports[`"{ a; b; c }" matches snapshot: BodyExpression: { a; b; c } 1`] = `
 }
 `;
 
-exports[`"let a = b" matches snapshot: BodyExpression: let a = b 1`] = `
+exports[`let a = b matches snapshot: BodyExpression: let a = b 1`] = `
 {
   "let_bind": {
     "assert": false,
@@ -1177,7 +1177,7 @@ exports[`"let a = b" matches snapshot: BodyExpression: let a = b 1`] = `
 }
 `;
 
-exports[`"let Some(a) = b" matches snapshot: BodyExpression: let Some(a) = b 1`] = `
+exports[`let Some(a) = b matches snapshot: BodyExpression: let Some(a) = b 1`] = `
 {
   "let_bind": {
     "assert": false,
@@ -1200,7 +1200,7 @@ exports[`"let Some(a) = b" matches snapshot: BodyExpression: let Some(a) = b 1`]
 }
 `;
 
-exports[`"let assert Some(a) = b" matches snapshot: BodyExpression: let assert Some(a) = b 1`] = `
+exports[`let assert Some(a) = b matches snapshot: BodyExpression: let assert Some(a) = b 1`] = `
 {
   "let_bind": {
     "assert": true,
@@ -1223,7 +1223,7 @@ exports[`"let assert Some(a) = b" matches snapshot: BodyExpression: let assert S
 }
 `;
 
-exports[`"d = a + b" matches snapshot: BodyExpression: d = a + b 1`] = `
+exports[`d = a + b matches snapshot: BodyExpression: d = a + b 1`] = `
 {
   "assign": {
     "expression": {
@@ -1244,7 +1244,7 @@ exports[`"d = a + b" matches snapshot: BodyExpression: d = a + b 1`] = `
 }
 `;
 
-exports[`"fn add(x: I32, y: I32): I32 { x + y }" matches snapshot 1`] = `
+exports[`fn add(x: I32, y: I32): I32 { x + y } matches snapshot 1`] = `
 [
   null,
   {
@@ -1299,7 +1299,7 @@ exports[`"fn add(x: I32, y: I32): I32 { x + y }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"pub fn main() { 42 }" matches snapshot 1`] = `
+exports[`pub fn main() { 42 } matches snapshot 1`] = `
 [
   null,
   {
@@ -1330,7 +1330,7 @@ exports[`"pub fn main() { 42 }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"fn identity<t>(x: t): t { x }" matches snapshot 1`] = `
+exports[`fn identity<t>(x: t): t { x } matches snapshot 1`] = `
 [
   null,
   {
@@ -1373,7 +1373,7 @@ exports[`"fn identity<t>(x: t): t { x }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"let x: i32 = 42" matches snapshot 1`] = `
+exports[`let x: i32 = 42 matches snapshot 1`] = `
 [
   null,
   {
@@ -1396,7 +1396,7 @@ exports[`"let x: i32 = 42" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"pub let pi: f64 = 3.14159" matches snapshot 1`] = `
+exports[`pub let pi: f64 = 3.14159 matches snapshot 1`] = `
 [
   null,
   {
@@ -1419,7 +1419,7 @@ exports[`"pub let pi: f64 = 3.14159" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"let y = true" matches snapshot 1`] = `
+exports[`let y = true matches snapshot 1`] = `
 [
   null,
   {
@@ -1437,7 +1437,7 @@ exports[`"let y = true" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"type MyInt = I32" matches snapshot 1`] = `
+exports[`type MyInt = I32 matches snapshot 1`] = `
 [
   null,
   {
@@ -1455,7 +1455,7 @@ exports[`"type MyInt = I32" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"pub enum Result<t, e> { Ok(t), Err(e) }" matches snapshot 1`] = `
+exports[`pub enum Result<t, e> { Ok(t), Err(e) } matches snapshot 1`] = `
 [
   null,
   {
@@ -1503,7 +1503,7 @@ exports[`"pub enum Result<t, e> { Ok(t), Err(e) }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"enum Color { Red, Green(I32), Blue { shade: f32 } }" matches snapshot 1`] = `
+exports[`enum Color { Red, Green(I32), Blue { shade: f32 } } matches snapshot 1`] = `
 [
   null,
   {
@@ -1557,7 +1557,7 @@ exports[`"enum Color { Red, Green(I32), Blue { shade: f32 } }" matches snapshot 
 ]
 `;
 
-exports[`"pub enum Direction { Up, Down, Left, Right }" matches snapshot 1`] = `
+exports[`pub enum Direction { Up, Down, Left, Right } matches snapshot 1`] = `
 [
   null,
   {
@@ -1606,21 +1606,55 @@ exports[`"pub enum Direction { Up, Down, Left, Right }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"pub trait Eq<t> { fn eq(other: t) : bool }" matches snapshot 1`] = `
+exports[`pub trait Eq<t> { fn eq(other: t) : bool } matches snapshot 1`] = `
 [
   null,
+  {
+    "trait": {
+      "fns": [
+        {
+          "name": {
+            "name": "eq",
+          },
+          "params": [
+            {
+              "name": {
+                "name": "other",
+              },
+              "ty": {
+                "name": "t",
+              },
+            },
+          ],
+          "return_type": {
+            "name": "bool",
+          },
+        },
+      ],
+      "id": {
+        "type": "Eq",
+      },
+      "pub": true,
+      "type_params": [
+        {
+          "name": "t",
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`trait Drawable { fn draw(): Void; fn bounds(): Rect } matches snapshot 1`] = `
+[
+  {
+    "keyword": "fn",
+  },
   null,
 ]
 `;
 
-exports[`"trait Drawable { fn draw(): Void; fn bounds(): Rect }" matches snapshot 1`] = `
-[
-  null,
-  null,
-]
-`;
-
-exports[`"import \\"std\\" { fn print as out }" matches snapshot 1`] = `
+exports[`import "std" { fn print as out } matches snapshot 1`] = `
 [
   null,
   {
@@ -1644,7 +1678,7 @@ exports[`"import \\"std\\" { fn print as out }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"import \\"std\\" { memory \\"memory\\": 1 as mem }" matches snapshot 1`] = `
+exports[`import "std" { memory "memory": 1 as mem } matches snapshot 1`] = `
 [
   null,
   {
@@ -1671,7 +1705,7 @@ exports[`"import \\"std\\" { memory \\"memory\\": 1 as mem }" matches snapshot 1
 ]
 `;
 
-exports[`"import \\"std\\" { global mut count: i32 as cnt }" matches snapshot 1`] = `
+exports[`import "std" { global mut count: i32 as cnt } matches snapshot 1`] = `
 [
   null,
   {
@@ -1698,7 +1732,7 @@ exports[`"import \\"std\\" { global mut count: i32 as cnt }" matches snapshot 1`
 ]
 `;
 
-exports[`"import \\"wasm\\" { table \\"table\\": I32 0 0 as tbl }" matches snapshot 1`] = `
+exports[`import "wasm" { table "table": I32 0 0 as tbl } matches snapshot 1`] = `
 [
   null,
   {
@@ -1730,7 +1764,7 @@ exports[`"import \\"wasm\\" { table \\"table\\": I32 0 0 as tbl }" matches snaps
 ]
 `;
 
-exports[`"import \\"wasm\\" { type Option as Maybe }" matches snapshot 1`] = `
+exports[`import "wasm" { type Option as Maybe } matches snapshot 1`] = `
 [
   null,
   {
@@ -1753,7 +1787,7 @@ exports[`"import \\"wasm\\" { type Option as Maybe }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"import \\"wasm\\" { trait Semiring }" matches snapshot 1`] = `
+exports[`import "wasm" { trait Semiring } matches snapshot 1`] = `
 [
   null,
   {
@@ -1774,7 +1808,7 @@ exports[`"import \\"wasm\\" { trait Semiring }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"import \\"wasm\\" { builtin \\"i32.add\\" as add }" matches snapshot 1`] = `
+exports[`import "wasm" { builtin "i32.add" as add } matches snapshot 1`] = `
 [
   null,
   {
@@ -1797,7 +1831,7 @@ exports[`"import \\"wasm\\" { builtin \\"i32.add\\" as add }" matches snapshot 1
 ]
 `;
 
-exports[`"import \\"wasm\\" { item }" matches snapshot 1`] = `
+exports[`import "wasm" { item } matches snapshot 1`] = `
 [
   null,
   {
@@ -1818,7 +1852,7 @@ exports[`"import \\"wasm\\" { item }" matches snapshot 1`] = `
 ]
 `;
 
-exports[`"import \\"wasm\\" { item as blah }" matches snapshot 1`] = `
+exports[`import "wasm" { item as blah } matches snapshot 1`] = `
 [
   null,
   {
