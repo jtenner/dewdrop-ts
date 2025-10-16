@@ -2088,3 +2088,130 @@ export async function take_declaration(
   next_token = await consume_until_keyword_or_semicolon(tokens);
   return [next_token, null];
 }
+
+export const name_expr = (name: string): NameIdentifier => ({ name });
+export const constructor_expr = (constr: string): ConstructorExpression => ({
+  constr,
+});
+export const call_expr = (
+  fn: Expression,
+  args: Expression[],
+): CallExpression => ({
+  call: [fn, args],
+});
+export const block_expr = (block: BodyExpression[]): BlockExpression => ({
+  block,
+});
+export const if_expr = (
+  cond: Expression,
+  if_body: Expression,
+  else_body: Expression | null,
+): IfExpression => ({
+  if_expr: {
+    cond,
+    if_body,
+    else_body,
+  },
+});
+export const select_expr = (
+  record: Expression,
+  name: string,
+): SelectExpression => ({
+  select: [record, name_expr(name)],
+});
+export const match_expr = (
+  scrutinee: Expression,
+  arms: MatchArm[],
+): MatchExpression => ({
+  match: [scrutinee, arms],
+});
+export const float_expr = (value: number, size: 32 | 64): FloatExpression => ({
+  float: { value, size },
+});
+export const int_expr = (
+  value: number | bigint,
+  size: 8 | 16 | 32 | 64,
+): IntExpression => ({
+  int: { value: BigInt(value), size },
+});
+export const bool_expr = (bool: boolean): BoolExpression => ({ bool });
+export const prefix_expr = (
+  op: PrefixOp,
+  operand: Expression,
+): PrefixExpression => ({
+  prefix: { op, operand },
+});
+export const postfix_expr = (
+  operand: Expression,
+  op: PostfixOp,
+): PostfixExpression => ({
+  postfix: { op, operand },
+});
+export const infix_expr = (
+  left: Expression,
+  op: InfixOp,
+  right: Expression,
+): InfixExpression => ({
+  infix: { left, op, right },
+});
+export const string_expr = (string: string): StringToken => ({ string });
+export const fn_expr = (
+  params: FnParam[],
+  return_type: TypeExpression | null,
+  body: Expression,
+): FnExpression => ({
+  fn: {
+    params,
+    return_type,
+    body,
+  },
+});
+export const record_expr = (
+  record: [string, Expression][],
+): RecordExpression => ({
+  record: record.map(([k, v]) => [name_expr(k), v]),
+});
+export const tuple_expr = (tuple: Expression[]): TupleExpression => ({ tuple });
+export const self_expr = (): SelfExpression => ({ self: null });
+
+export const arrow_kind_body_expr = (
+  name: string,
+  expression: Expression,
+): ArrowKindBodyExpression => ({
+  arrow_bind: {
+    name: name_expr(name),
+    expression,
+  },
+});
+export const let_bind_body_expr = (
+  assert: boolean,
+  pattern: PatternExpression,
+  expression: Expression,
+): LetBindBodyExpression => ({
+  let_bind: {
+    assert,
+    pattern,
+    expression,
+  },
+});
+export const assign_body_expr = (
+  name: string,
+  expression: Expression,
+): AssignBodyExpression => ({
+  assign: {
+    name: name_expr(name),
+    expression,
+  },
+});
+export const expression_body_expr = (
+  expression: Expression,
+): ExpressionBodyExpression => ({
+  expression,
+});
+export const fn_param = (
+  name: string,
+  guard: TypeExpression | null,
+): FnParam => ({
+  name: name_expr(name),
+  guard,
+});

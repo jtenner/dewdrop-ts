@@ -417,7 +417,12 @@ export class BaseVisitor implements ASTVisitor {
     if ("record" in node) return this.visitRecordExpression(node);
     if ("tuple" in node) return this.visitTupleExpression(node);
     if ("self" in node) return node;
+    if ("name" in node) return this.visitNameExpression(node);
     return node; // NameIdentifier
+  }
+
+  visitNameExpression(node: NameIdentifier): Expression {
+    return node;
   }
 
   visitConstructorExpression(node: ConstructorExpression): Expression {
@@ -547,7 +552,12 @@ export class BaseVisitor implements ASTVisitor {
     if ("string" in node) return node;
     if ("record" in node) return this.visitRecordPatternExpression(node);
     if ("tuple" in node) return this.visitTuplePatternExpression(node);
+    if ("name" in node) return this.visitNamePatternExpression(node);
     return node; // NameIdentifier
+  }
+
+  visitNamePatternExpression(node: NameIdentifier): PatternExpression {
+    return node;
   }
 
   visitConstructorPatternExpression(
