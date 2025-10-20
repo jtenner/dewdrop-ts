@@ -510,12 +510,7 @@ export class BaseVisitor implements ASTVisitor {
 
   visitFnExpression(node: FnExpression): Expression {
     return {
-      fn: {
-        params: node.fn.params.map((p) => this.visitFnParam(p)),
-        return_type:
-          node.fn.return_type && this.visitTypeExpression(node.fn.return_type),
-        body: this.visitExpression(node.fn.body),
-      },
+      fn: this.visitFn(node.fn),
     };
   }
 
