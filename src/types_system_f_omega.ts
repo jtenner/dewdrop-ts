@@ -1901,7 +1901,7 @@ export function inferType(
     };
   }
 
-  // NEW: Trait application
+  // trait application
   if ("trait_app" in term) {
     const termType = inferType(context, term.trait_app.term);
     if ("err" in termType) return termType;

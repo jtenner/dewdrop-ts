@@ -84,11 +84,7 @@ export type InfixExpression = {
   infix: { op: InfixOp; left: Expression; right: Expression };
 };
 export type FnExpression = {
-  fn: {
-    params: FnParam[];
-    return_type: TypeExpression | null;
-    body: Expression;
-  };
+  fn: Fn;
 };
 export type RecordExpression = { record: [NameIdentifier, Expression][] };
 export type TupleExpression = { tuple: Expression[] };
@@ -195,10 +191,14 @@ export type TraitImport = {
 export type BuiltinImport = {
   builtin: { name: StringToken; alias: NameIdentifier };
 };
+export type EnumImport = {
+  enum: { name: TypeIdentifier; alias: TypeIdentifier | null };
+};
 export type Import =
   | TypeImport
   | FnImport
   | GlobalImport
+  | EnumImport
   | TableImport
   | StarImport
   | MemoryImport
@@ -977,6 +977,23 @@ export const take_expression = async (
         continue;
       }
 
+      // fn expression
+      [next_token, success_token] = await take_keyword(
+        next_token,
+        tokens,
+        "fn",
+      );
+      if (success_token) {
+        let fn: Fn | null;
+        // pass the fn token into the parser so that it "reads" the fn token
+        [next_token, fn] = await take_fn(success_token, tokens);
+        if (!fn) return [next_token, null];
+
+        yard.push_expr(fn_expr(fn));
+        combine_state = true;
+        continue;
+      }
+
       // group expression
       [next_token, success_token] = await take_symbol(next_token, tokens, "(");
       if (success_token) {
@@ -1477,6 +1494,20 @@ export const take_import = async (
     if (!alias) return [next_token, null];
 
     return [next_token, { builtin: { alias, name } }];
+  }
+
+  [next_token, success_token] = await take_keyword(next_token, tokens, "enum");
+  if (success_token) {
+    [next_token, type] = await take_type(next_token, tokens);
+    if (!type) return [next_token, null];
+
+    [next_token, success_token] = await take_keyword(next_token, tokens, "as");
+    if (success_token) {
+      [next_token, type_alias] = await take_type(next_token, tokens);
+      if (!type_alias) return [next_token, null];
+    }
+
+    return [next_token, { enum: { name: type, alias: type_alias } }];
   }
 
   // named import
@@ -2152,17 +2183,7 @@ export const infix_expr = (
   infix: { left, op, right },
 });
 export const string_expr = (string: string): StringToken => ({ string });
-export const fn_expr = (
-  params: FnParam[],
-  return_type: TypeExpression | null,
-  body: Expression,
-): FnExpression => ({
-  fn: {
-    params,
-    return_type,
-    body,
-  },
-});
+export const fn_expr = (fn: Fn): FnExpression => ({ fn });
 export const record_expr = (
   record: [string, Expression][],
 ): RecordExpression => ({
