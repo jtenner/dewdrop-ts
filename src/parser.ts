@@ -54,10 +54,10 @@ export type AssignBodyExpression = {
 };
 export type ExpressionBodyExpression = { expression: Expression };
 export type BodyExpression =
-  | ArrowKindBodyExpression
-  | LetBindBodyExpression
+  | ArrowKindBodyExpression // a <- expr
+  | LetBindBodyExpression // let a = expr
   | AssignBodyExpression
-  | ExpressionBodyExpression;
+  | ExpressionBodyExpression; // expr
 
 export type TypeConstructorExpression = TypeIdentifier;
 export type CallExpression = { call: [Expression, Expression[]] };
@@ -99,14 +99,14 @@ export type Expression =
   | CallExpression
   | BlockExpression
   | IfExpression
-  | SelectExpression
-  | MatchExpression
+  | SelectExpression // record.field
+  | MatchExpression // match (val) { ... }
   | FloatExpression
   | IntExpression
   | BoolExpression
-  | PrefixExpression
-  | PostfixExpression
-  | InfixExpression
+  | PrefixExpression // (op) expression
+  | PostfixExpression // expression (op)
+  | InfixExpression // left (op) right
   | StringToken
   | FnExpression
   | RecordExpression

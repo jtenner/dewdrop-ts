@@ -1476,8 +1476,6 @@ export function unifyKinds(left: Kind, right: Kind): Result<TypingError, null> {
 export function occursCheck(varName: string, type: Type): boolean {
   if ("var" in type) return type.var === varName;
 
-  if ("con" in type) return false;
-
   if ("arrow" in type)
     return (
       occursCheck(varName, type.arrow.from) ||

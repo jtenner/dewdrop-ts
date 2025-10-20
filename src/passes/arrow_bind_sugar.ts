@@ -18,8 +18,8 @@ export class ArrowBindSugarPass extends BaseVisitor {
         const rest = node.block.splice(i + 1, node.block.length - i);
         const fn = fn_expr([fn_param(name.name, null)], null, block_expr(rest));
         const next = call_expr(name_expr("map"), [fn, expression]);
-        this.visitCallExpression(next);
-        return node;
+        const result = this.visitCallExpression(next);
+        return result;
       }
     }
 
