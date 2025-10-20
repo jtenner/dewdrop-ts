@@ -211,7 +211,7 @@ exports[`obj.method(x, y) matches snapshot: Expression: obj.method(x, y) 1`] = `
 
 exports[`MyType matches snapshot: Expression: MyType 1`] = `
 {
-  "constr": "MyType",
+  "type": "MyType",
 }
 `;
 
@@ -219,7 +219,7 @@ exports[`MyType() matches snapshot: Expression: MyType() 1`] = `
 {
   "call": [
     {
-      "constr": "MyType",
+      "type": "MyType",
     },
     [],
   ],
@@ -403,12 +403,12 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
         },
         "guard": null,
         "pattern": {
-          "constr": [
-            {
+          "constr": {
+            "patterns": [],
+            "type": {
               "type": "A",
             },
-            [],
-          ],
+          },
         },
       },
       {
@@ -420,12 +420,12 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
         },
         "guard": null,
         "pattern": {
-          "constr": [
-            {
+          "constr": {
+            "patterns": [],
+            "type": {
               "type": "B",
             },
-            [],
-          ],
+          },
         },
       },
       {
@@ -541,12 +541,12 @@ exports[`if match x { A => true, _ => false } { 1 } else { 0 } matches snapshot:
             },
             "guard": null,
             "pattern": {
-              "constr": [
-                {
+              "constr": {
+                "patterns": [],
+                "type": {
                   "type": "A",
                 },
-                [],
-              ],
+              },
             },
           },
           {
@@ -603,22 +603,19 @@ exports[`_wild matches snapshot: PatternExpression: _wild 1`] = `
 
 exports[`Some matches snapshot: PatternExpression: Some 1`] = `
 {
-  "constr": [
-    {
+  "constr": {
+    "patterns": [],
+    "type": {
       "type": "Some",
     },
-    [],
-  ],
+  },
 }
 `;
 
 exports[`Some(42) matches snapshot: PatternExpression: Some(42) 1`] = `
 {
-  "constr": [
-    {
-      "type": "Some",
-    },
-    [
+  "constr": {
+    "patterns": [
       {
         "int": {
           "size": 32,
@@ -626,17 +623,17 @@ exports[`Some(42) matches snapshot: PatternExpression: Some(42) 1`] = `
         },
       },
     ],
-  ],
+    "type": {
+      "type": "Some",
+    },
+  },
 }
 `;
 
 exports[`Pair(1, x) matches snapshot: PatternExpression: Pair(1, x) 1`] = `
 {
-  "constr": [
-    {
-      "type": "Pair",
-    },
-    [
+  "constr": {
+    "patterns": [
       {
         "int": {
           "size": 32,
@@ -647,7 +644,10 @@ exports[`Pair(1, x) matches snapshot: PatternExpression: Pair(1, x) 1`] = `
         "name": "x",
       },
     ],
-  ],
+    "type": {
+      "type": "Pair",
+    },
+  },
 }
 `;
 
@@ -771,11 +771,8 @@ exports[`#{nested: Pair(x, y)} matches snapshot: PatternExpression: #{nested: Pa
         "name": "nested",
       },
       {
-        "constr": [
-          {
-            "type": "Pair",
-          },
-          [
+        "constr": {
+          "patterns": [
             {
               "name": "x",
             },
@@ -783,7 +780,10 @@ exports[`#{nested: Pair(x, y)} matches snapshot: PatternExpression: #{nested: Pa
               "name": "y",
             },
           ],
-        ],
+          "type": {
+            "type": "Pair",
+          },
+        },
       },
     ],
   ],
@@ -792,11 +792,8 @@ exports[`#{nested: Pair(x, y)} matches snapshot: PatternExpression: #{nested: Pa
 
 exports[`Some(#(x, #{y: 1})) matches snapshot: PatternExpression: Some(#(x, #{y: 1})) 1`] = `
 {
-  "constr": [
-    {
-      "type": "Some",
-    },
-    [
+  "constr": {
+    "patterns": [
       {
         "tuple": [
           {
@@ -820,7 +817,10 @@ exports[`Some(#(x, #{y: 1})) matches snapshot: PatternExpression: Some(#(x, #{y:
         ],
       },
     ],
-  ],
+    "type": {
+      "type": "Some",
+    },
+  },
 }
 `;
 
@@ -1185,16 +1185,16 @@ exports[`let Some(a) = b matches snapshot: BodyExpression: let Some(a) = b 1`] =
       "name": "b",
     },
     "pattern": {
-      "constr": [
-        {
-          "type": "Some",
-        },
-        [
+      "constr": {
+        "patterns": [
           {
             "name": "a",
           },
         ],
-      ],
+        "type": {
+          "type": "Some",
+        },
+      },
     },
   },
 }
@@ -1208,16 +1208,16 @@ exports[`let assert Some(a) = b matches snapshot: BodyExpression: let assert Som
       "name": "b",
     },
     "pattern": {
-      "constr": [
-        {
-          "type": "Some",
-        },
-        [
+      "constr": {
+        "patterns": [
           {
             "name": "a",
           },
         ],
-      ],
+        "type": {
+          "type": "Some",
+        },
+      },
     },
   },
 }

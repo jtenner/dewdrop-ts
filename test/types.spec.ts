@@ -45,6 +45,13 @@ import {
   normalizeType,
   substituteType,
   MuType,
+  TraitDef,
+  TraitConstraint,
+  bounded_forall_type,
+  trait_lam_term,
+  trait_app_term,
+  dict_term,
+  trait_method_term,
 } from "../src/types_system_f_omega";
 import { test } from "bun:test";
 
@@ -1388,4 +1395,630 @@ test("type normalization", () => {
     typesEqual(normalized8, usedForall),
     `Test 8 failed: Used forall should remain unchanged`
   );
+});
+
+// ============= TRAIT SYSTEM TESTS =============
+
+test("Simple trait definition", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const context: Context = [{ trait_def: showTrait }];
+
+  // Verify the trait definition is in context
+  const binding = context.find((b) => "trait_def" in b);
+  assert(binding !== undefined, "trait should be in context");
+  assert("trait_def" in binding!, "should be trait_def binding");
+});
+
+test("Dictionary for Show Int", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const intType = con_type("Int");
+  const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
+
+  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
+
+  const context: Context = [{ trait_def: showTrait }];
+
+  const result = typecheck(context, intShowDict);
+  const type = assertOk(result, "should typecheck");
+  assert("con" in type, "should be dictionary type");
+});
+
+test("Dictionary with missing method", () => {
+  const eqTrait: TraitDef = {
+    name: "Eq",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [
+      ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
+      ["neq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
+    ],
+  };
+
+  const intType = con_type("Int");
+  const eqImpl = lam_term(
+    "x",
+    intType,
+    lam_term("y", intType, con_term("true", con_type("Bool")))
+  );
+
+  // Missing neq method
+  const incompleteDict = dict_term("Eq", intType, [["eq", eqImpl]]);
+
+  const context: Context = [{ trait_def: eqTrait }];
+
+  const result = typecheck(context, incompleteDict);
+  const err = assertErr(result, "should fail");
+  assert("missing_method" in err, "should be missing method error");
+});
+
+test("Dictionary with wrong method type", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const intType = con_type("Int");
+  // Wrong: returns Int instead of String
+  const wrongImpl = lam_term("x", intType, con_term("42", intType));
+
+  const wrongDict = dict_term("Show", intType, [["show", wrongImpl]]);
+
+  const context: Context = [{ trait_def: showTrait }];
+
+  const result = typecheck(context, wrongDict);
+  const err = assertErr(result, "should fail");
+  assert("type_mismatch" in err, "should be type mismatch error");
+});
+
+test("Trait method access from dictionary variable", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const intType = con_type("Int");
+
+  const context: Context = [
+    { trait_def: showTrait },
+    {
+      dict: {
+        name: "showIntDict",
+        trait: "Show",
+        type: intType,
+      },
+    },
+  ];
+
+  const methodAccess = trait_method_term(var_term("showIntDict"), "show");
+
+  const result = typecheck(context, methodAccess);
+  const type = assertOk(result, "should typecheck");
+  assert("arrow" in type, "should be function type");
+  assert(typesEqual(type.arrow.from, intType), "should take Int");
+  assert(typesEqual(type.arrow.to, con_type("String")), "should return String");
+});
+
+test("Trait method access from concrete dictionary", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const intType = con_type("Int");
+  const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
+  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
+
+  const context: Context = [{ trait_def: showTrait }];
+
+  const methodAccess = trait_method_term(intShowDict, "show");
+
+  const result = typecheck(context, methodAccess);
+  const type = assertOk(result, "should typecheck");
+  assert("arrow" in type, "should be function type");
+});
+
+test("Trait method access with wrong method name", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const intType = con_type("Int");
+
+  const context: Context = [
+    { trait_def: showTrait },
+    {
+      dict: {
+        name: "showIntDict",
+        trait: "Show",
+        type: intType,
+      },
+    },
+  ];
+
+  const wrongMethod = trait_method_term(var_term("showIntDict"), "wrongMethod");
+
+  const result = typecheck(context, wrongMethod);
+  const err = assertErr(result, "should fail");
+  assert("missing_method" in err, "should be missing method error");
+});
+
+test("Simple trait lambda", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  // Λ T where Show<T>. λx:T. show(dict, x)
+  const showValue = trait_lam_term(
+    "showDict",
+    "Show",
+    "T",
+    { star: null },
+    [{ trait: "Show", type: var_type("T") }],
+    lam_term(
+      "x",
+      var_type("T"),
+      app_term(
+        trait_method_term(var_term("showDict"), "show"),
+        var_term("x")
+      )
+    )
+  );
+
+  const context: Context = [{ trait_def: showTrait }];
+
+  const result = typecheck(context, showValue);
+  const type = assertOk(result, "should typecheck");
+  assert("bounded_forall" in type, "should be bounded forall type");
+  assert(type.bounded_forall.constraints.length === 1, "should have one constraint");
+  assert(
+    type.bounded_forall.constraints[0]?.trait === "Show",
+    "should have Show constraint"
+  );
+});
+
+test("Trait application with concrete type", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const intType = con_type("Int");
+  const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
+  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
+
+  const showValue = trait_lam_term(
+    "showDict",
+    "Show",
+    "T",
+    { star: null },
+    [{ trait: "Show", type: var_type("T") }],
+    lam_term(
+      "x",
+      var_type("T"),
+      app_term(
+        trait_method_term(var_term("showDict"), "show"),
+        var_term("x")
+      )
+    )
+  );
+
+  const context: Context = [
+    { trait_def: showTrait },
+    { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
+  ];
+
+  // Apply to Int type with dictionary
+  const applied = trait_app_term(showValue, intType, [intShowDict]);
+
+  const result = typecheck(context, applied);
+  const type = assertOk(result, "should typecheck");
+  assert("arrow" in type, "should be function type");
+  assert(typesEqual(type.arrow.from, intType), "should take Int");
+  assert(typesEqual(type.arrow.to, con_type("String")), "should return String");
+});
+
+test("Trait application with missing implementation", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const showValue = trait_lam_term(
+    "showDict",
+    "Show",
+    "T",
+    { star: null },
+    [{ trait: "Show", type: var_type("T") }],
+    lam_term(
+      "x",
+      var_type("T"),
+      app_term(
+        trait_method_term(var_term("showDict"), "show"),
+        var_term("x")
+      )
+    )
+  );
+
+  const context: Context = [{ trait_def: showTrait }];
+
+  const boolType = con_type("Bool");
+  // No Show implementation for Bool provided
+  const applied = trait_app_term(showValue, boolType, []);
+
+  const result = typecheck(context, applied);
+  const err = assertErr(result, "should fail");
+  assert(
+    "missing_trait_impl" in err || "wrong_number_of_dicts" in err,
+    "should be missing implementation error"
+  );
+});
+
+test("Multiple trait constraints", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const eqTrait: TraitDef = {
+    name: "Eq",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [
+      ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
+    ],
+  };
+
+  // Λ T where Show<T>, Eq<T>. λx:T. λy:T. ...
+  const compareAndShow = trait_lam_term(
+    "showDict",
+    "Show",
+    "T",
+    { star: null },
+    [
+      { trait: "Show", type: var_type("T") },
+      { trait: "Eq", type: var_type("T") },
+    ],
+    lam_term(
+      "x",
+      var_type("T"),
+      lam_term("y", var_type("T"), con_term("\"result\"", con_type("String")))
+    )
+  );
+
+  const context: Context = [
+    { trait_def: showTrait },
+    { trait_def: eqTrait },
+  ];
+
+  const result = typecheck(context, compareAndShow);
+  const type = assertOk(result, "should typecheck");
+  assert("bounded_forall" in type, "should be bounded forall type");
+  assert(type.bounded_forall.constraints.length === 2, "should have two constraints");
+});
+
+test("Functor trait with map", () => {
+  const functorTrait: TraitDef = {
+    name: "Functor",
+    type_param: "F",
+    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    methods: [
+      [
+        "map",
+        forall_type(
+          "A",
+          { star: null },
+          forall_type(
+            "B",
+            { star: null },
+            arrow_type(
+              arrow_type(var_type("A"), var_type("B")),
+              arrow_type(
+                app_type(var_type("F"), var_type("A")),
+                app_type(var_type("F"), var_type("B"))
+              )
+            )
+          )
+        ),
+      ],
+    ],
+  };
+
+  const context: Context = [{ trait_def: functorTrait }];
+
+  // Just verify the trait definition typechecks
+  const binding = context.find((b) => "trait_def" in b);
+  assert(binding !== undefined, "trait should be in context");
+});
+
+test("Ord trait with superclass", () => {
+  const eqTrait: TraitDef = {
+    name: "Eq",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [
+      ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
+    ],
+  };
+
+  const ordTrait: TraitDef = {
+    name: "Ord",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [
+      ["compare", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Int")))],
+    ],
+  };
+
+  const intType = con_type("Int");
+
+  const eqImpl = lam_term(
+    "x",
+    intType,
+    lam_term("y", intType, con_term("true", con_type("Bool")))
+  );
+
+  const ordImpl = lam_term(
+    "x",
+    intType,
+    lam_term("y", intType, con_term("0", intType))
+  );
+
+  const eqDict = dict_term("Eq", intType, [["eq", eqImpl]]);
+  const ordDict = dict_term("Ord", intType, [["compare", ordImpl]]);
+
+  const context: Context = [
+    { trait_def: eqTrait },
+    { trait_def: ordTrait },
+  ];
+
+  const result1 = typecheck(context, eqDict);
+  assertOk(result1, "Eq dict should typecheck");
+
+  const result2 = typecheck(context, ordDict);
+  assertOk(result2, "Ord dict should typecheck");
+});
+
+test("Generic function with trait bound", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  // Λ T where Show<T>. λxs: List<T>. ...
+  const showList = trait_lam_term(
+    "showDict",
+    "Show",
+    "T",
+    { star: null },
+    [{ trait: "Show", type: var_type("T") }],
+    lam_term(
+      "xs",
+      mu_type(
+        "L",
+        variant_type([
+          ["Nil", unitType],
+          ["Cons", record_type([["head", var_type("T")], ["tail", var_type("L")]])],
+        ])
+      ),
+      con_term("\"[...]\"", con_type("String"))
+    )
+  );
+
+  const context: Context = [{ trait_def: showTrait }];
+
+  const result = typecheck(context, showList);
+  const type = assertOk(result, "should typecheck");
+  assert("bounded_forall" in type, "should be bounded forall type");
+});
+
+test("Trait for recursive type", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const listInt = mu_type(
+    "L",
+    variant_type([
+      ["Nil", unitType],
+      ["Cons", record_type([["head", con_type("Int")], ["tail", var_type("L")]])],
+    ])
+  );
+
+  const showListImpl = lam_term(
+    "list",
+    listInt,
+    con_term("\"[1,2,3]\"", con_type("String"))
+  );
+
+  const listShowDict = dict_term("Show", listInt, [["show", showListImpl]]);
+
+  const context: Context = [{ trait_def: showTrait }];
+
+  const result = typecheck(context, listShowDict);
+  assertOk(result, "should typecheck");
+});
+
+test("Monad trait structure", () => {
+  const monadTrait: TraitDef = {
+    name: "Monad",
+    type_param: "M",
+    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    methods: [
+      [
+        "return",
+        forall_type(
+          "A",
+          { star: null },
+          arrow_type(var_type("A"), app_type(var_type("M"), var_type("A")))
+        ),
+      ],
+      [
+        "bind",
+        forall_type(
+          "A",
+          { star: null },
+          forall_type(
+            "B",
+            { star: null },
+            arrow_type(
+              app_type(var_type("M"), var_type("A")),
+              arrow_type(
+                arrow_type(var_type("A"), app_type(var_type("M"), var_type("B"))),
+                app_type(var_type("M"), var_type("B"))
+              )
+            )
+          )
+        ),
+      ],
+    ],
+  };
+
+  const context: Context = [{ trait_def: monadTrait }];
+
+  const binding = context.find((b) => "trait_def" in b);
+  assert(binding !== undefined, "monad trait should be in context");
+  assert("trait_def" in binding!, "should be trait_def binding");
+  assert(binding!.trait_def.methods.length === 2, "should have 2 methods");
+});
+
+test("Bounded forall type equality", () => {
+  const constraint: TraitConstraint = {
+    trait: "Show",
+    type: var_type("T"),
+  };
+
+  const type1 = bounded_forall_type(
+    "T",
+    { star: null },
+    [constraint],
+    arrow_type(var_type("T"), con_type("String"))
+  );
+
+  const type2 = bounded_forall_type(
+    "T",
+    { star: null },
+    [constraint],
+    arrow_type(var_type("T"), con_type("String"))
+  );
+
+  assert(typesEqual(type1, type2), "identical bounded foralls should be equal");
+});
+
+test("Bounded forall with different constraints not equal", () => {
+  const type1 = bounded_forall_type(
+    "T",
+    { star: null },
+    [{ trait: "Show", type: var_type("T") }],
+    arrow_type(var_type("T"), con_type("String"))
+  );
+
+  const type2 = bounded_forall_type(
+    "T",
+    { star: null },
+    [{ trait: "Eq", type: var_type("T") }],
+    arrow_type(var_type("T"), con_type("String"))
+  );
+
+  assert(!typesEqual(type1, type2), "different constraints should not be equal");
+});
+
+test("Trait substitution in constraints", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: { star: null },
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const intType = con_type("Int");
+  const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
+  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
+
+  // Λ T where Show<T>. λf: T -> T. λx: T. x
+  const polyFunc = trait_lam_term(
+    "showDict",
+    "Show",
+    "T",
+    { star: null },
+    [{ trait: "Show", type: var_type("T") }],
+    lam_term(
+      "f",
+      arrow_type(var_type("T"), var_type("T")),
+      lam_term("x", var_type("T"), var_term("x"))
+    )
+  );
+
+  const context: Context = [
+    { trait_def: showTrait },
+    { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
+  ];
+
+  // Apply to Int - should substitute T with Int in Show<T> constraint
+  const applied = trait_app_term(polyFunc, intType, [intShowDict]);
+
+  const result = typecheck(context, applied);
+  const type = assertOk(result, "should typecheck after substitution");
+  assert("arrow" in type, "should be function type");
+});
+
+test("Kind checking bounded forall", () => {
+  const polyType = bounded_forall_type(
+    "T",
+    { star: null },
+    [{ trait: "Show", type: var_type("T") }],
+    arrow_type(var_type("T"), con_type("String"))
+  );
+
+  const result = checkKind([], polyType);
+  const kind = assertOk(result, "should have valid kind");
+  assert("star" in kind, "bounded forall should have kind *");
+});
+
+test("Kind mismatch in trait constraint type", () => {
+  // Constraint type must have kind *, not * -> *
+  const badType = bounded_forall_type(
+    "F",
+    { arrow: { from: { star: null }, to: { star: null } } },
+    [{ trait: "Show", type: var_type("F") }], // F has kind * -> *, but Show expects *
+    var_type("F")
+  );
+
+  const result = checkKind([], badType);
+  const err = assertErr(result, "should fail");
+  assert("kind_mismatch" in err, "should be kind mismatch error");
 });

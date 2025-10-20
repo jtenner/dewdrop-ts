@@ -1,6 +1,30 @@
 // utility function
 const first = <T, U>(tuple: [T, U]) => tuple[0];
 
+// Trait definition - defines required methods
+export type TraitDef = {
+  name: string;
+  type_param: string; // e.g., "Self"
+  kind: Kind;
+  methods: [string, Type][]; // method name -> method type
+};
+
+// Trait constraint
+export type TraitConstraint = {
+  trait: string;
+  type: Type;
+};
+
+// Add to Type union
+export type BoundedForallType = {
+  bounded_forall: {
+    var: string;
+    kind: Kind;
+    constraints: TraitConstraint[];
+    body: Type;
+  };
+};
+
 // Kinds (types of types)
 export type StarKind = { star: null };
 export type ArrowKind = { arrow: { from: Kind; to: Kind } };
@@ -40,6 +64,7 @@ export type Type =
   | ArrowType // τ₁ → τ₂
   | ForallType // ∀α::κ.τ
   | AppType // type application F τ
+  | BoundedForallType // trait type
   | LamType // λα::κ.τ
   | ConType // type constant (Int, Bool, etc.)
   | RecordType // {l₁:τ₁, l₂:τ₂, ...}
@@ -67,30 +92,92 @@ export type FoldTerm = { fold: { type: Type; term: Term } };
 export type UnfoldTerm = { unfold: Term };
 export type TupleTerm = { tuple: Term[] };
 export type TupleProjectTerm = { tupleProject: { tuple: Term; index: number } };
+// Trait dictionary (evidence of implementation)
+export type DictTerm = {
+  dict: {
+    trait: string;
+    type: Type;
+    methods: [string, Term][]; // method implementations
+  };
+};
+
+// Access trait method with evidence
+export type TraitMethodTerm = {
+  trait_method: {
+    dict: Term; // dictionary/evidence
+    method: string;
+  };
+};
+
+// Lambda that takes trait evidence
+export type TraitLamTerm = {
+  trait_lam: {
+    trait_var: string; // dict variable name
+    trait: string;
+    type_var: string;
+    kind: Kind;
+    constraints: TraitConstraint[];
+    body: Term;
+  };
+};
+
+// Application with trait evidence
+export type TraitAppTerm = {
+  trait_app: {
+    term: Term;
+    type: Type;
+    dicts: Term[]; // evidence for each constraint
+  };
+};
 export type Term =
-  | VarTerm // variable x
-  | LetTerm
-  | LamTerm // λx:τ.e
   | AppTerm // e₁ e₂
-  | TyLamTerm // Λα::κ.e
-  | TyAppTerm // e [τ]
   | ConTerm // constants with their types
-  | RecordTerm // {l₁=e₁, l₂=e₂, ...}
-  | ProjectTerm // e.l
-  | InjectTerm // <l=e> as T
-  | MatchTerm // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
+  | DictTerm // trait dict
   | FoldTerm // fold: τ[μα.τ/α] → μα.τ
-  | UnfoldTerm // unfold: μα.τ → τ[μα.τ/α]
+  | InjectTerm // <l=e> as T
+  | LamTerm // λx:τ.e
+  | LetTerm
+  | MatchTerm // match e { l₁(x₁) => e₁ | l₂(x₂) => e₂ }
+  | ProjectTerm // e.l
+  | RecordTerm // {l₁=e₁, l₂=e₂, ...}
+  | TraitAppTerm // trat application
+  | TraitLamTerm // trait lambda
+  | TraitMethodTerm // trait method
+  | TupleProjectTerm // tuple[0]
   | TupleTerm // tuple: #(l₁, l₂, ...)
-  | TupleProjectTerm; // tuple[0]
+  | TyAppTerm // e [τ]
+  | TyLamTerm // Λα::κ.e
+  | UnfoldTerm // unfold: μα.τ → τ[μα.τ/α]
+  | VarTerm; // variable x
 
 // Context entries for type checking
 export type TermBinding = { term: { name: string; type: Type } };
 export type TypeBinding = { type: { name: string; kind: Kind } };
+export type TraitDefBinding = {
+  trait_def: TraitDef;
+};
+
+export type TraitImplBinding = {
+  trait_impl: {
+    trait: string;
+    type: Type;
+    dict: Term; // dictionary term
+  };
+};
+
+export type DictBinding = {
+  dict: {
+    name: string; // dictionary variable
+    trait: string;
+    type: Type;
+  };
+};
 export type Binding =
   | TermBinding // x : τ
-  | TypeBinding; // α :: κ
-
+  | TypeBinding // α :: κ
+  | TraitDefBinding // trait definition
+  | TraitImplBinding // trait impl
+  | DictBinding; // dict binding
 export type Context = Binding[];
 
 export type UnboundTypeError = { unbound: string };
@@ -117,21 +204,33 @@ export type NotATupleTypeError = { not_a_tuple: Type };
 export type TupleIndexOutofBoundsTypeError = {
   tuple_index_out_of_bounds: { tuple: Type; index: number };
 };
+export type MissingTraitImplError = {
+  missing_trait_impl: { trait: string; type: Type };
+};
+export type MissingMethodError = {
+  missing_method: { trait: string; method: string };
+};
+export type WrongNumberOfDictsError = {
+  wrong_number_of_dicts: { expected: number; actual: number };
+};
 export type TypingError =
-  | UnboundTypeError
-  | KindMismatchTypeError
-  | TypeMismatchTypeError
-  | NotAFunctionTypeError
-  | NotATypeFunctionTypeError
   | CyclicTypeError
-  | NotARecordTypeError
-  | MissingFieldTypeError
-  | NotAVariantTypeError
-  | InvalidVariantTypeError
-  | MissingCaseTypeError
   | ExtraCaseTypeError
+  | InvalidVariantTypeError
+  | KindMismatchTypeError
+  | MissingCaseTypeError
+  | MissingFieldTypeError
+  | MissingMethodError
+  | MissingTraitImplError
+  | NotAFunctionTypeError
+  | NotARecordTypeError
   | NotATupleTypeError
-  | TupleIndexOutofBoundsTypeError;
+  | NotATypeFunctionTypeError
+  | NotAVariantTypeError
+  | TupleIndexOutofBoundsTypeError
+  | TypeMismatchTypeError
+  | UnboundTypeError
+  | WrongNumberOfDictsError;
 
 export type Result<Err, T> = { ok: T } | { err: Err };
 
@@ -234,6 +333,12 @@ export function showType(t: Type): string {
     const elements = t.tuple.map(showType).join(", ");
     return `(${elements})`;
   }
+  if ("bounded_forall" in t) {
+    const constraints = t.bounded_forall.constraints
+      .map((c) => `${c.trait}<${showType(c.type)}>`)
+      .join(", ");
+    return `∀${t.bounded_forall.var}::${showKind(t.bounded_forall.kind)} where ${constraints}.${showType(t.bounded_forall.body)}`;
+  }
   return "unknown";
 }
 
@@ -255,6 +360,28 @@ export function showTerm(t: Term): string {
       .map(([label, term]) => `${label} = ${showTerm(term)}`)
       .join(", ");
     return `{${fields}}`;
+  }
+  if ("trait_lam" in t) {
+    const constraints = t.trait_lam.constraints
+      .map((c) => `${c.trait}<${showType(c.type)}>`)
+      .join(", ");
+    return `Λ${t.trait_lam.type_var}::${showKind(t.trait_lam.kind)} where ${constraints}. ${showTerm(t.trait_lam.body)}`;
+  }
+
+  if ("trait_app" in t) {
+    const dicts = t.trait_app.dicts.map(showTerm).join(", ");
+    return `${showTerm(t.trait_app.term)} [${showType(t.trait_app.type)}] {${dicts}}`;
+  }
+
+  if ("dict" in t) {
+    const methods = t.dict.methods
+      .map(([name, impl]) => `${name} = ${showTerm(impl)}`)
+      .join(", ");
+    return `dict ${t.dict.trait}<${showType(t.dict.type)}> { ${methods} }`;
+  }
+
+  if ("trait_method" in t) {
+    return `${showTerm(t.trait_method.dict)}.${t.trait_method.method}`;
   }
   if ("project" in t) return `${showTerm(t.project.record)}.${t.project.label}`;
   if ("inject" in t)
@@ -279,6 +406,52 @@ export function showTerm(t: Term): string {
     return `${showTerm(t.tupleProject.tuple)}.${t.tupleProject.index}`;
   }
   return "unknown";
+}
+
+// Check if a type implements a trait
+export function checkTraitImplementation(
+  context: Context,
+  trait: string,
+  type: Type,
+): Result<TypingError, Term> {
+  // Look for trait implementation in context
+  const impl = context.find(
+    (b) =>
+      "trait_impl" in b &&
+      b.trait_impl.trait === trait &&
+      typesEqual(b.trait_impl.type, type),
+  );
+
+  if (impl && "trait_impl" in impl) {
+    return { ok: impl.trait_impl.dict };
+  }
+
+  return {
+    err: {
+      missing_trait_impl: { trait, type },
+    } as TypingError,
+  };
+}
+
+// Verify all trait constraints are satisfied
+export function checkTraitConstraints(
+  context: Context,
+  constraints: TraitConstraint[],
+): Result<TypingError, Term[]> {
+  const dicts: Term[] = [];
+
+  for (const constraint of constraints) {
+    const result = checkTraitImplementation(
+      context,
+      constraint.trait,
+      constraint.type,
+    );
+
+    if ("err" in result) return result;
+    dicts.push(result.ok);
+  }
+
+  return { ok: dicts };
 }
 
 // Check if patterns are exhaustive (simplified version)
@@ -461,6 +634,25 @@ export function substituteType(
       },
     };
 
+  if ("bounded_forall" in inType && inType.bounded_forall.var !== target) {
+    return {
+      bounded_forall: {
+        var: inType.bounded_forall.var,
+        kind: inType.bounded_forall.kind,
+        constraints: inType.bounded_forall.constraints.map((c) => ({
+          trait: c.trait,
+          type: substituteType(target, replacement, c.type, avoidInfinite),
+        })),
+        body: substituteType(
+          target,
+          replacement,
+          inType.bounded_forall.body,
+          avoidInfinite,
+        ),
+      },
+    };
+  }
+
   if ("forall" in inType && inType.forall.var !== target)
     return {
       forall: {
@@ -621,6 +813,48 @@ export function checkKind(
     ];
 
     const bodyKind = checkKind(extendedContext, type.forall.body);
+    if ("err" in bodyKind) return bodyKind;
+
+    if (!isStarKind(bodyKind.ok)) {
+      return {
+        err: {
+          kind_mismatch: { expected: { star: null }, actual: bodyKind.ok },
+        },
+      };
+    }
+
+    return { ok: { star: null } };
+  }
+
+  if ("bounded_forall" in type) {
+    const extendedContext: Context = [
+      ...context,
+      {
+        type: {
+          name: type.bounded_forall.var,
+          kind: type.bounded_forall.kind,
+        },
+      },
+    ];
+
+    // Check that all constraint types are well-kinded
+    for (const constraint of type.bounded_forall.constraints) {
+      const constraintKind = checkKind(extendedContext, constraint.type);
+      if ("err" in constraintKind) return constraintKind;
+
+      if (!isStarKind(constraintKind.ok)) {
+        return {
+          err: {
+            kind_mismatch: {
+              expected: { star: null },
+              actual: constraintKind.ok,
+            },
+          },
+        };
+      }
+    }
+
+    const bodyKind = checkKind(extendedContext, type.bounded_forall.body);
     if ("err" in bodyKind) return bodyKind;
 
     if (!isStarKind(bodyKind.ok)) {
@@ -823,6 +1057,39 @@ export function typesEqual(left: Type, right: Type): boolean {
     );
   }
 
+  if ("bounded_forall" in left && "bounded_forall" in right) {
+    if (!kindsEqual(left.bounded_forall.kind, right.bounded_forall.kind))
+      return false;
+
+    // Check constraints match
+    if (
+      left.bounded_forall.constraints.length !==
+      right.bounded_forall.constraints.length
+    )
+      return false;
+
+    for (let i = 0; i < left.bounded_forall.constraints.length; i++) {
+      const lc = left.bounded_forall.constraints[i]!;
+      const rc = right.bounded_forall.constraints[i]!;
+
+      if (lc.trait !== rc.trait) return false;
+
+      const renamedConstraintType = alphaRename(
+        right.bounded_forall.var,
+        left.bounded_forall.var,
+        rc.type,
+      );
+
+      if (!typesEqual(lc.type, renamedConstraintType)) return false;
+    }
+    const renamedBody = alphaRename(
+      right.bounded_forall.var,
+      left.bounded_forall.var,
+      right.bounded_forall.body,
+    );
+    return typesEqual(left.bounded_forall.body, renamedBody);
+  }
+
   if ("variant" in left && "variant" in right) {
     const leftCases = left.variant;
     const rightCases = right.variant;
@@ -891,6 +1158,21 @@ export function alphaRename(from: string, to: string, type: Type): Type {
         var: type.lam.var,
         kind: type.lam.kind,
         body: alphaRename(from, to, type.lam.body),
+      },
+    };
+  }
+
+  if ("bounded_forall" in type) {
+    if (type.bounded_forall.var === from) return type;
+    return {
+      bounded_forall: {
+        var: type.bounded_forall.var,
+        kind: type.bounded_forall.kind,
+        constraints: type.bounded_forall.constraints.map((c) => ({
+          trait: c.trait,
+          type: alphaRename(from, to, c.type),
+        })),
+        body: alphaRename(from, to, type.bounded_forall.body),
       },
     };
   }
@@ -979,6 +1261,57 @@ export function unifyTypes(
       right.forall.body,
     );
     worklist.push({ type_eq: { left: left.forall.body, right: renamedRight } });
+
+    return { ok: null };
+  }
+
+  if ("bounded_forall" in left && "bounded_forall" in right) {
+    worklist.push({
+      kind_eq: {
+        left: left.bounded_forall.kind,
+        right: right.bounded_forall.kind,
+      },
+    });
+
+    // Check constraints match
+    if (
+      left.bounded_forall.constraints.length !==
+      right.bounded_forall.constraints.length
+    ) {
+      return {
+        err: { type_mismatch: { expected: left, actual: right } },
+      };
+    }
+
+    for (let i = 0; i < left.bounded_forall.constraints.length; i++) {
+      const lc = left.bounded_forall.constraints[i]!;
+      const rc = right.bounded_forall.constraints[i]!;
+
+      if (lc.trait !== rc.trait) {
+        return {
+          err: { type_mismatch: { expected: left, actual: right } },
+        };
+      }
+
+      const renamedConstraintType = alphaRename(
+        right.bounded_forall.var,
+        left.bounded_forall.var,
+        rc.type,
+      );
+
+      worklist.push({
+        type_eq: { left: lc.type, right: renamedConstraintType },
+      });
+    }
+
+    const renamedRight = alphaRename(
+      right.bounded_forall.var,
+      left.bounded_forall.var,
+      right.bounded_forall.body,
+    );
+    worklist.push({
+      type_eq: { left: left.bounded_forall.body, right: renamedRight },
+    });
 
     return { ok: null };
   }
@@ -1215,6 +1548,22 @@ export function applySubstitution(subst: Substitution, type: Type): Type {
     };
   }
 
+  if ("bounded_forall" in type) {
+    const newSubst = new Map(subst);
+    newSubst.delete(type.bounded_forall.var);
+    return {
+      bounded_forall: {
+        var: type.bounded_forall.var,
+        kind: type.bounded_forall.kind,
+        constraints: type.bounded_forall.constraints.map((c) => ({
+          trait: c.trait,
+          type: applySubstitution(subst, c.type),
+        })),
+        body: applySubstitution(newSubst, type.bounded_forall.body),
+      },
+    };
+  }
+
   if ("lam" in type) {
     const newSubst = new Map(subst);
     newSubst.delete(type.lam.var);
@@ -1278,13 +1627,28 @@ export function inferType(
   term: Term,
 ): Result<TypingError, Type> {
   if ("var" in term) {
-    const binding = context.find(
+    // Check for term binding
+    const termBinding = context.find(
       (b) => "term" in b && b.term.name === term.var,
     );
-    if (!binding || !("term" in binding)) {
-      return { err: { unbound: term.var } };
+    if (termBinding && "term" in termBinding) {
+      return { ok: termBinding.term.type };
     }
-    return { ok: binding.term.type };
+
+    // Check for dict binding
+    const dictBinding = context.find(
+      (b) => "dict" in b && b.dict.name === term.var,
+    );
+    if (dictBinding && "dict" in dictBinding) {
+      // Return a dictionary type marker
+      return {
+        ok: {
+          con: `Dict<${dictBinding.dict.trait}, ${showType(dictBinding.dict.type)}>`,
+        },
+      };
+    }
+
+    return { err: { unbound: term.var } };
   }
 
   if ("con" in term) {
@@ -1292,7 +1656,6 @@ export function inferType(
   }
 
   if ("lam" in term) {
-    // Check that the argument type is well-kinded
     const argKind = checkKind(context, term.lam.type);
     if ("err" in argKind) return argKind;
 
@@ -1345,24 +1708,17 @@ export function inferType(
   }
 
   if ("let" in term) {
-    console.log("type checking a let");
-    // Type check the value expression
     const valueType = inferType(context, term.let.value);
     if ("err" in valueType) return valueType;
-    console.log("value inferred");
 
-    // Extend the context with the new binding
     const extendedContext: Context = [
       ...context,
       { term: { name: term.let.name, type: valueType.ok } },
     ];
 
-    // Type check the body with the extended context
     const bodyType = inferType(extendedContext, term.let.body);
     if ("err" in bodyType) return bodyType;
-    console.log("body inferred");
 
-    // The type of the let expression is the type of the body
     return { ok: bodyType.ok };
   }
 
@@ -1401,7 +1757,6 @@ export function inferType(
       };
     }
 
-    // Check that the type argument has the expected kind
     const argKind = checkKind(context, term.tyapp.type);
     if ("err" in argKind) return argKind;
 
@@ -1416,7 +1771,6 @@ export function inferType(
       };
     }
 
-    // Substitute the type argument in the body
     const substituted = substituteType(
       termType.ok.forall.var,
       term.tyapp.type,
@@ -1424,6 +1778,315 @@ export function inferType(
     );
 
     return { ok: substituted };
+  }
+
+  if ("dict" in term) {
+    const traitDef = context.find(
+      (b) => "trait_def" in b && b.trait_def.name === term.dict.trait,
+    );
+
+    if (!traitDef || !("trait_def" in traitDef)) {
+      return { err: { unbound: term.dict.trait } };
+    }
+
+    const typeKind = checkKind(context, term.dict.type);
+    if ("err" in typeKind) return typeKind;
+
+    if (!kindsEqual(traitDef.trait_def.kind, typeKind.ok)) {
+      return {
+        err: {
+          kind_mismatch: {
+            expected: traitDef.trait_def.kind,
+            actual: typeKind.ok,
+          },
+        },
+      };
+    }
+
+    const requiredMethods = new Set(
+      traitDef.trait_def.methods.map((m) => m[0]),
+    );
+    const providedMethods = new Set(term.dict.methods.map((m) => m[0]));
+
+    for (const required of requiredMethods) {
+      if (!providedMethods.has(required)) {
+        return {
+          err: {
+            missing_method: { trait: term.dict.trait, method: required },
+          },
+        };
+      }
+    }
+
+    for (const [methodName, methodImpl] of term.dict.methods) {
+      const expectedMethod = traitDef.trait_def.methods.find(
+        (m) => m[0] === methodName,
+      );
+
+      if (!expectedMethod) {
+        return {
+          err: {
+            missing_method: { trait: term.dict.trait, method: methodName },
+          },
+        };
+      }
+
+      const expectedType = substituteType(
+        traitDef.trait_def.type_param,
+        term.dict.type,
+        expectedMethod[1],
+      );
+
+      const implType = inferType(context, methodImpl);
+      if ("err" in implType) return implType;
+
+      if (!typesEqual(expectedType, implType.ok)) {
+        return {
+          err: {
+            type_mismatch: {
+              expected: expectedType,
+              actual: implType.ok,
+            },
+          },
+        };
+      }
+    }
+
+    return {
+      ok: {
+        con: `Dict<${term.dict.trait}, ${showType(term.dict.type)}>`,
+      },
+    };
+  }
+
+  if ("trait_lam" in term) {
+    // Add type variable to context
+    const extendedContext: Context = [
+      ...context,
+      {
+        type: {
+          name: term.trait_lam.type_var,
+          kind: term.trait_lam.kind,
+        },
+      },
+      // Add dictionary variable for the trait constraint
+      {
+        dict: {
+          name: term.trait_lam.trait_var,
+          trait: term.trait_lam.trait,
+          type: { var: term.trait_lam.type_var },
+        },
+      },
+    ];
+
+    // Verify trait exists
+    const traitDef = context.find(
+      (b) => "trait_def" in b && b.trait_def.name === term.trait_lam.trait,
+    );
+
+    if (!traitDef || !("trait_def" in traitDef)) {
+      return { err: { unbound: term.trait_lam.trait } };
+    }
+
+    const bodyType = inferType(extendedContext, term.trait_lam.body);
+    if ("err" in bodyType) return bodyType;
+
+    return {
+      ok: {
+        bounded_forall: {
+          var: term.trait_lam.type_var,
+          kind: term.trait_lam.kind,
+          constraints: term.trait_lam.constraints,
+          body: bodyType.ok,
+        },
+      },
+    };
+  }
+
+  // NEW: Trait application
+  if ("trait_app" in term) {
+    const termType = inferType(context, term.trait_app.term);
+    if ("err" in termType) return termType;
+
+    if (!("bounded_forall" in termType.ok)) {
+      return {
+        err: {
+          type_mismatch: {
+            expected: termType.ok,
+            actual: term.trait_app.type,
+          },
+        },
+      };
+    }
+
+    // Check that the type argument has the expected kind
+    const argKind = checkKind(context, term.trait_app.type);
+    if ("err" in argKind) return argKind;
+    const bounded_forall = termType.ok.bounded_forall;
+    if (!kindsEqual(bounded_forall.kind, argKind.ok)) {
+      return {
+        err: {
+          kind_mismatch: {
+            expected: termType.ok.bounded_forall.kind,
+            actual: argKind.ok,
+          },
+        },
+      };
+    }
+
+    // Substitute type variable in constraints
+    const instantiatedConstraints = termType.ok.bounded_forall.constraints.map(
+      (c) => ({
+        trait: c.trait,
+        type: substituteType(bounded_forall.var, term.trait_app.type, c.type),
+      }),
+    );
+
+    // Check that all trait constraints are satisfied
+    const dictsResult = checkTraitConstraints(context, instantiatedConstraints);
+    if ("err" in dictsResult) return dictsResult;
+
+    // Verify the provided dictionaries match the expected ones
+    if (term.trait_app.dicts.length !== dictsResult.ok.length) {
+      return {
+        err: {
+          wrong_number_of_dicts: {
+            expected: dictsResult.ok.length,
+            actual: term.trait_app.dicts.length,
+          },
+        },
+      };
+    }
+
+    // Type check each provided dictionary
+    for (let i = 0; i < term.trait_app.dicts.length; i++) {
+      const providedDict = term.trait_app.dicts[i]!;
+      const dictType = inferType(context, providedDict);
+      if ("err" in dictType) return dictType;
+
+      // Verify it's actually a dictionary for the right trait/type
+      // This is a simplified check - you might want more sophisticated checking
+      if ("dict" in providedDict) {
+        const constraint = instantiatedConstraints[i]!;
+        if (
+          providedDict.dict.trait !== constraint.trait ||
+          !typesEqual(providedDict.dict.type, constraint.type)
+        ) {
+          return {
+            err: {
+              type_mismatch: {
+                expected: { con: `Dict<${constraint.trait}>` },
+                actual: dictType.ok,
+              },
+            },
+          };
+        }
+      }
+    }
+
+    // Substitute the type argument in the body
+    const resultType = substituteType(
+      termType.ok.bounded_forall.var,
+      term.trait_app.type,
+      termType.ok.bounded_forall.body,
+    );
+
+    return { ok: resultType };
+  }
+
+  if ("trait_method" in term) {
+    const dictType = inferType(context, term.trait_method.dict);
+    if ("err" in dictType) return dictType;
+
+    // Check if the dictionary is a variable bound in the context
+    const dictTerm = term.trait_method.dict;
+
+    if ("var" in dictTerm) {
+      // dictTerm is a VarTerm
+      const dictBinding = context.find(
+        (b) => "dict" in b && b.dict.name === dictTerm.var,
+      );
+
+      if (dictBinding && "dict" in dictBinding) {
+        // Look up the trait definition
+        const traitDef = context.find(
+          (b) =>
+            "trait_def" in b && b.trait_def.name === dictBinding.dict.trait,
+        );
+
+        if (!traitDef || !("trait_def" in traitDef)) {
+          return { err: { unbound: dictBinding.dict.trait } };
+        }
+
+        // Find the method in the trait definition
+        const method = traitDef.trait_def.methods.find(
+          (m) => m[0] === term.trait_method.method,
+        );
+
+        if (!method) {
+          return {
+            err: {
+              missing_method: {
+                trait: dictBinding.dict.trait,
+                method: term.trait_method.method,
+              },
+            },
+          };
+        }
+
+        // Substitute the type parameter with the concrete type
+        const methodType = substituteType(
+          traitDef.trait_def.type_param,
+          dictBinding.dict.type,
+          method[1],
+        );
+
+        return { ok: methodType };
+      }
+    }
+
+    // If it's a concrete dictionary term
+    if ("dict" in dictTerm) {
+      // dictTerm is a DictTerm
+      const dict = dictTerm.dict;
+
+      // Look up the trait definition
+      const traitDef = context.find(
+        (b) => "trait_def" in b && b.trait_def.name === dict.trait,
+      );
+
+      if (!traitDef || !("trait_def" in traitDef)) {
+        return { err: { unbound: dict.trait } };
+      }
+
+      // Find the method
+      const methodImpl = dict.methods.find(
+        (m) => m[0] === term.trait_method.method,
+      );
+
+      if (!methodImpl) {
+        return {
+          err: {
+            missing_method: {
+              trait: dict.trait,
+              method: term.trait_method.method,
+            },
+          },
+        };
+      }
+
+      // Return the type of the method implementation
+      return inferType(context, methodImpl[1]);
+    }
+
+    return {
+      err: {
+        type_mismatch: {
+          expected: { con: "Dictionary" },
+          actual: dictType.ok,
+        },
+      },
+    };
   }
 
   if ("record" in term) {
@@ -1469,7 +2132,6 @@ export function inferType(
   if ("inject" in term) {
     let variantType = term.inject.variant_type;
 
-    // If the variant type is a mu type, unfold it
     if ("mu" in variantType) {
       variantType = substituteType(
         variantType.mu.var,
@@ -1479,7 +2141,6 @@ export function inferType(
       );
     }
 
-    // Check that the variant type is well-formed
     const variantKind = checkKind(context, variantType);
     if ("err" in variantKind) return variantKind;
 
@@ -1489,7 +2150,6 @@ export function inferType(
       };
     }
 
-    // Check that the label exists in the variant type
     const expectedType = variantType.variant.find(
       (t) => t[0] === term.inject.label,
     );
@@ -1504,7 +2164,6 @@ export function inferType(
       };
     }
 
-    // Check that the value has the expected type
     const valueType = inferType(context, term.inject.value);
     if ("err" in valueType) return valueType;
 
@@ -1523,31 +2182,24 @@ export function inferType(
   }
 
   if ("match" in term) {
-    // Infer the type of the scrutinee
     const scrutineeType = inferType(context, term.match.scrutinee);
     if ("err" in scrutineeType) return scrutineeType;
 
-    // Check exhaustiveness (simplified check)
     const patterns = term.match.cases.map(first);
     const exhaustCheck = checkExhaustive(patterns, scrutineeType.ok);
     if ("err" in exhaustCheck) return exhaustCheck;
 
-    // Type check each case
     let resultType: Type | null = null;
 
     for (const [pattern, body] of term.match.cases) {
-      // Check pattern and get bindings
       const patternResult = checkPattern(pattern, scrutineeType.ok, context);
       if ("err" in patternResult) return patternResult;
 
-      // Extend context with pattern bindings
       const extendedContext: Context = [...context, ...patternResult.ok];
 
-      // Type check the body
       const bodyType = inferType(extendedContext, body);
       if ("err" in bodyType) return bodyType;
 
-      // Ensure all branches return the same type
       if (resultType === null) {
         resultType = bodyType.ok;
       } else if (!typesEqual(resultType, bodyType.ok)) {
@@ -1566,8 +2218,6 @@ export function inferType(
   }
 
   if ("fold" in term) {
-    // fold: τ[μα.τ/α] → μα.τ
-    // Check that the type is well-formed
     const muKind = checkKind(context, term.fold.type);
     if ("err" in muKind) return muKind;
 
@@ -1579,7 +2229,6 @@ export function inferType(
       };
     }
 
-    // Compute the unfolded type: τ[μα.τ/α]
     const unfoldedType = substituteType(
       term.fold.type.mu.var,
       term.fold.type,
@@ -1587,7 +2236,6 @@ export function inferType(
       new Set([term.fold.type.mu.var]),
     );
 
-    // Type check the term against the unfolded type
     const termType = inferType(context, term.fold.term);
     if ("err" in termType) return termType;
 
@@ -1606,7 +2254,6 @@ export function inferType(
   }
 
   if ("unfold" in term) {
-    // unfold: μα.τ → τ[μα.τ/α]
     const termType = inferType(context, term.unfold);
     if ("err" in termType) return termType;
 
@@ -1616,7 +2263,6 @@ export function inferType(
       };
     }
 
-    // Compute the unfolded type
     const unfoldedType = substituteType(
       termType.ok.mu.var,
       termType.ok,
@@ -1801,6 +2447,20 @@ function normalizeSubtypes(type: Type, seen: Set<string>): Type {
     };
   }
 
+  if ("bounded_forall" in type) {
+    return {
+      bounded_forall: {
+        var: type.bounded_forall.var,
+        kind: type.bounded_forall.kind,
+        constraints: type.bounded_forall.constraints.map((c) => ({
+          trait: c.trait,
+          type: normalizeType(c.type, seen),
+        })),
+        body: normalizeType(type.bounded_forall.body, seen),
+      },
+    };
+  }
+
   if ("app" in type) {
     return {
       app: {
@@ -1885,6 +2545,16 @@ function applyNormalizationRules(type: Type, seen: Set<string>): Type {
     return unitType;
   }
 
+  if (
+    "bounded_forall" in type &&
+    !typeVariablesInType(
+      type.bounded_forall.body,
+      new Set([type.bounded_forall.var]),
+    )
+  ) {
+    return normalizeType(type.bounded_forall.body, seen);
+  }
+
   // Rule 4: Simplify tuples with one element
   if ("tuple" in type && type.tuple.length === 1) {
     return normalizeType(type.tuple[0]!, seen);
@@ -1966,6 +2636,14 @@ export const mu_type = (var_name: string, body: Type): Type => ({
   mu: { var: var_name, body },
 });
 export const tuple_type = (elements: Type[]): Type => ({ tuple: elements });
+export const bounded_forall_type = (
+  name: string,
+  kind: Kind,
+  constraints: TraitConstraint[],
+  body: Type,
+): Type => ({
+  bounded_forall: { var: name, kind, constraints, body },
+});
 
 // Term Constructors:
 export const var_term = (name: string) => ({ var: name });
@@ -2009,6 +2687,36 @@ export const tuple_project_term = (tuple: Term, index: number): Term => ({
 });
 export const let_term = (name: string, value: Term, body: Term): Term => ({
   let: { name, value, body },
+});
+export const trait_lam_term = (
+  trait_var: string,
+  trait: string,
+  type_var: string,
+  kind: Kind,
+  constraints: TraitConstraint[],
+  body: Term,
+): Term => ({
+  trait_lam: { trait_var, trait, type_var, kind, constraints, body },
+});
+
+export const trait_app_term = (
+  term: Term,
+  type: Type,
+  dicts: Term[],
+): Term => ({
+  trait_app: { term, type, dicts },
+});
+
+export const dict_term = (
+  trait: string,
+  type: Type,
+  methods: [string, Term][],
+): Term => ({
+  dict: { trait, type, methods },
+});
+
+export const trait_method_term = (dict: Term, method: string): Term => ({
+  trait_method: { dict, method },
 });
 
 // Pattern Constructors

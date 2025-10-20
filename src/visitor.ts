@@ -8,7 +8,7 @@ import type {
   BoolExpression,
   BuiltinImport,
   CallExpression,
-  ConstructorExpression,
+  TypeConstructorExpression,
   ConstructorPatternExpression,
   Declaration,
   EnumDeclaration,
@@ -63,6 +63,7 @@ import type {
   TypeDeclaration,
   TypeExpression,
   TypeImport,
+  TypeIdentifier,
 } from "./parser.js";
 import type {
   AppTerm,
@@ -141,8 +142,6 @@ export interface ASTVisitor {
   ): BodyExpression;
 
   // Expressions
-  visitNameExpression?(node: NameIdentifier): Expression;
-  visitConstructorExpression?(node: ConstructorExpression): Expression;
   visitCallExpression?(node: CallExpression): Expression;
   visitBlockExpression?(node: BlockExpression): Expression;
   visitIfExpression?(node: IfExpression): Expression;
@@ -304,7 +303,9 @@ export class BaseVisitor implements ASTVisitor {
     if ("fn" in node) return this.visitFnTypeExpression(node);
     if ("record" in node) return this.visitRecordTypeExpression(node);
     if ("tuple" in node) return this.visitTupleTypeExpression(node);
-    return node; // NameIdentifier or TypeIdentifier
+    if ("name" in node) return this.visitNameIdentifier(node);
+    if ("type" in node) return this.visitTypeIdentifier(node);
+    throw new Error("Invalid type expression");
   }
 
   visitSelectTypeExpression(node: SelectTypeExpression): TypeExpression {
@@ -400,7 +401,6 @@ export class BaseVisitor implements ASTVisitor {
   }
 
   visitExpression(node: Expression): Expression {
-    if ("constr" in node) return this.visitConstructorExpression(node); // Constructor
     if ("call" in node) return this.visitCallExpression(node);
     if ("block" in node) return this.visitBlockExpression(node);
     if ("if_expr" in node) return this.visitIfExpression(node);
@@ -416,17 +416,10 @@ export class BaseVisitor implements ASTVisitor {
     if ("fn" in node) return this.visitFnExpression(node);
     if ("record" in node) return this.visitRecordExpression(node);
     if ("tuple" in node) return this.visitTupleExpression(node);
-    if ("self" in node) return node;
-    if ("name" in node) return this.visitNameExpression(node);
-    return node; // NameIdentifier
-  }
-
-  visitNameExpression(node: NameIdentifier): Expression {
-    return node;
-  }
-
-  visitConstructorExpression(node: ConstructorExpression): Expression {
-    return node;
+    if ("self" in node) return this.visitSelfExpression(node);
+    if ("name" in node) return this.visitNameIdentifier(node);
+    if ("type" in node) return this.visitTypeIdentifier(node);
+    throw new Error("Invalid expression kind", { cause: node });
   }
 
   visitBoolExpression(node: BoolExpression): Expression {
@@ -564,10 +557,12 @@ export class BaseVisitor implements ASTVisitor {
     node: ConstructorPatternExpression,
   ): PatternExpression {
     return {
-      constr: [
-        node.constr[0],
-        node.constr[1].map((p) => this.visitPatternExpression(p)),
-      ],
+      constr: {
+        type: node.constr.type,
+        patterns: node.constr.patterns.map((p) =>
+          this.visitPatternExpression(p),
+        ),
+      },
     };
   }
 

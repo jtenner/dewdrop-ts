@@ -59,7 +59,7 @@ export type BodyExpression =
   | AssignBodyExpression
   | ExpressionBodyExpression;
 
-export type ConstructorExpression = { constr: string };
+export type TypeConstructorExpression = TypeIdentifier;
 export type CallExpression = { call: [Expression, Expression[]] };
 export type BlockExpression = { block: BodyExpression[] };
 export type IfExpression = {
@@ -95,7 +95,7 @@ export type TupleExpression = { tuple: Expression[] };
 export type SelfExpression = { self: null };
 export type Expression =
   | NameIdentifier
-  | ConstructorExpression
+  | TypeConstructorExpression
   | CallExpression
   | BlockExpression
   | IfExpression
@@ -120,7 +120,7 @@ export type MatchArm = {
 };
 
 export type ConstructorPatternExpression = {
-  constr: [TypeIdentifier, PatternExpression[]];
+  constr: { type: TypeIdentifier; patterns: PatternExpression[] };
 };
 export type IntPatternExpression = { int: { value: bigint; size: number } };
 export type FloatPatternExpression = { float: { value: number; size: number } };
@@ -601,8 +601,8 @@ export const take_pattern_expression = async (
         ")",
       );
       if (!patterns) return [next_token, null];
-      return [next_token, { constr: [type, patterns] }];
-    } else return [next_token, { constr: [type, []] }];
+      return [next_token, { constr: { type, patterns } }];
+    } else return [next_token, { constr: { type, patterns: [] } }];
   }
 
   [next_token, int] = await take_int(next_token, tokens);
@@ -972,7 +972,7 @@ export const take_expression = async (
       // constructor
       [next_token, type] = await take_type(next_token, tokens);
       if (type) {
-        yard.push_expr({ constr: type.type });
+        yard.push_expr(type);
         combine_state = true;
         continue;
       }
@@ -2090,9 +2090,6 @@ export async function take_declaration(
 }
 
 export const name_expr = (name: string): NameIdentifier => ({ name });
-export const constructor_expr = (constr: string): ConstructorExpression => ({
-  constr,
-});
 export const call_expr = (
   fn: Expression,
   args: Expression[],

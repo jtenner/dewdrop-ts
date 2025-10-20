@@ -1,6 +1,8 @@
+import type { NameToken } from "../lexer.js";
 import type {
   ArrowKindBodyExpression,
   BlockExpression,
+  TypeConstructorExpression,
   Declaration,
   EnumDeclaration,
   EnumVariant,
@@ -10,12 +12,16 @@ import type {
   FnExpression,
   FnParam,
   LetDeclaration,
+  MatchArm,
   MemoryImport,
+  NamedTypeExpression,
   NameIdentifier,
   PatternExpression,
   TraitDeclaration,
   TraitFn,
   TypeDeclaration,
+  TypeIdentifier,
+  ConstructorPatternExpression,
 } from "../parser.js";
 import { BaseVisitor } from "../visitor.js";
 
@@ -29,9 +35,11 @@ export type MemoryScopeSymbol = { memory: MemoryImport };
 export type TraitScopeSymbol = { trait: TraitDeclaration };
 export type TraitFnScopeSymbol = { trait_fn: TraitFn };
 export type LetDeclarationScopeSymbol = { let_decl: LetDeclaration };
+export type TypeParamScopeSymbol = { type_param: NameIdentifier };
 export type ArrowKindSymbol = { arrow: ArrowKindBodyExpression }; // a <- b
 export type ScopeSymbol =
   | FnParamScopeSymbol
+  | TypeParamScopeSymbol
   | ArrowKindSymbol
   | NamePatternScopeSymbol
   | FnDeclarationScopeSymbol
@@ -43,26 +51,43 @@ export type ScopeSymbol =
   | TraitFnScopeSymbol
   | LetDeclarationScopeSymbol;
 
+export type NameResolutionError =
+  | { unbound_name: string }
+  | { unbound_type: string }
+  | { unbound_constr: string };
+
 type Scope = {
   parent: Scope | null;
   symbols: Map<string, ScopeSymbol>;
   children: Scope[];
+  id: number;
+  kind: "module" | "function" | "block" | "match_arm";
 };
 
 export class ScopeGenerationPass extends BaseVisitor {
-  current: Scope = {
+  id = 0;
+  current = {
     parent: null,
     symbols: new Map(),
     children: [],
-  };
-  scopes: Scope[] = [this.current];
+    id: this.id++,
+    kind: "module",
+  } as Scope;
+  scopes = [this.current] as Scope[];
+  errors = [] as NameResolutionError[];
+  lookup = new WeakMap<
+    NameIdentifier | TypeIdentifier | ConstructorPatternExpression,
+    ScopeSymbol
+  >();
 
-  enter() {
+  enter(kind: Scope["kind"] = "function") {
     const next = {
+      children: [],
+      id: this.id++,
+      kind,
       parent: this.current,
       symbols: new Map(),
-      children: [],
-    } satisfies Scope;
+    } as Scope;
     this.current.children.push(next);
     this.scopes.push(next);
     this.current = next;
@@ -122,23 +147,89 @@ export class ScopeGenerationPass extends BaseVisitor {
   }
 
   override visitFn(node: Fn): Fn {
-    this.enter();
+    this.enter("function");
+    // Add type parameters to scope
+    for (const type_param of node.type_params) {
+      this.current.symbols.set(type_param.name, { type_param });
+    }
     super.visitFn(node);
     this.exit();
     return node;
   }
 
   override visitFnExpression(node: FnExpression): Expression {
-    this.enter();
+    this.enter("function");
     super.visitFnExpression(node);
     this.exit();
     return node;
   }
 
   override visitBlockExpression(node: BlockExpression): Expression {
-    this.enter();
-    super.visitBlockExpression(node);
+    this.enter("block");
+    const next = super.visitBlockExpression(node);
     this.exit();
+    return next;
+  }
+
+  override visitMatchArm(node: MatchArm): MatchArm {
+    this.enter("match_arm");
+    const next = super.visitMatchArm(node);
+    this.exit();
+    return next;
+  }
+
+  override visitNameIdentifier(node: NameIdentifier): NameIdentifier {
+    const symbol = this.lookupSymbol(node.name);
+    if (!symbol) {
+      this.errors.push({ unbound_name: node.name });
+    } else {
+      // Each identifier must be a "unique" reference to store
+      // a scope related to that identifier.
+      // Replacement at this point means the identifier was
+      // re-used at some point.
+      if (this.lookup.has(node)) {
+        node = { name: node.name };
+      }
+      this.lookup.set(node, symbol);
+    }
     return node;
+  }
+
+  override visitConstructorPatternExpression(
+    node: ConstructorPatternExpression,
+  ): PatternExpression {
+    const symbol = this.lookupSymbol(node.constr.type.type);
+    if (!symbol) {
+      this.errors.push({ unbound_constr: node.constr.type.type });
+    } else {
+      this.lookup.set(node, symbol);
+    }
+    return node;
+  }
+
+  override visitTypeIdentifier(node: TypeIdentifier): TypeIdentifier {
+    const symbol = this.lookupSymbol(node.type);
+    if (!symbol) {
+      this.errors.push({ unbound_type: node.type });
+    } else {
+      // Each identifier must be a "unique" reference to store
+      // a scope related to that identifier.
+      // Replacement at this point means the identifier was
+      // re-used at some point.
+      if (this.lookup.has(node)) {
+        node = { type: node.type };
+      }
+      this.lookup.set(node, symbol);
+    }
+    return node;
+  }
+
+  private lookupSymbol(name: string): ScopeSymbol | null {
+    let scope: Scope | null = this.current;
+    while (scope) {
+      if (scope.symbols.has(name)) return scope.symbols.get(name)!;
+      scope = scope.parent;
+    }
+    return null;
   }
 }
