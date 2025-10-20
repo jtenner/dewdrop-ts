@@ -23,3 +23,5 @@ export const to_file_entry = (
 };
 
 export type Result<TErr, TOk> = { ok: TOk } | { err: TErr };
+
+export type Builtin = {};

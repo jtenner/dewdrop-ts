@@ -1,14 +1,14 @@
-import { ResolveImports } from "./passes/resolve_imports.js";
-import * as path from "node:path";
-import { to_file_entry } from "./util.js";
 import {
-  parse_file,
   type Declaration,
   type ImportDeclaration,
   type Module,
+  parse_file,
 } from "./parser.js";
 import { ArrowBindSugarPass } from "./passes/arrow_bind_sugar.js";
-import { ScopeGenerationPass } from "./passes/scope_generation_pass.js";
+import { CreateScopes } from "./passes/create_scopes.js";
+import { FreshIdentifiers } from "./passes/fresh_identifiers.js";
+import { ResolveImports } from "./passes/resolve_imports.js";
+import { to_file_entry } from "./util.js";
 import { BaseVisitor } from "./visitor.js";
 
 export type CompilerOptions = {
@@ -94,11 +94,23 @@ export async function compile(options: Partial<CompilerOptions>) {
     modules.set(mod_path, arrow_pass.visitModule(mod));
   }
 
-  // pass 3: name indexing and resolution
+  // pass 3: identifiers must be unique, regenerate "re-used" ones
+  const fresh_identifiers = new FreshIdentifiers();
+  for (const [mod_path, mod] of modules) {
+    modules.set(mod_path, fresh_identifiers.visitModule(mod));
+  }
+
+  // pass 4: name indexing
   const sorted = module_sort([...modules], basedir);
-  const name_pass = new ScopeGenerationPass();
+  const scope_pass = new CreateScopes();
   for (const mod_path of sorted) {
     const mod = modules.get(mod_path);
-    modules.set(mod_path, name_pass.visitModule(mod!));
+    scope_pass.mod_path = mod_path;
+    modules.set(mod_path, scope_pass.visitModule(mod!));
   }
+
+  const scopes = scope_pass.scopes;
+  const module_scopes = scope_pass.module_scopes;
+
+  // pass 5: import resolution
 }

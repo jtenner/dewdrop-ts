@@ -100,7 +100,6 @@ export type DictTerm = {
     methods: [string, Term][]; // method implementations
   };
 };
-
 // Access trait method with evidence
 export type TraitMethodTerm = {
   trait_method: {
@@ -108,7 +107,6 @@ export type TraitMethodTerm = {
     method: string;
   };
 };
-
 // Lambda that takes trait evidence
 export type TraitLamTerm = {
   trait_lam: {
@@ -120,7 +118,6 @@ export type TraitLamTerm = {
     body: Term;
   };
 };
-
 // Application with trait evidence
 export type TraitAppTerm = {
   trait_app: {

@@ -3,10 +3,10 @@ import {
   block_expr,
   call_expr,
   type Expression,
+  type Fn,
   fn_expr,
   fn_param,
   name_expr,
-  type Fn,
 } from "../parser.js";
 import { BaseVisitor } from "../visitor.js";
 

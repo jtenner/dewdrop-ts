@@ -8,7 +8,6 @@ import type {
   BoolExpression,
   BuiltinImport,
   CallExpression,
-  TypeConstructorExpression,
   ConstructorPatternExpression,
   Declaration,
   EnumDeclaration,
@@ -63,7 +62,6 @@ import type {
   TypeDeclaration,
   TypeExpression,
   TypeImport,
-  TypeIdentifier,
 } from "./parser.js";
 import type {
   AppTerm,
