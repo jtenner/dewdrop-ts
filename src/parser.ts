@@ -848,8 +848,14 @@ const take_match_arm = async (
 
   [next_token, token_success] = await take_keyword(next_token, tokens, "if");
   if (token_success) {
+    [next_token, token_success] = await take_symbol(next_token, tokens, "(");
+    if (!token_success) return [next_token, null];
+
     [next_token, guard] = await take_expression(next_token, tokens);
     if (!guard) return [next_token, null];
+
+    [next_token, token_success] = await take_symbol(next_token, tokens, ")");
+    if (!token_success) return [next_token, null];
   }
 
   // we must find `=>`

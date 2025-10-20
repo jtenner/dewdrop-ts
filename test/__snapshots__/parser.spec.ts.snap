@@ -5213,8 +5213,196 @@ exports[`Edge case: (a + b)(c, d) matches snapshot: EdgeCase: (a + b)(c, d) 1`] 
 }
 `;
 
-exports[`Match with guard: match x { Some(y) if y > 0 => y, _ => 0 } matches snapshot: MatchWithGuard: match x { Some(y) if y > 0 => y, _ => 0 } 1`] = `null`;
+exports[`Match with guard: match x { Some(y) if (y > 0) => y, _ => 0 } matches snapshot: MatchWithGuard: match x { Some(y) if (y > 0) => y, _ => 0 } 1`] = `
+{
+  "match": [
+    {
+      "name": "x",
+    },
+    [
+      {
+        "body": {
+          "name": "y",
+        },
+        "guard": {
+          "infix": {
+            "left": {
+              "name": "y",
+            },
+            "op": ">",
+            "right": {
+              "int": {
+                "size": 32,
+                "value": 0n,
+              },
+            },
+          },
+        },
+        "pattern": {
+          "constr": {
+            "patterns": [
+              {
+                "name": "y",
+              },
+            ],
+            "type": {
+              "type": "Some",
+            },
+          },
+        },
+      },
+      {
+        "body": {
+          "int": {
+            "size": 32,
+            "value": 0n,
+          },
+        },
+        "guard": null,
+        "pattern": {
+          "name": "_",
+        },
+      },
+    ],
+  ],
+}
+`;
 
-exports[`Match with guard: match point { #(x, y) if x == y => x, #(x, _) => x, _ => 0 } matches snapshot: MatchWithGuard: match point { #(x, y) if x == y => x, #(x, _) => x, _ => 0 } 1`] = `null`;
+exports[`Match with guard: match point { #(x, y) if (x == y) => x, #(x, _) => x, _ => 0 } matches snapshot: MatchWithGuard: match point { #(x, y) if (x == y) => x, #(x, _) => x, _ => 0 } 1`] = `
+{
+  "match": [
+    {
+      "name": "point",
+    },
+    [
+      {
+        "body": {
+          "name": "x",
+        },
+        "guard": {
+          "infix": {
+            "left": {
+              "name": "x",
+            },
+            "op": "==",
+            "right": {
+              "name": "y",
+            },
+          },
+        },
+        "pattern": {
+          "tuple": [
+            {
+              "name": "x",
+            },
+            {
+              "name": "y",
+            },
+          ],
+        },
+      },
+      {
+        "body": {
+          "name": "x",
+        },
+        "guard": null,
+        "pattern": {
+          "tuple": [
+            {
+              "name": "x",
+            },
+            {
+              "name": "_",
+            },
+          ],
+        },
+      },
+      {
+        "body": {
+          "int": {
+            "size": 32,
+            "value": 0n,
+          },
+        },
+        "guard": null,
+        "pattern": {
+          "name": "_",
+        },
+      },
+    ],
+  ],
+}
+`;
 
-exports[`Match with guard: match value { n if n < 0 => -n, n if n > 100 => 100, n => n } matches snapshot: MatchWithGuard: match value { n if n < 0 => -n, n if n > 100 => 100, n => n } 1`] = `null`;
+exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 100, n => n } matches snapshot: MatchWithGuard: match value { n if (n < 0) => -n, n if (n > 100) => 100, n => n } 1`] = `
+{
+  "match": [
+    {
+      "name": "value",
+    },
+    [
+      {
+        "body": {
+          "prefix": {
+            "op": "-",
+            "operand": {
+              "name": "n",
+            },
+          },
+        },
+        "guard": {
+          "infix": {
+            "left": {
+              "name": "n",
+            },
+            "op": "<",
+            "right": {
+              "int": {
+                "size": 32,
+                "value": 0n,
+              },
+            },
+          },
+        },
+        "pattern": {
+          "name": "n",
+        },
+      },
+      {
+        "body": {
+          "int": {
+            "size": 32,
+            "value": 100n,
+          },
+        },
+        "guard": {
+          "infix": {
+            "left": {
+              "name": "n",
+            },
+            "op": ">",
+            "right": {
+              "int": {
+                "size": 32,
+                "value": 100n,
+              },
+            },
+          },
+        },
+        "pattern": {
+          "name": "n",
+        },
+      },
+      {
+        "body": {
+          "name": "n",
+        },
+        "guard": null,
+        "pattern": {
+          "name": "n",
+        },
+      },
+    ],
+  ],
+}
+`;
