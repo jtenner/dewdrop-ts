@@ -12,7 +12,6 @@ import type {
   FnImport,
   FnParam,
   GlobalImport,
-  Identifier,
   Import,
   MatchArm,
   MemoryImport,
@@ -24,22 +23,16 @@ import type {
   TraitDeclaration,
   TraitFn,
   TypeDeclaration,
+  TypeExpression,
   TypeIdentifier,
   TypeImport,
 } from "../parser.js";
 import type { Builtin } from "../util.js";
 import { BaseVisitor } from "../visitor.js";
 
-type ScopedNodeKind =
-  | { fn: Fn }
-  | { decl: Declaration }
-  | { match_arm: MatchArm }
-  | { block: BlockExpression }
-  | { module: Module };
-
 export type Scope = {
   id: number;
-  node: ScopedNodeKind | null;
+  node: Scopable | null;
   parent: Scope | null;
   children: Scope[];
   term_elements: Map<string, ScopeElement>;
@@ -47,33 +40,44 @@ export type Scope = {
 };
 
 export type ScopeElement =
-  | { type_decl: TypeDeclaration }
-  | { type_param: NameIdentifier }
-  | { enum: EnumDeclaration }
-  | { fn: Fn }
-  | { fn_param: FnParam }
-  | { variant: EnumVariant }
   | { builtin_import: BuiltinImport }
+  | { builtin: Builtin }
+  | { enum: EnumDeclaration }
   | { fn_import: FnImport }
+  | { fn_param: FnParam }
+  | { fn: Fn }
   | { global_import: GlobalImport }
-  | { name_pattern: NameIdentifier }
   | { memory_import: MemoryImport }
+  | { name_pattern: NameIdentifier }
   | { star_import: StarImport }
   | { table_import: TableImport }
-  | { trait: TraitDeclaration }
   | { trait_fn: TraitFn }
   | { trait_self: TraitDeclaration }
+  | { trait: TraitDeclaration }
+  | { type_decl: TypeDeclaration }
   | { type_import: TypeImport }
-  | { builtin: Builtin };
+  | { type_param: NameIdentifier }
+  | { variant: EnumVariant };
 
 export type ScopeError =
   | { unnamed_fn_decl: Fn }
   | { import_has_no_name: Import }
   | { duplicate_definition: { name: NameToken | TypeToken; scope: Scope } };
 
+export type Scopable =
+  | Declaration
+  | Expression
+  | Fn
+  | MatchArm
+  | MatchArm
+  | Module
+  | PatternExpression
+  | TypeExpression;
+
+export type AstScopeMap = Map<Scopable, Scope>;
+
 export type ScopeIndex = {
-  nodeScopes: Map<ScopedNodeKind, Scope>;
-  allScopes: Scope[];
+  scopes: AstScopeMap;
 };
 
 export class CreateScopes extends BaseVisitor {
@@ -87,7 +91,7 @@ export class CreateScopes extends BaseVisitor {
     parent: null,
   };
   mod_path = "";
-  scopes = new Map<ScopedNodeKind, Scope>();
+  scopes = new Map<Scopable, Scope>();
   module_scopes = new Map<string, Scope>();
   errors = [] as ScopeError[];
 
@@ -97,11 +101,26 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitModule(node: Module) {
-    this.enter({ module: node });
+    this.enter(node);
     this.module_scopes.set(this.mod_path, this.current);
     super.visitModule(node);
     this.exit();
     return node;
+  }
+
+  override visitExpression(node: Expression): Expression {
+    this.scopes.set(node, this.current);
+    return super.visitExpression(node);
+  }
+
+  override visitTypeExpression(node: TypeExpression): TypeExpression {
+    this.scopes.set(node, this.current);
+    return super.visitTypeExpression(node);
+  }
+
+  override visitPatternExpression(node: PatternExpression): PatternExpression {
+    this.scopes.set(node, this.current);
+    return super.visitPatternExpression(node);
   }
 
   override visitEnumDeclaration(node: EnumDeclaration): Declaration {
@@ -117,7 +136,8 @@ export class CreateScopes extends BaseVisitor {
       );
     }
 
-    this.enter({ decl: node });
+    this.enter(node);
+    this.scopes.set(node, this.current);
     for (const type_param of node.enum.type_params) {
       // TODO: Add trait constraints
       this.define_type(type_param, { type_param });
@@ -133,7 +153,8 @@ export class CreateScopes extends BaseVisitor {
       return node;
     }
     this.define_term(node.fn.fn.name, { fn: node.fn.fn });
-    this.enter({ fn: node.fn.fn });
+    this.enter(node.fn.fn);
+    this.scopes.set(node.fn.fn, this.current);
 
     // TODO: type parameters should have "names"
     for (const type_param of node.fn.fn.type_params) {
@@ -150,7 +171,7 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitFn(node: Fn): Fn {
-    this.enter({ fn: node });
+    this.enter(node);
     if (node.name) this.define_term(node.name, { fn: node });
 
     // TODO: type parameters should have "names"
@@ -169,7 +190,7 @@ export class CreateScopes extends BaseVisitor {
 
   override visitTypeDeclaration(node: TypeDeclaration): Declaration {
     this.define_type(node.type_dec.id, { type_decl: node });
-    this.enter({ decl: node });
+    this.enter(node);
 
     // TODO: type parameters should have "names"
     for (const type_param of node.type_dec.params) {
@@ -182,7 +203,7 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitBlockExpression(node: BlockExpression): Expression {
-    this.enter({ block: node });
+    this.enter(node);
     super.visitBlockExpression(node);
     this.exit();
     return node;
@@ -221,7 +242,7 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitMatchArm(node: MatchArm): MatchArm {
-    this.enter({ match_arm: node });
+    this.enter(node);
     super.visitMatchArm(node);
     this.exit();
     return node;
@@ -274,7 +295,7 @@ export class CreateScopes extends BaseVisitor {
       this.define_term(fn.name, { trait_fn: fn });
     }
 
-    this.enter({ decl: node });
+    this.enter(node);
 
     for (const type_param of node.trait.type_params) {
       this.define_type(type_param, { type_param });
@@ -305,17 +326,11 @@ export class CreateScopes extends BaseVisitor {
     this.current.type_elements.set(elem_id, element);
   }
 
-  getScopeIndex(): ScopeIndex {
-    const allScopes: Scope[] = [];
-    function flatten(scope: Scope) {
-      allScopes.push(scope);
-      for (const child of scope.children) flatten(child);
-    }
-    flatten(this.current);
-    return { nodeScopes: this.scopes, allScopes };
+  getScopeIndex(): AstScopeMap {
+    return this.scopes;
   }
 
-  enter(node: ScopedNodeKind) {
+  enter(node: Scopable) {
     const next = {
       children: [],
       term_elements: new Map(),
@@ -324,9 +339,9 @@ export class CreateScopes extends BaseVisitor {
       node,
       parent: this.current,
     } satisfies Scope;
-    this.scopes.set(node, next);
     this.current.children.push(next);
     this.current = next;
+    this.scopes.set(node, next);
   }
 
   exit() {
