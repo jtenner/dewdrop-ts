@@ -1,3 +1,5 @@
+// ./src/compiler.ts
+
 import {
   type Declaration,
   type ImportDeclaration,
@@ -6,7 +8,6 @@ import {
 } from "./parser.js";
 import { ArrowBindSugarPass } from "./passes/arrow_bind_sugar.js";
 import { CreateScopes } from "./passes/create_scopes.js";
-import { FreshIdentifiers } from "./passes/fresh_identifiers.js";
 import { ResolveImports } from "./passes/resolve_imports.js";
 import { to_file_entry } from "./util.js";
 import { BaseVisitor } from "./visitor.js";
@@ -94,13 +95,7 @@ export async function compile(options: Partial<CompilerOptions>) {
     modules.set(mod_path, arrow_pass.visitModule(mod));
   }
 
-  // pass 3: identifiers must be unique, regenerate "re-used" ones
-  const fresh_identifiers = new FreshIdentifiers();
-  for (const [mod_path, mod] of modules) {
-    modules.set(mod_path, fresh_identifiers.visitModule(mod));
-  }
-
-  // pass 4: name indexing
+  // pass 3: name indexing
   const sorted = module_sort([...modules], basedir);
   const scope_pass = new CreateScopes();
   for (const mod_path of sorted) {
@@ -109,8 +104,7 @@ export async function compile(options: Partial<CompilerOptions>) {
     modules.set(mod_path, scope_pass.visitModule(mod!));
   }
 
-  const scopes = scope_pass.scopes;
-  const module_scopes = scope_pass.module_scopes;
+  const scopes = scope_pass.getScopeIndex();
 
-  // pass 5: import resolution
+  // pass 4: import resolution
 }

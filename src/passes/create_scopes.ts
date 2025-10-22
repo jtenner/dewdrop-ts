@@ -1,3 +1,4 @@
+// ./src/passes/create_scopes.ts
 import type { NameToken, TypeToken } from "../lexer.js";
 import type {
   BlockExpression,
@@ -41,7 +42,8 @@ export type Scope = {
   node: ScopedNodeKind | null;
   parent: Scope | null;
   children: Scope[];
-  elements: Map<NameIdentifier | TypeIdentifier, ScopeElement>;
+  term_elements: Map<string, ScopeElement>;
+  type_elements: Map<string, ScopeElement>;
 };
 
 export type ScopeElement =
@@ -51,7 +53,7 @@ export type ScopeElement =
   | { fn: Fn }
   | { fn_param: FnParam }
   | { variant: EnumVariant }
-  | { builtin: BuiltinImport }
+  | { builtin_import: BuiltinImport }
   | { fn_import: FnImport }
   | { global_import: GlobalImport }
   | { name_pattern: NameIdentifier }
@@ -60,26 +62,39 @@ export type ScopeElement =
   | { table_import: TableImport }
   | { trait: TraitDeclaration }
   | { trait_fn: TraitFn }
+  | { trait_self: TraitDeclaration }
   | { type_import: TypeImport }
   | { builtin: Builtin };
 
 export type ScopeError =
   | { unnamed_fn_decl: Fn }
-  | { import_has_no_name: Import };
+  | { import_has_no_name: Import }
+  | { duplicate_definition: { name: NameToken | TypeToken; scope: Scope } };
+
+export type ScopeIndex = {
+  nodeScopes: Map<ScopedNodeKind, Scope>;
+  allScopes: Scope[];
+};
 
 export class CreateScopes extends BaseVisitor {
   id = 0;
   current: Scope = {
     children: [],
-    elements: new Map(),
+    term_elements: new Map(),
+    type_elements: new Map(),
     id: this.id++,
     node: null,
     parent: null,
   };
   mod_path = "";
-  scopes = new Map<NameIdentifier | Identifier, Scope>();
+  scopes = new Map<ScopedNodeKind, Scope>();
   module_scopes = new Map<string, Scope>();
   errors = [] as ScopeError[];
+
+  scopifyModule(mod_path: string, mod: Module) {
+    this.mod_path = mod_path;
+    this.visitModule(mod);
+  }
 
   override visitModule(node: Module) {
     this.enter({ module: node });
@@ -91,18 +106,21 @@ export class CreateScopes extends BaseVisitor {
 
   override visitEnumDeclaration(node: EnumDeclaration): Declaration {
     // define the enum in the module's namespace
-    this.define(node.enum.id, { enum: node });
+    this.define_type(node.enum.id, { enum: node });
 
     for (const variant of node.enum.variants) {
-      this.define("fields" in variant ? variant.fields.id : variant.values.id, {
-        variant,
-      });
+      this.define_type(
+        "fields" in variant ? variant.fields.id : variant.values.id,
+        {
+          variant,
+        },
+      );
     }
 
     this.enter({ decl: node });
     for (const type_param of node.enum.type_params) {
       // TODO: Add trait constraints
-      this.define(type_param, { type_param });
+      this.define_type(type_param, { type_param });
     }
     super.visitEnumDeclaration(node);
     this.exit();
@@ -114,16 +132,16 @@ export class CreateScopes extends BaseVisitor {
       this.errors.push({ unnamed_fn_decl: node.fn.fn });
       return node;
     }
-    this.define(node.fn.fn.name, { fn: node.fn.fn });
+    this.define_term(node.fn.fn.name, { fn: node.fn.fn });
     this.enter({ fn: node.fn.fn });
 
     // TODO: type parameters should have "names"
     for (const type_param of node.fn.fn.type_params) {
-      this.define(type_param, { type_param });
+      this.define_type(type_param, { type_param });
     }
 
     for (const fn_param of node.fn.fn.params) {
-      this.define(fn_param.name, { fn_param });
+      this.define_term(fn_param.name, { fn_param });
     }
 
     super.visitFn(node.fn.fn);
@@ -133,15 +151,15 @@ export class CreateScopes extends BaseVisitor {
 
   override visitFn(node: Fn): Fn {
     this.enter({ fn: node });
-    if (node.name) this.define(node.name, { fn: node });
+    if (node.name) this.define_term(node.name, { fn: node });
 
     // TODO: type parameters should have "names"
     for (const type_param of node.type_params) {
-      this.define(type_param, { type_param });
+      this.define_type(type_param, { type_param });
     }
 
     for (const fn_param of node.params) {
-      this.define(fn_param.name, { fn_param });
+      this.define_term(fn_param.name, { fn_param });
     }
 
     super.visitFn(node);
@@ -150,12 +168,12 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitTypeDeclaration(node: TypeDeclaration): Declaration {
-    this.define(node.type_dec.id, { type_decl: node });
+    this.define_type(node.type_dec.id, { type_decl: node });
     this.enter({ decl: node });
 
     // TODO: type parameters should have "names"
     for (const type_param of node.type_dec.params) {
-      this.define(type_param, { type_param });
+      this.define_type(type_param, { type_param });
     }
 
     super.visitTypeDeclaration(node);
@@ -171,13 +189,13 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitBuiltinImport(node: BuiltinImport): Import {
-    this.define(node.builtin.alias, { builtin: node });
+    this.define_term(node.builtin.alias, { builtin: node });
     return node;
   }
 
   override visitFnImport(node: FnImport): Import {
     if (node.fn.alias || "name" in node.fn.name) {
-      this.define(node.fn.alias ?? (node.fn.name as NameIdentifier), {
+      this.define_term(node.fn.alias ?? (node.fn.name as NameIdentifier), {
         fn_import: node,
       });
       return node;
@@ -189,9 +207,12 @@ export class CreateScopes extends BaseVisitor {
 
   override visitGlobalImport(node: GlobalImport): Import {
     if (node.global.alias || "name" in node.global.name) {
-      this.define(node.global.alias ?? (node.global.name as NameIdentifier), {
-        global_import: node,
-      });
+      this.define_term(
+        node.global.alias ?? (node.global.name as NameIdentifier),
+        {
+          global_import: node,
+        },
+      );
       return node;
     }
 
@@ -207,15 +228,18 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitNamePatternExpression(node: NameIdentifier): PatternExpression {
-    this.define(node, { name_pattern: node });
+    this.define_term(node, { name_pattern: node });
     return node;
   }
 
   override visitMemoryImport(node: MemoryImport): Import {
     if (node.memory.alias || "name" in node.memory.name) {
-      this.define(node.memory.alias ?? (node.memory.name as NameIdentifier), {
-        memory_import: node,
-      });
+      this.define_term(
+        node.memory.alias ?? (node.memory.name as NameIdentifier),
+        {
+          memory_import: node,
+        },
+      );
       return node;
     }
 
@@ -224,15 +248,18 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitStarImport(node: StarImport): Import {
-    this.define(node.star, { star_import: node });
+    this.define_type(node.star, { star_import: node });
     return node;
   }
 
   override visitTableImport(node: TableImport): Import {
     if (node.table.alias || "name" in node.table.name) {
-      this.define(node.table.alias ?? (node.table.name as NameIdentifier), {
-        table_import: node,
-      });
+      this.define_term(
+        node.table.alias ?? (node.table.name as NameIdentifier),
+        {
+          table_import: node,
+        },
+      );
       return node;
     }
 
@@ -240,16 +267,17 @@ export class CreateScopes extends BaseVisitor {
     return node;
   }
   override visitTraitDeclaration(node: TraitDeclaration): Declaration {
-    this.define(node.trait.id, { trait: node });
+    this.define_term({ name: "self" }, { trait_self: node });
+    this.define_type(node.trait.id, { trait: node });
 
     for (const fn of node.trait.fns) {
-      this.define(fn.name, { trait_fn: fn });
+      this.define_term(fn.name, { trait_fn: fn });
     }
 
     this.enter({ decl: node });
 
     for (const type_param of node.trait.type_params) {
-      this.define(type_param, { type_param });
+      this.define_type(type_param, { type_param });
     }
     super.visitTraitDeclaration(node);
 
@@ -258,32 +286,45 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitTypeImport(node: TypeImport): Import {
-    this.define(node.type.name, { type_import: node });
+    this.define_type(node.type.name, { type_import: node });
     return node;
   }
 
-  define(name: NameIdentifier | TypeIdentifier, element: ScopeElement) {
-    this.current.elements.set(name, element);
+  define_term(name: NameIdentifier, element: ScopeElement) {
+    if (this.current.term_elements.has(name.name)) {
+      this.errors.push({ duplicate_definition: { name, scope: this.current } });
+    }
+    this.current.term_elements.set(name.name, element);
   }
 
-  override visitNameIdentifier(node: NameToken): NameToken {
-    this.scopes.set(node, this.current);
-    return node;
+  define_type(name: NameIdentifier | TypeIdentifier, element: ScopeElement) {
+    const elem_id = "type" in name ? name.type : name.name;
+    if (this.current.type_elements.has(elem_id)) {
+      this.errors.push({ duplicate_definition: { name, scope: this.current } });
+    }
+    this.current.type_elements.set(elem_id, element);
   }
 
-  override visitTypeIdentifier(node: TypeToken): TypeToken {
-    this.scopes.set(node, this.current);
-    return node;
+  getScopeIndex(): ScopeIndex {
+    const allScopes: Scope[] = [];
+    function flatten(scope: Scope) {
+      allScopes.push(scope);
+      for (const child of scope.children) flatten(child);
+    }
+    flatten(this.current);
+    return { nodeScopes: this.scopes, allScopes };
   }
 
   enter(node: ScopedNodeKind) {
     const next = {
       children: [],
-      elements: new Map(),
+      term_elements: new Map(),
+      type_elements: new Map(),
       id: this.id++,
       node,
       parent: this.current,
-    };
+    } satisfies Scope;
+    this.scopes.set(node, next);
     this.current.children.push(next);
     this.current = next;
   }

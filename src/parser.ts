@@ -12,6 +12,7 @@ import { type Operator, Yard } from "./yard.js";
 
 type TokenIter = ReturnType<typeof lex>;
 
+// AST Types
 export type Module = {
   module: Declaration[];
 };
