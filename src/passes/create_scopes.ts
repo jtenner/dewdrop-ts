@@ -74,11 +74,7 @@ export type Scopable =
   | PatternExpression
   | TypeExpression;
 
-export type AstScopeMap = Map<Scopable, Scope>;
-
-export type ScopeIndex = {
-  scopes: AstScopeMap;
-};
+export type ScopeIndex = Map<Scopable, Scope>;
 
 export class CreateScopes extends BaseVisitor {
   id = 0;
@@ -144,6 +140,12 @@ export class CreateScopes extends BaseVisitor {
     }
     super.visitEnumDeclaration(node);
     this.exit();
+    return node;
+  }
+
+  override visitEnumVariant(node: EnumVariant): EnumVariant {
+    const name = "fields" in node ? node.fields.id : node.values.id;
+    this.define_type(name, { variant: node });
     return node;
   }
 
@@ -326,7 +328,7 @@ export class CreateScopes extends BaseVisitor {
     this.current.type_elements.set(elem_id, element);
   }
 
-  getScopeIndex(): AstScopeMap {
+  getScopeIndex(): ScopeIndex {
     return this.scopes;
   }
 
