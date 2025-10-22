@@ -6,6 +6,12 @@ import type {
   Import,
   NameImport,
   TypeImport,
+  NameIdentifier,
+  GlobalImport,
+  TableImport,
+  MemoryImport,
+  BuiltinImport,
+  TraitImport,
 } from "../parser.js";
 import { BaseVisitor } from "../visitor.js";
 import type { Scope, ScopeIndex } from "./create_scopes.js";
@@ -16,7 +22,8 @@ type ModuleIndex = Map<string, Module>;
 export type ImportError =
   | { scope_not_found: string }
   | { module_not_found: string }
-  | { element_not_found: { module: string; element: string } };
+  | { element_not_found: { module: string; element: string } }
+  | { misnamed_import: { imp: Import } };
 export class ImportResolution extends BaseVisitor {
   constructor(
     public module_index: ModuleIndex,
@@ -103,6 +110,66 @@ export class ImportResolution extends BaseVisitor {
     }
 
     this.current_scope!.type_elements.set(alias, element);
+    return node;
+  }
+
+  override visitFnImport(fn_import: FnImport): Import {
+    const { alias, name } = fn_import.fn;
+    if (!alias && "string" in name) {
+      this.errors.push({ misnamed_import: { imp: fn_import } });
+      return fn_import;
+    }
+    const symbol = alias?.name ?? (name as NameIdentifier).name;
+    this.current_scope!.term_elements.set(symbol, { fn_import });
+    return fn_import;
+  }
+
+  override visitGlobalImport(global_import: GlobalImport): Import {
+    const { alias, name } = global_import.global;
+    if (!alias && "string" in name) {
+      this.errors.push({ misnamed_import: { imp: global_import } });
+      return global_import;
+    }
+    const symbol = alias?.name ?? (name as NameIdentifier).name;
+    this.current_scope!.term_elements.set(symbol, { global_import });
+    return global_import;
+  }
+
+  override visitTableImport(table_import: TableImport): Import {
+    const { alias, name } = table_import.table;
+    if (!alias && "string" in name) {
+      this.errors.push({ misnamed_import: { imp: table_import } });
+      return table_import;
+    }
+    const symbol = alias?.name ?? (name as NameIdentifier).name;
+    this.current_scope!.term_elements.set(symbol, { table_import });
+    return table_import;
+  }
+
+  override visitMemoryImport(memory_import: MemoryImport): Import {
+    const { alias, name } = memory_import.memory;
+    if (!alias && "string" in name) {
+      this.errors.push({ misnamed_import: { imp: memory_import } });
+      return memory_import;
+    }
+    const symbol = alias?.name ?? (name as NameIdentifier).name;
+    this.current_scope!.term_elements.set(symbol, { memory_import });
+    return memory_import;
+  }
+
+  override visitBuiltinImport(builtin_import: BuiltinImport): Import {
+    const { alias, name } = builtin_import.builtin;
+    if (!alias && "string" in name) {
+      this.errors.push({ misnamed_import: { imp: builtin_import } });
+      return builtin_import;
+    }
+    const symbol = alias.name;
+    this.current_scope!.term_elements.set(symbol, { builtin_import });
+    return builtin_import;
+  }
+
+  override visitTraitImport(node: TraitImport): Import {
+    // TODO: add trait imports for all trait functions and the type itself
     return node;
   }
 }
