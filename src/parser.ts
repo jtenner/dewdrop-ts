@@ -153,7 +153,7 @@ export type TypeImport = {
 export type FnImport = {
   fn: {
     name: NameIdentifier | WasmName;
-    signature: FnSignature | null;
+    signature: FnSignature;
     alias: NameIdentifier | null;
   };
 };
@@ -1298,50 +1298,26 @@ export const take_import = async (
 
     // fn ("name"|name) ("(" ...params ")" -> ReturnType):?
     [next_token, success_token] = await take_symbol(next_token, tokens, "(");
-    if (success_token) {
-      // full signature is now required
-      [next_token, param_types] = await take_list(
-        next_token,
-        tokens,
-        take_fn_param,
-        ",",
-        ")",
-      );
-      if (!param_types) return [next_token, null];
+    if (!success_token) return [next_token, null];
+    // full signature is now required
+    [next_token, param_types] = await take_list(
+      next_token,
+      tokens,
+      take_fn_param,
+      ",",
+      ")",
+    );
+    if (!param_types) return [next_token, null];
 
-      [next_token, success_token] = await take_symbol(next_token, tokens, ":");
-      if (!success_token) return [next_token, null];
+    [next_token, success_token] = await take_symbol(next_token, tokens, ":");
+    if (!success_token) return [next_token, null];
 
-      [next_token, type_expression] = await take_type_expression(
-        next_token,
-        tokens,
-      );
-      if (!type_expression) return [next_token, null];
+    [next_token, type_expression] = await take_type_expression(
+      next_token,
+      tokens,
+    );
+    if (!type_expression) return [next_token, null];
 
-      [next_token, success_token] = await take_keyword(
-        next_token,
-        tokens,
-        "as",
-      );
-      if (success_token) {
-        // alias required now
-        [next_token, alias] = await take_name(next_token, tokens);
-        if (!alias) return [next_token, null];
-      }
-
-      return [
-        next_token,
-        {
-          fn: {
-            name,
-            signature: { param_types, return_type: type_expression },
-            alias,
-          },
-        },
-      ];
-    }
-
-    // optional as keyword
     [next_token, success_token] = await take_keyword(next_token, tokens, "as");
     if (success_token) {
       // alias required now
@@ -1349,7 +1325,16 @@ export const take_import = async (
       if (!alias) return [next_token, null];
     }
 
-    return [next_token, { fn: { name, signature: null, alias } }];
+    return [
+      next_token,
+      {
+        fn: {
+          name,
+          signature: { param_types, return_type: type_expression },
+          alias,
+        },
+      },
+    ];
   }
 
   // memory import

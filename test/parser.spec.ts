@@ -154,7 +154,7 @@ test.each([
   { decl: `pub enum Direction { Up, Down, Left, Right }` },
   { decl: `pub trait Eq<t> { fn eq(other: t) : bool }` },
   { decl: `trait Drawable { fn draw(): Void fn bounds(): Rect }` },
-  { decl: `import "std" { fn print as out }` },
+  { decl: `import "std" { fn print(): Void as out }` },
   { decl: `import "std" { memory "memory": 1 as mem }` },
   { decl: `import "std" { global mut count: i32 as cnt }` },
   { decl: `import "wasm" { table "table": I32 0 0 as tbl }` },
@@ -386,7 +386,7 @@ test.each([
   { decl: `trait Numeric { fn add(other: Self): Self fn mul(other: Self): Self fn zero(): Self }` },
   
   // Complex imports
-  { decl: `import "std" { fn print, fn println, type String, memory "mem": 1 10 as mem }` },
+  { decl: `import "std" { fn print(msg: String): Void, type String, memory "mem": 1 10 as mem }` },
   { decl: `import "core" { trait Eq, trait Ord, enum Option, enum Result }` },
   
   // Functions with no return type annotation

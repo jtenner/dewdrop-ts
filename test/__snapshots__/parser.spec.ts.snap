@@ -1680,7 +1680,7 @@ exports[`trait Drawable { fn draw(): Void fn bounds(): Rect } matches snapshot 1
 ]
 `;
 
-exports[`import "std" { fn print as out } matches snapshot 1`] = `
+exports[`import "std" { fn print(): Void as out } matches snapshot 1`] = `
 [
   null,
   {
@@ -1695,7 +1695,12 @@ exports[`import "std" { fn print as out } matches snapshot 1`] = `
             "name": {
               "name": "print",
             },
-            "signature": null,
+            "signature": {
+              "param_types": [],
+              "return_type": {
+                "type": "Void",
+              },
+            },
           },
         },
       ],
@@ -4671,7 +4676,7 @@ exports[`Declaration: trait Numeric { fn add(other: Self): Self fn mul(other: Se
 ]
 `;
 
-exports[`Declaration: import "std" { fn print, fn println, type String, memory "mem": 1 10 as mem } matches snapshot: Declaration: import "std" { fn print, fn println, type String, memory "mem": 1 10 as mem } 1`] = `
+exports[`Declaration: import "std" { fn print(msg: String): Void, type String, memory "mem": 1 10 as mem } matches snapshot: Declaration: import "std" { fn print(msg: String): Void, type String, memory "mem": 1 10 as mem } 1`] = `
 [
   null,
   {
@@ -4684,16 +4689,21 @@ exports[`Declaration: import "std" { fn print, fn println, type String, memory "
             "name": {
               "name": "print",
             },
-            "signature": null,
-          },
-        },
-        {
-          "fn": {
-            "alias": null,
-            "name": {
-              "name": "println",
+            "signature": {
+              "param_types": [
+                {
+                  "guard": {
+                    "type": "String",
+                  },
+                  "name": {
+                    "name": "msg",
+                  },
+                },
+              ],
+              "return_type": {
+                "type": "Void",
+              },
             },
-            "signature": null,
           },
         },
         {

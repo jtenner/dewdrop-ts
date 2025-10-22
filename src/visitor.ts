@@ -636,8 +636,7 @@ export class BaseVisitor implements ASTVisitor {
           "string" in node.fn.name
             ? this.visitString(node.fn.name)
             : this.visitNameIdentifier(node.fn.name),
-        signature:
-          node.fn.signature && this.visitFnSignature(node.fn.signature),
+        signature: this.visitFnSignature(node.fn.signature),
       },
     };
   }
