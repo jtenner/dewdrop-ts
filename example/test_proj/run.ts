@@ -1,4 +1,3 @@
-import { Compiler } from "../../src/compiler";
-const compiler = new Compiler();
+import { compile } from "../../src/compiler";
 
-await compiler.compile();
+await compile();

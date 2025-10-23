@@ -1,20 +1,39 @@
-import type { Declaration, ImportDeclaration } from "../parser.js";
+import * as path from "node:path";
+import type { Declaration, ImportDeclaration, Module } from "../parser.js";
 import { to_file_entry } from "../util.js";
 import { BaseVisitor } from "../visitor.js";
+import { ModuleGraph } from "../graph.js";
 
 export class ResolveImports extends BaseVisitor {
-  constructor(
-    public basedir: string,
-    public module_path: string,
-    public modules: Set<string>,
-  ) {
+  graph: ModuleGraph;
+  module_path: string = "";
+
+  private imported = [] as string[];
+  constructor(public basedir: string) {
     super();
+    this.graph = new ModuleGraph(basedir);
+  }
+
+  resolve_imports(path: string, node: Module, modules: Set<string>) {
+    this.module_path = path;
+    this.visitModule(node);
+    const paths = this.graph.addModule(this.module_path, node, this.imported);
+    for (const p of paths) {
+      modules.add(p);
+    }
+  }
+
+  override visitModule(node: Module): Module {
+    this.imported = [];
+    super.visitModule(node);
+
+    return node;
   }
   override visitImportDeclaration(node: ImportDeclaration): Declaration {
-    const desc = node.import_dec.import_from;
+    let desc = node.import_dec.import_from;
     if (desc.startsWith("@std")) return node;
-    const entry = to_file_entry(desc, this.basedir, ".dew");
-    this.modules.add(entry.relative);
+    if (path.extname(desc) !== ".dew") desc += ".dew";
+    this.imported.push(desc);
     return node;
   }
 }

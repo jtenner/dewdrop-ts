@@ -1,21 +1,21 @@
+import * as path from "node:path";
 import type {
-  ImportDeclaration,
-  Declaration,
-  Module,
-  FnImport,
-  Import,
-  NameImport,
-  TypeImport,
-  NameIdentifier,
-  GlobalImport,
-  TableImport,
-  MemoryImport,
   BuiltinImport,
+  Declaration,
+  FnImport,
+  GlobalImport,
+  Import,
+  ImportDeclaration,
+  MemoryImport,
+  Module,
+  NameIdentifier,
+  NameImport,
+  TableImport,
   TraitImport,
+  TypeImport,
 } from "../parser.js";
 import { BaseVisitor } from "../visitor.js";
 import type { Scope, ScopeIndex } from "./create_scopes.js";
-import * as path from "node:path";
 
 type ModuleIndex = Map<string, Module>;
 
@@ -36,18 +36,12 @@ export class ImportResolution extends BaseVisitor {
   current_module: string = "";
   current_scope: Scope | null = null;
 
-  resolveImports(module: string) {
-    this.current_module = module;
-
-    const ast = this.module_index.get(module);
-    if (!ast) {
-      this.errors.push({ module_not_found: module });
-      return;
-    }
+  resolveImports(module_path: string, ast: Module) {
+    this.current_module = module_path;
 
     const scope = this.scope_index.get(ast);
     if (!scope) {
-      this.errors.push({ scope_not_found: module });
+      this.errors.push({ scope_not_found: module_path });
       return;
     }
     this.current_scope = scope;
@@ -99,6 +93,7 @@ export class ImportResolution extends BaseVisitor {
   override visitTypeImport(node: TypeImport): Import {
     const name = node.type.name.type;
     const alias = node.type.alias?.type ?? name;
+    console.log("Importing type", name, "as", alias);
 
     // type imports should be an imported "type" like an enum
     const element = this.imported_scope?.type_elements.get(name);
@@ -108,7 +103,7 @@ export class ImportResolution extends BaseVisitor {
       });
       return node;
     }
-
+    console.log("Found element", element);
     this.current_scope!.type_elements.set(alias, element);
     return node;
   }
@@ -169,7 +164,6 @@ export class ImportResolution extends BaseVisitor {
   }
 
   override visitTraitImport(node: TraitImport): Import {
-    // TODO: add trait imports for all trait functions and the type itself
     return node;
   }
 }

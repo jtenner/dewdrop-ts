@@ -1,0 +1,6 @@
+import "./option.dew" { type Option }
+
+pub fn main(): Void {
+  let a = Some(21)
+}
+

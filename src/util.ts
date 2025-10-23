@@ -14,7 +14,7 @@ export const to_file_entry = (
   return path.isAbsolute(loc)
     ? {
         absolute: loc,
-        relative: path.relative(basedir, loc),
+        relative: `./${path.relative(basedir, loc)}`,
       }
     : {
         absolute: path.join(basedir, loc),
