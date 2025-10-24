@@ -337,7 +337,7 @@ test.each([
   // Multiple type parameters
   { expr: "Map<K, V>" },
   { expr: "Triple<A, B, C>" },
-  { expr: "Fn<(A, B), C>" },
+  { expr: "Fn<#(A, B), C>" },
   
   // Nested function types
   { expr: "((Int) -> Int) -> Int" },
