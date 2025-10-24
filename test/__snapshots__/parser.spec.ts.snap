@@ -5416,3 +5416,24 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
   ],
 }
 `;
+
+exports[`import "std" { Some } matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "std",
+      "imports": [
+        {
+          "constr": {
+            "alias": null,
+            "name": {
+              "type": "Some",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;

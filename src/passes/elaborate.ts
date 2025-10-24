@@ -5,6 +5,10 @@ import type {
   BodyExpression,
   BoolExpression,
   CallExpression,
+  ConstructorPatternExpression,
+  Declaration,
+  EnumDeclaration,
+  EnumVariant,
   Expression,
   FloatExpression,
   Fn,
@@ -12,20 +16,34 @@ import type {
   FnTypeExpression,
   Identifier,
   IfExpression,
+  Import,
+  InfixExpression,
   IntExpression,
   LetBindBodyExpression,
+  Module,
   NamedTypeExpression,
+  NameIdentifier,
   PatternExpression,
+  PostfixExpression,
+  PrefixExpression,
   RecordExpression,
+  RecordPatternExpression,
   RecordTypeExpression,
   SelectExpression,
   SelectTypeExpression,
   SelfExpression,
   TupleExpression,
+  TuplePatternExpression,
   TupleTypeExpression,
   TypeExpression,
 } from "../parser.js";
-import type { Pattern, Term, Type } from "../types_system_f_omega.js";
+import type {
+  Kind,
+  Pattern,
+  Term,
+  Type,
+  VariantType,
+} from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import type { Scopable, Scope } from "./create_scopes.js";
 
@@ -33,21 +51,48 @@ function arrows(args: Type[], ret: Type): Type {
   return args.reduceRight((acc, from) => ({ arrow: { from, to: acc } }), ret);
 }
 
+function lookup_type(name: string, scope: Scope) {
+  let current: Scope | null = scope;
+  while (current) {
+    const value = current.type_elements.get(name);
+    if (value) return value;
+    current = current.parent;
+  }
+  return null;
+}
+
+function lookup_term(name: string, scope: Scope) {
+  let current: Scope | null = scope;
+  while (current) {
+    const value = current.term_elements.get(name);
+    if (value) return value;
+    current = current.parent;
+  }
+  return null;
+}
+
 export type ElaborationError =
   | { not_a_record_type: TypeExpression }
   | { record_has_no_field: { type: TypeExpression; field: string } }
-  | { cannot_resolve_symbol: Identifier };
+  | { cannot_resolve_symbol: Identifier }
+  | { variant_type_not_found: string }
+  | { type_is_not_a_variant: string };
 
 type VisitorMode = "type" | "term" | "pattern";
 
 export class ElaboratePass extends BaseVisitor {
   private modeStack: VisitorMode[] = [];
   errors = [] as ElaborationError[];
-  types = new Map<TypeExpression, Type>();
-  terms = new Map<BodyExpression | Expression | Fn, Term>();
+  types = new Map<TypeExpression | EnumVariant, Type>();
+  terms = new Map<BodyExpression | Expression | Fn | EnumVariant, Term>();
   patterns = new Map<PatternExpression, Pattern>();
 
-  constructor(public scopes: Map<Scopable, Scope>) {
+  enumTypes = new Map<EnumDeclaration, VariantType>();
+
+  constructor(
+    public scopes: Map<Scopable, Scope>,
+    public variants: Map<EnumVariant, EnumDeclaration>,
+  ) {
     super();
   }
 
@@ -62,6 +107,10 @@ export class ElaboratePass extends BaseVisitor {
     } finally {
       this.modeStack.pop();
     }
+  }
+
+  elaborate(module: Module) {
+    this.visitModule(module);
   }
 
   override visitExpression(node: Expression): Expression {
@@ -197,7 +246,7 @@ export class ElaboratePass extends BaseVisitor {
           {
             app: {
               callee: { var: "unreachable" },
-              arg: { con: { name: "Unit", type: { con: "Unit" } } },
+              arg: { tuple: [] },
             },
           },
         ]);
@@ -250,6 +299,7 @@ export class ElaboratePass extends BaseVisitor {
   }
 
   override visitIntExpression(node: IntExpression): Expression {
+    super.visitIntExpression(node);
     this.terms.set(node, {
       con: {
         name: node.int.value.toString(),
@@ -270,6 +320,7 @@ export class ElaboratePass extends BaseVisitor {
   }
 
   override visitRecordExpression(node: RecordExpression): Expression {
+    super.visitRecordExpression(node);
     const record = [] as [string, Term][];
 
     for (const pair of node.record) {
@@ -287,6 +338,7 @@ export class ElaboratePass extends BaseVisitor {
   }
 
   override visitIfExpression(node: IfExpression): Expression {
+    super.visitIfExpression(node);
     const scrutinee = this.terms.get(node.if_expr.cond);
     if (!scrutinee) throw new Error("Expression not generated.");
 
@@ -295,7 +347,7 @@ export class ElaboratePass extends BaseVisitor {
 
     const falseCase = node.if_expr.else_body
       ? this.terms.get(node.if_expr.else_body)
-      : { con: { name: "Unit", type: { con: "Unit" } } };
+      : { tuple: [] };
     if (!falseCase) throw new Error("Expression not generated.");
 
     const cases = [] as [Pattern, Term][];
@@ -320,6 +372,7 @@ export class ElaboratePass extends BaseVisitor {
   }
 
   override visitSelectExpression(node: SelectExpression): Expression {
+    super.visitSelectExpression(node);
     const record = this.terms.get(node.select[0]);
     if (!record) throw new Error("Expression not generated");
 
@@ -328,13 +381,17 @@ export class ElaboratePass extends BaseVisitor {
   }
 
   override visitCallExpression(node: CallExpression): Expression {
+    super.visitCallExpression(node);
     const [fn, params] = node.call;
     const callee = this.terms.get(fn);
-    if (!callee) throw new Error("Expression not generated.");
+    if (!callee) {
+      console.log("fn is", fn);
+      throw new Error("Expression not generated.");
+    }
 
     let term: Term | undefined =
       params.length === 0
-        ? { con: { name: "Unit", type: { con: "Unit" } } }
+        ? { tuple: [] }
         : this.terms.get(params[params.length - 1]!);
 
     if (!term) throw new Error("Expression not generated");
@@ -351,6 +408,202 @@ export class ElaboratePass extends BaseVisitor {
     return node;
   }
 
+  override visitPrefixExpression(node: PrefixExpression): Expression {
+    super.visitPrefixExpression(node);
+    const { operand, op } = node.prefix;
+    const term = this.terms.get(operand);
+    if (!term) throw new Error("Expression not generated.");
+
+    this.terms.set(node, {
+      app: {
+        callee: { var: op },
+        arg: term,
+      },
+    });
+    return node;
+  }
+
+  override visitInfixExpression(node: InfixExpression): Expression {
+    super.visitInfixExpression(node);
+    const { left, op, right } = node.infix;
+    const leftArg = this.terms.get(left);
+    if (!leftArg) throw new Error("Expression not generated.");
+    const rightArg = this.terms.get(right);
+    if (!rightArg) throw new Error("Expression not generated.");
+
+    this.terms.set(node, {
+      app: {
+        callee: {
+          app: {
+            callee: { var: op },
+            arg: rightArg,
+          },
+        },
+        arg: leftArg,
+      },
+    });
+    return node;
+  }
+
+  override visitPostfixExpression(node: PostfixExpression): Expression {
+    super.visitPostfixExpression(node);
+    const { operand, op } = node.postfix;
+    const term = this.terms.get(operand);
+    if (!term) throw new Error("Expression not generated.");
+
+    this.terms.set(node, {
+      app: {
+        callee: { var: op },
+        arg: term,
+      },
+    });
+    return node;
+  }
+
+  override visitFnExpression(node: FnExpression): Expression {
+    super.visitFnExpression(node);
+    const fn = node.fn;
+
+    const term = this.terms.get(fn);
+    if (!term) throw new Error("Expression not generated.");
+
+    this.terms.set(node, term);
+    return node;
+  }
+
+  private varid = 0;
+  protected freshVar(prefix: string) {
+    return `α-${prefix}-${this.varid++}`;
+  }
+
+  override visitFn(node: Fn): Fn {
+    super.visitFn(node);
+
+    // Step 1: Lookup or elaborate the return type if given
+    const returnType = node.return_type
+      ? this.types.get(node.return_type)
+      : { var: this.freshVar("return_type") };
+    if (!returnType) throw new Error("Return type not generated for fn.");
+
+    // Step 2: Elaborate the function body (expression -> Term)
+    const bodyTerm = this.terms.get(node.body);
+    if (!bodyTerm) throw new Error("Body term not generated for fn.");
+
+    // Step 3: Elaborate parameters — wrap as LamTerms
+    let term = bodyTerm;
+    for (let i = node.params.length - 1; i >= 0; i--) {
+      const param = node.params[i]!;
+      const paramName = param.name.name;
+      const paramType = (param.guard && this.types.get(param.guard)) ?? {
+        con: "bot",
+      };
+
+      term = {
+        lam: {
+          arg: paramName,
+          type: paramType,
+          body: term,
+        },
+      };
+    }
+
+    // Step 4: Elaborate type parameters — wrap as TyLamTerms
+    for (let i = node.type_params.length - 1; i >= 0; i--) {
+      const typeParam = node.type_params[i]!;
+      const name = typeParam.name;
+      const kind = { star: null }; // default kind
+      term = {
+        tylam: {
+          var: name,
+          kind,
+          body: term,
+        },
+      };
+    }
+
+    this.terms.set(node, term);
+
+    return node;
+  }
+
+  override visitNamePatternExpression(node: NameIdentifier): PatternExpression {
+    const name: Pattern = { var: node.name };
+    this.patterns.set(node, name);
+    return node;
+  }
+
+  override visitTuplePatternExpression(
+    node: TuplePatternExpression,
+  ): PatternExpression {
+    super.visitTuplePatternExpression(node);
+    const tuple = [] as Pattern[];
+
+    for (const p of node.tuple) {
+      const innerPattern = this.patterns.get(p);
+      if (!innerPattern) throw new Error("Pattern not generated.");
+      tuple.push(innerPattern);
+    }
+
+    this.patterns.set(node, { tuple });
+    return node;
+  }
+
+  override visitRecordPatternExpression(
+    node: RecordPatternExpression,
+  ): PatternExpression {
+    super.visitRecordPatternExpression(node);
+    const record = [] as [string, Pattern][];
+
+    for (const [{ name: key }, p] of node.record) {
+      const valuePattern = this.patterns.get(p);
+      if (!valuePattern) throw new Error("Pattern not generated.");
+      record.push([key, valuePattern]);
+    }
+
+    this.patterns.set(node, { record });
+    return node;
+  }
+
+  override visitConstructorPatternExpression(
+    node: ConstructorPatternExpression,
+  ): PatternExpression {
+    super.visitConstructorPatternExpression(node);
+
+    // resolve the variant and type
+    const scope = this.scopes.get(node);
+    if (!scope) throw new Error("Scope not generated for pattern.");
+
+    const element = lookup_type(node.constr.type.type, scope);
+    // we need the type of the constructor
+    if (element && "variant" in element) {
+      const parent = this.variants.get(element.variant);
+      if (!parent) throw new Error("Variant not generated for enum element.");
+
+      const enumType = this.enumTypes.get(parent);
+      if (!enumType) throw new Error("EnumType not generated for declaration.");
+
+      const variantType = enumType.variant.find(
+        (t) => t[0] === node.constr.type.type,
+      );
+      if (!variantType)
+        throw new Error("Variant has no variant type generated.");
+
+      const pattern: Pattern = {
+        con: { name: node.constr.type.type, type: variantType[1] },
+      };
+
+      this.patterns.set(node, pattern);
+      return node;
+    } else {
+      this.patterns.set(node, { wildcard: null });
+      this.errors.push({ cannot_resolve_symbol: node.constr.type });
+      return node;
+    }
+
+    // TODO: FIX ME
+    // const type = this.getVariantType(node.constr.type.type, scope);
+  }
+
   override visitNameIdentifier(node: NameToken): NameToken {
     if (this.mode === "type") {
       this.types.set(node, { var: node.name });
@@ -358,22 +611,207 @@ export class ElaboratePass extends BaseVisitor {
       this.terms.set(node, { var: node.name } as Term);
     }
 
-    // TODO: Pattern mode
     return node;
+  }
+
+  override visitEnumDeclaration(node: EnumDeclaration): Declaration {
+    super.visitEnumDeclaration(node);
+    const variant = [] as [string, Type][];
+    let enumType: Type = { variant };
+
+    for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
+      enumType = {
+        forall: {
+          var: node.enum.type_params[i]!.name,
+          body: enumType,
+          kind: { star: null },
+        },
+      } as Type;
+    }
+
+    for (const v of node.enum.variants) {
+      if ("fields" in v) {
+        const record = [] as [string, Type][];
+        const recordType = { record };
+        const fields = v.fields.fields;
+        for (const {
+          name: { name },
+          ty,
+        } of fields) {
+          const fieldType = this.types.get(ty);
+          if (!fieldType)
+            throw new Error("Type not generated for enum variant parameter.");
+          record.push([name, fieldType]);
+        }
+
+        // 1. Add the variant to the type itself
+        variant.push([v.fields.id.type, recordType]);
+
+        // 2. Add a term constructor with type params
+        let body: Term = {
+          lam: {
+            arg: "$value",
+            type: {
+              lam: {
+                body: enumType,
+                kind: { star: null },
+                var: "$value",
+              },
+            },
+            body: {
+              inject: {
+                label: v.fields.id.type,
+                value: { var: "$value" },
+                variant_type: enumType,
+              },
+            },
+          },
+        };
+
+        for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
+          body = {
+            tylam: {
+              body: body,
+              kind: { star: null },
+              var: node.enum.type_params[i]!.name,
+            },
+          };
+        }
+        this.terms.set(v, body);
+
+        let ctorType: Type = {
+          arrow: {
+            from: recordType,
+            to: enumType,
+          },
+        };
+        for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
+          ctorType = {
+            forall: {
+              body: ctorType,
+              kind: { star: null },
+              var: node.enum.type_params[i]!.name,
+            },
+          };
+        }
+        this.types.set(v, ctorType);
+      } else {
+        const termTypes = [] as Type[];
+        const tupleType = { tuple: termTypes };
+        for (const ty of v.values.values) {
+          const fieldType = this.types.get(ty);
+          if (!fieldType)
+            throw new Error("Type not generated for enum variant parameter.");
+          termTypes.push(fieldType);
+        }
+        variant.push([v.values.id.type, tupleType]);
+
+        // variant is a constructor term with term parameters named `$value{n}`
+        // to `$value{0}`
+
+        let term: Term = {
+          inject: {
+            variant_type: enumType,
+            label: v.values.id.type,
+            value: {
+              tuple: termTypes.map((_, i) => ({ var: `$value${i}` })),
+            },
+          },
+        };
+
+        // wrap params backwards
+        for (let i = termTypes.length - 1; i >= 0; i--) {
+          term = {
+            lam: {
+              arg: `$value${i}`,
+              body: term,
+              type: termTypes[i]!,
+            },
+          };
+        }
+
+        // wrap type lambdas
+        for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
+          term = {
+            tylam: {
+              body: term,
+              kind: { star: null },
+              var: node.enum.type_params[i]!.name,
+            },
+          };
+        }
+        this.terms.set(v, term);
+
+        // function type
+        let ctorType = enumType;
+
+        // function parameter types
+        for (let i = termTypes.length - 1; i >= 0; i--) {
+          ctorType = {
+            arrow: {
+              from: termTypes[i]!,
+              to: ctorType,
+            },
+          };
+        }
+        for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
+          ctorType = {
+            forall: {
+              body: ctorType,
+              kind: { star: null },
+              var: node.enum.type_params[i]!.name,
+            },
+          };
+        }
+        this.types.set(v, ctorType);
+        // function type parameters
+      }
+    }
+    // We need to create the enum terms
+    // and constructor types here
+    return node;
+  }
+
+  override visitEnumVariant(node: EnumVariant): EnumVariant {
+    // no need to visit the names of these variants
+    if ("fields" in node) {
+      for (const variant of node.fields.fields) {
+        this.visitTypeExpression(variant.ty);
+      }
+    } else {
+      for (const variant of node.values.values) {
+        this.visitTypeExpression(variant);
+      }
+    }
+    return node;
+  }
+
+  override visitImport(node: Import) {
+    // no need to visit imports here
+    return node;
+  }
+
+  protected generateConstructor(name: string, variantType: VariantType) {
+    const variant = variantType.variant.find((t) => t[0] === name);
+    // if the type was found already, we should know the name
+    if (!variant) throw new Error("Invalid constructor name for variant.");
+
+    if ("field" in variant[1]) {
+    }
   }
 
   override visitTypeIdentifier(node: TypeToken): TypeToken {
     const scope = this.scopes.get(node);
     if (!scope) throw new Error("Scope not found for identifier!");
 
-    if (this.mode === "type") {
-      const item = scope.type_elements.get(node.type);
-      if (!item) {
-        this.errors.push({ cannot_resolve_symbol: node });
-        return node;
-      }
+    const item = lookup_type(node.type, scope);
+    if (!item) {
+      console.log("Can't resolve the symbol", node);
+      this.errors.push({ cannot_resolve_symbol: node });
+      return node;
+    }
 
-      // enum: EnumDeclaration
+    if (this.mode === "type") {
       if (
         "enum" in item ||
         "star_import" in item ||
@@ -385,8 +823,17 @@ export class ElaboratePass extends BaseVisitor {
         this.types.set(node, { con: node.type });
       } else throw new Error("This is impossible.");
     }
-    // TODO: Expression mode
-    // TODO: Pattern mode
+
+    if (this.mode === "term") {
+      console.log("referencing a variant");
+      if ("variant" in item) {
+        const term: Term = { var: node.type };
+        this.terms.set(node, term);
+      } else {
+        this.errors.push({ type_is_not_a_variant: node.type });
+      }
+    }
+
     return node;
   }
 }

@@ -163,8 +163,10 @@ test.each([
   { decl: `import "wasm" { builtin "i32.add" as add }` },
   { decl: `import "wasm" { item }` },
   { decl: `import "wasm" { item as blah }` },
+  { decl: `import "std" { Some }` },
 ])("$decl matches snapshot", async ({ decl }) => {
   const result = await take_declaration(null, lex(chars(decl)));
+  expect(result[1]).not.toBeNull();
   expect(result).toMatchSnapshot();
 });
 
@@ -297,6 +299,7 @@ test.each([
   { expr: "nan * 2" },
 ])("Expression: $expr matches snapshot", async ({ expr }) => {
   const [, expression] = await take_expression(null, lex(chars(expr)));
+  expect(expression).not.toBeNull();
   expect(expression).toMatchSnapshot(`Expression: ${expr}`);
 });
 
@@ -316,6 +319,7 @@ test.each([
   { expr: "Nested(#(1, #{x: y}))" },
 ])("Pattern: $expr matches snapshot", async ({ expr }) => {
   const [, pattern] = await take_pattern_expression(null, lex(chars(expr)));
+  expect(pattern).not.toBeNull();
   expect(pattern).toMatchSnapshot(`PatternExpression: ${expr}`);
 });
 
@@ -343,6 +347,7 @@ test.each([
   { expr: "#{pos: #(f64, f64), vel: #(f64, f64)}" },
 ])("Type: $expr matches snapshot", async ({ expr }) => {
   const [, typeExpr] = await take_type_expression(null, lex(chars(expr)));
+  expect(typeExpr).not.toBeNull();
   expect(typeExpr).toMatchSnapshot(`TypeExpression: ${expr}`);
 });
 
@@ -360,6 +365,7 @@ test.each([
   { expr: "{ let x = 1; y <- compute(); x + y }" },
 ])("Body: $expr matches snapshot", async ({ expr }) => {
   const [, bodyExpr] = await take_body_expression(null, lex(chars(expr)));
+  expect(bodyExpr).not.toBeNull();
   expect(bodyExpr).toMatchSnapshot(`BodyExpression: ${expr}`);
 });
 
@@ -397,6 +403,7 @@ test.each([
   { decl: `fn process(data: List<Int>): Int { let sum = data.fold(0, fn(acc, x) { acc + x }); sum / data.length() }` },
 ])("Declaration: $decl matches snapshot", async ({ decl }) => {
   const result = await take_declaration(null, lex(chars(decl)));
+  expect(result[1]).not.toBeNull();
   expect(result).toMatchSnapshot(`Declaration: ${decl}`);
 });
 
@@ -417,6 +424,7 @@ test.each([
   { expr: "(a + b)(c, d)" },
 ])("Edge case: $expr matches snapshot", async ({ expr }) => {
   const [, expression] = await take_expression(null, lex(chars(expr)));
+  expect(expression).not.toBeNull();
   expect(expression).toMatchSnapshot(`EdgeCase: ${expr}`);
 });
 
@@ -427,5 +435,6 @@ test.each([
   { expr: "match value { n if (n < 0) => -n, n if (n > 100) => 100, n => n }" },
 ])("Match with guard: $expr matches snapshot", async ({ expr }) => {
   const [, expression] = await take_expression(null, lex(chars(expr)));
+  expect(expression).not.toBeNull();
   expect(expression).toMatchSnapshot(`MatchWithGuard: ${expr}`);
 });

@@ -195,17 +195,21 @@ export type BuiltinImport = {
 export type EnumImport = {
   enum: { name: TypeIdentifier; alias: TypeIdentifier | null };
 };
+export type ConstructorImport = {
+  constr: { name: TypeIdentifier; alias: TypeIdentifier | null };
+};
 export type Import =
-  | TypeImport
+  | BuiltinImport
+  | ConstructorImport
+  | EnumImport
   | FnImport
   | GlobalImport
-  | EnumImport
-  | TableImport
-  | StarImport
   | MemoryImport
   | NameImport
+  | StarImport
+  | TableImport
   | TraitImport
-  | BuiltinImport;
+  | TypeImport;
 
 export type TraitFn = {
   name: NameIdentifier;
@@ -1505,10 +1509,10 @@ export const take_import = async (
   // named import
   [next_token, name] = await take_name(next_token, tokens);
   if (name) {
-    // optional as
     next_token = await next(tokens);
     if (!next_token) return [next_token, { name: { name, alias: null } }];
 
+    // optional as
     if ("keyword" in next_token && next_token.keyword === "as") {
       next_token = await next(tokens);
       if (next_token && "name" in next_token)
@@ -1517,6 +1521,23 @@ export const take_import = async (
     }
 
     return [next_token, { name: { name, alias: null } }];
+  }
+
+  [next_token, type] = await take_type(next_token, tokens);
+  if (type) {
+    // optional as
+    next_token = await next(tokens);
+
+    if (next_token && "keyword" in next_token && next_token.keyword === "as") {
+      next_token = await next(tokens);
+      if (next_token && "type" in next_token)
+        return [null, { constr: { name: type, alias: next_token } }];
+
+      return [next_token, null];
+    }
+
+    // import still succeeds
+    return [next_token, { constr: { name: type, alias: null } }];
   }
 
   // failed import

@@ -8,6 +8,7 @@ import type {
   BoolExpression,
   BuiltinImport,
   CallExpression,
+  ConstructorImport,
   ConstructorPatternExpression,
   Declaration,
   EnumDeclaration,
@@ -190,6 +191,7 @@ export interface ASTVisitor {
   visitNameImport?(node: NameImport): Import;
   visitTraitImport?(node: TraitImport): Import;
   visitBuiltinImport?(node: BuiltinImport): Import;
+  visitConstructorImport(node: ConstructorImport): Import;
 
   visitFnSignature?(node: FnSignature): FnSignature;
 
@@ -616,7 +618,17 @@ export class BaseVisitor implements ASTVisitor {
     if ("name" in node) return this.visitNameImport(node);
     if ("trait" in node) return this.visitTraitImport(node);
     if ("builtin" in node) return this.visitBuiltinImport(node);
+    if ("constr" in node) return this.visitConstructorImport(node);
     return node;
+  }
+
+  visitConstructorImport(node: ConstructorImport): Import {
+    return {
+      constr: {
+        alias: node.constr.alias && this.visitTypeIdentifier(node.constr.alias),
+        name: this.visitTypeIdentifier(node.constr.name),
+      },
+    };
   }
 
   visitTypeImport(node: TypeImport): Import {

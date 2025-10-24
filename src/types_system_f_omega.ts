@@ -2732,5 +2732,5 @@ export const tuple_pattern = (elements: Pattern[]): Pattern => ({
   tuple: elements,
 });
 
-export const unitType: Type = { con: "Unit" };
-export const unitValue: Term = { con: { name: "()", type: unitType } };
+export const unitType: Type = { tuple: [] };
+export const unitValue: Term = { tuple: [] };

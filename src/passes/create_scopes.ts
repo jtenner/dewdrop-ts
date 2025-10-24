@@ -81,7 +81,21 @@ export class CreateScopes extends BaseVisitor {
   current: Scope = {
     children: [],
     term_elements: new Map(),
-    type_elements: new Map(),
+    type_elements: new Map([
+      [
+        "Void",
+        {
+          type_decl: {
+            type_dec: {
+              pub: false,
+              id: { type: "Void" },
+              params: [],
+              value: { tuple: [] },
+            },
+          },
+        },
+      ],
+    ]),
     id: this.id++,
     node: null,
     parent: null,
@@ -90,6 +104,7 @@ export class CreateScopes extends BaseVisitor {
   scopes = new Map<Scopable, Scope>();
   module_scopes = new Map<string, Scope>();
   errors = [] as ScopeError[];
+  variants = new Map<EnumVariant, EnumDeclaration>();
 
   scopifyModule(mod_path: string, mod: Module) {
     this.mod_path = mod_path;
@@ -130,6 +145,8 @@ export class CreateScopes extends BaseVisitor {
           variant,
         },
       );
+      // define it's parent
+      this.variants.set(variant, node);
     }
 
     this.enter(node);
@@ -309,6 +326,7 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitTypeImport(node: TypeImport): Import {
+    console.log("Type import!");
     this.define_type(node.type.name, { type_import: node });
     return node;
   }

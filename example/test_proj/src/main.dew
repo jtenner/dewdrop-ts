@@ -1,4 +1,4 @@
-import "./option.dew" { type Option }
+import "./option.dew" { Option, Some }
 
 pub fn main(): Void {
   let a = Some(21)

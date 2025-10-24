@@ -1,8 +1,8 @@
 import * as path from "node:path";
+import { ModuleGraph } from "../graph.js";
 import type { Declaration, ImportDeclaration, Module } from "../parser.js";
 import { to_file_entry } from "../util.js";
 import { BaseVisitor } from "../visitor.js";
-import { ModuleGraph } from "../graph.js";
 
 export class ResolveImports extends BaseVisitor {
   graph: ModuleGraph;
@@ -15,6 +15,7 @@ export class ResolveImports extends BaseVisitor {
   }
 
   resolve_imports(path: string, node: Module, modules: Set<string>) {
+    console.log(path, node, modules);
     this.module_path = path;
     this.visitModule(node);
     const paths = this.graph.addModule(this.module_path, node, this.imported);
@@ -29,7 +30,9 @@ export class ResolveImports extends BaseVisitor {
 
     return node;
   }
+
   override visitImportDeclaration(node: ImportDeclaration): Declaration {
+    console.log("visiting an import declaration in", this.module_path);
     let desc = node.import_dec.import_from;
     if (desc.startsWith("@std")) return node;
     if (path.extname(desc) !== ".dew") desc += ".dew";

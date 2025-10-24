@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import type {
   BuiltinImport,
+  ConstructorImport,
   Declaration,
   FnImport,
   GlobalImport,
@@ -12,6 +13,7 @@ import type {
   NameImport,
   TableImport,
   TraitImport,
+  TypeIdentifier,
   TypeImport,
 } from "../parser.js";
 import { BaseVisitor } from "../visitor.js";
@@ -23,7 +25,8 @@ export type ImportError =
   | { scope_not_found: string }
   | { module_not_found: string }
   | { element_not_found: { module: string; element: string } }
-  | { misnamed_import: { imp: Import } };
+  | { misnamed_import: { imp: Import } }
+  | { element_not_a_variant: { module: string; element: string } };
 export class ImportResolution extends BaseVisitor {
   constructor(
     public module_index: ModuleIndex,
@@ -73,6 +76,29 @@ export class ImportResolution extends BaseVisitor {
     return node;
   }
 
+  override visitConstructorImport(node: ConstructorImport): Import {
+    const name = node.constr.name.type;
+    const alias = node.constr.alias?.type ?? name;
+    // type imports should be an imported "type" like an enum
+    const element = this.imported_scope?.type_elements.get(name);
+    if (!element) {
+      this.errors.push({
+        element_not_found: { module: this.current_module, element: name },
+      });
+      return node;
+    }
+
+    if ("variant" in element) {
+      this.current_scope!.type_elements.set(alias, element);
+      return node;
+    }
+
+    this.errors.push({
+      element_not_a_variant: { module: this.current_module, element: name },
+    });
+    return node;
+  }
+
   override visitNameImport(node: NameImport): Import {
     const name = node.name.name.name;
     const alias = node.name.alias?.name ?? name;
@@ -93,8 +119,6 @@ export class ImportResolution extends BaseVisitor {
   override visitTypeImport(node: TypeImport): Import {
     const name = node.type.name.type;
     const alias = node.type.alias?.type ?? name;
-    console.log("Importing type", name, "as", alias);
-
     // type imports should be an imported "type" like an enum
     const element = this.imported_scope?.type_elements.get(name);
     if (!element) {
@@ -103,7 +127,6 @@ export class ImportResolution extends BaseVisitor {
       });
       return node;
     }
-    console.log("Found element", element);
     this.current_scope!.type_elements.set(alias, element);
     return node;
   }
