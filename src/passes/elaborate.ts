@@ -20,6 +20,7 @@ import type {
   InfixExpression,
   IntExpression,
   LetBindBodyExpression,
+  LetDeclaration,
   Module,
   NamedTypeExpression,
   NameIdentifier,
@@ -71,6 +72,9 @@ function lookup_term(name: string, scope: Scope) {
   return null;
 }
 
+export type TypeMap = Map<TypeExpression | EnumVariant, Type>;
+export type TermMap = Map<BodyExpression | Expression | Fn | EnumVariant, Term>;
+
 export type ElaborationError =
   | { not_a_record_type: TypeExpression }
   | { record_has_no_field: { type: TypeExpression; field: string } }
@@ -83,8 +87,8 @@ type VisitorMode = "type" | "term" | "pattern";
 export class ElaboratePass extends BaseVisitor {
   private modeStack: VisitorMode[] = [];
   errors = [] as ElaborationError[];
-  types = new Map<TypeExpression | EnumVariant, Type>();
-  terms = new Map<BodyExpression | Expression | Fn | EnumVariant, Term>();
+  types: TypeMap = new Map();
+  terms: TermMap = new Map();
   patterns = new Map<PatternExpression, Pattern>();
 
   enumTypes = new Map<EnumDeclaration, VariantType>();
@@ -384,10 +388,7 @@ export class ElaboratePass extends BaseVisitor {
     super.visitCallExpression(node);
     const [fn, params] = node.call;
     const callee = this.terms.get(fn);
-    if (!callee) {
-      console.log("fn is", fn);
-      throw new Error("Expression not generated.");
-    }
+    if (!callee) throw new Error("Expression not generated.");
 
     let term: Term | undefined =
       params.length === 0
@@ -599,9 +600,6 @@ export class ElaboratePass extends BaseVisitor {
       this.errors.push({ cannot_resolve_symbol: node.constr.type });
       return node;
     }
-
-    // TODO: FIX ME
-    // const type = this.getVariantType(node.constr.type.type, scope);
   }
 
   override visitNameIdentifier(node: NameToken): NameToken {
@@ -806,7 +804,6 @@ export class ElaboratePass extends BaseVisitor {
 
     const item = lookup_type(node.type, scope);
     if (!item) {
-      console.log("Can't resolve the symbol", node);
       this.errors.push({ cannot_resolve_symbol: node });
       return node;
     }
@@ -825,7 +822,6 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     if (this.mode === "term") {
-      console.log("referencing a variant");
       if ("variant" in item) {
         const term: Term = { var: node.type };
         this.terms.set(node, term);

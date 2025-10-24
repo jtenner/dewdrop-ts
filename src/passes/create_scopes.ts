@@ -13,6 +13,7 @@ import type {
   FnParam,
   GlobalImport,
   Import,
+  LetDeclaration,
   MatchArm,
   MemoryImport,
   Module,
@@ -57,7 +58,8 @@ export type ScopeElement =
   | { type_decl: TypeDeclaration }
   | { type_import: TypeImport }
   | { type_param: NameIdentifier }
-  | { variant: EnumVariant };
+  | { variant: EnumVariant }
+  | { let_decl: LetDeclaration };
 
 export type ScopeError =
   | { unnamed_fn_decl: Fn }
@@ -80,7 +82,21 @@ export class CreateScopes extends BaseVisitor {
   id = 0;
   current: Scope = {
     children: [],
-    term_elements: new Map(),
+    term_elements: new Map([
+      [
+        "void",
+        {
+          let_decl: {
+            let_dec: {
+              guard: null,
+              id: { name: "void" },
+              pub: false,
+              value: { tuple: [] as Expression[] },
+            },
+          },
+        },
+      ],
+    ]),
     type_elements: new Map([
       [
         "Void",
@@ -207,6 +223,12 @@ export class CreateScopes extends BaseVisitor {
     return node;
   }
 
+  override visitLetDeclaration(node: LetDeclaration): Declaration {
+    this.define_term(node.let_dec.id, { let_decl: node });
+    super.visitLetDeclaration(node);
+    return node;
+  }
+
   override visitTypeDeclaration(node: TypeDeclaration): Declaration {
     this.define_type(node.type_dec.id, { type_decl: node });
     this.enter(node);
@@ -326,7 +348,6 @@ export class CreateScopes extends BaseVisitor {
   }
 
   override visitTypeImport(node: TypeImport): Import {
-    console.log("Type import!");
     this.define_type(node.type.name, { type_import: node });
     return node;
   }

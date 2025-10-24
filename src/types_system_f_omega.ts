@@ -212,6 +212,9 @@ export type MissingMethodError = {
 export type WrongNumberOfDictsError = {
   wrong_number_of_dicts: { expected: number; actual: number };
 };
+export type UnexpectedKindError = {
+  unexpected_kind: { name: string; kind: Kind };
+};
 export type TypingError =
   | CyclicTypeError
   | ExtraCaseTypeError
@@ -229,6 +232,7 @@ export type TypingError =
   | TupleIndexOutofBoundsTypeError
   | TypeMismatchTypeError
   | UnboundTypeError
+  | UnexpectedKindError
   | WrongNumberOfDictsError;
 
 export type Result<Err, T> = { ok: T } | { err: Err };

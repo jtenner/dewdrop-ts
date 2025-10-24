@@ -6,6 +6,7 @@ import { CreateScopes } from "./passes/create_scopes.js";
 import { ElaboratePass } from "./passes/elaborate.js";
 import { ImportResolution } from "./passes/import_resolution.js";
 import { ResolveImports } from "./passes/resolve_imports.js";
+import { type Binding, typecheck } from "./types_system_f_omega.js";
 import { to_file_entry } from "./util.js";
 
 export type CompilerOptions = {
@@ -27,7 +28,6 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
     resolver.module_path = relative;
     resolver.resolve_imports(relative, module, to_visit);
   }
-  console.log(to_visit);
 
   const module_graph = resolver.graph;
   const modules = module_graph.getDependencyOrder();
@@ -58,7 +58,6 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
 
   // pass 4: import resolution
   for (const entry of modules) {
-    console.log("Resolving imports of", entry);
     import_resolution.resolveImports(entry.relativePath, entry.module!);
   }
 
@@ -70,8 +69,20 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   }
 
   // pass 5: elaborate each module in dependency order
-  const pass = new ElaboratePass(scopes, variants);
+  const elaborate = new ElaboratePass(scopes, variants);
   for (const entry of modules) {
-    pass.elaborate(entry.module!);
+    elaborate.elaborate(entry.module!);
+  }
+  if (elaborate.errors.length > 0) {
+    for (const error of elaborate.errors) {
+      console.error(error);
+    }
+    process.exit(1);
+  }
+
+  // type check each module
+  const { terms, types } = elaborate;
+
+  for (const entry of modules) {
   }
 }

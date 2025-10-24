@@ -1906,6 +1906,27 @@ exports[`import "wasm" { item as blah } matches snapshot 1`] = `
 ]
 `;
 
+exports[`import "std" { Some } matches snapshot 1`] = `
+[
+  null,
+  {
+    "import_dec": {
+      "import_from": "std",
+      "imports": [
+        {
+          "constr": {
+            "alias": null,
+            "name": {
+              "type": "Some",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
 exports[`Expression: self matches snapshot: Expression: self 1`] = `
 {
   "self": null,
@@ -1942,10 +1963,6 @@ exports[`Expression: self.method() matches snapshot: Expression: self.method() 1
   ],
 }
 `;
-
-exports[`Expression: fn (x: Int) => { x + 1 } matches snapshot: Expression: fn (x: Int) => { x + 1 } 1`] = `null`;
-
-exports[`Expression: fn (x, y) => { x + y } matches snapshot: Expression: fn (x, y) => { x + y } 1`] = `null`;
 
 exports[`Expression: !x matches snapshot: Expression: !x 1`] = `
 {
@@ -3784,7 +3801,30 @@ exports[`Type: Triple<A, B, C> matches snapshot: TypeExpression: Triple<A, B, C>
 }
 `;
 
-exports[`Type: Fn<(A, B), C> matches snapshot: TypeExpression: Fn<(A, B), C> 1`] = `null`;
+exports[`Type: Fn<#(A, B), C> matches snapshot: TypeExpression: Fn<#(A, B), C> 1`] = `
+{
+  "app": {
+    "args": [
+      {
+        "tuple": [
+          {
+            "type": "A",
+          },
+          {
+            "type": "B",
+          },
+        ],
+      },
+      {
+        "type": "C",
+      },
+    ],
+    "callee": {
+      "type": "Fn",
+    },
+  },
+}
+`;
 
 exports[`Type: ((Int) -> Int) -> Int matches snapshot: TypeExpression: ((Int) -> Int) -> Int 1`] = `
 {
@@ -4134,15 +4174,6 @@ exports[`Declaration: impl Eq<T> for Option<T> { fn eq(other: Option<T>): Bool {
       ],
     },
   },
-]
-`;
-
-exports[`Declaration: impl<t> Default for Vec<t> { fn default(): Vec<t> { Vec() } } matches snapshot: Declaration: impl<t> Default for Vec<t> { fn default(): Vec<t> { Vec() } } 1`] = `
-[
-  {
-    "keyword": "fn",
-  },
-  null,
 ]
 `;
 
@@ -5415,25 +5446,4 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
     ],
   ],
 }
-`;
-
-exports[`import "std" { Some } matches snapshot 1`] = `
-[
-  null,
-  {
-    "import_dec": {
-      "import_from": "std",
-      "imports": [
-        {
-          "constr": {
-            "alias": null,
-            "name": {
-              "type": "Some",
-            },
-          },
-        },
-      ],
-    },
-  },
-]
 `;
