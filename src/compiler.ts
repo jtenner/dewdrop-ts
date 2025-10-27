@@ -1,13 +1,14 @@
 // ./src/compiler.ts
 
-import { parse_file } from "./parser.js";
+import pervasives from "../std/pervasives.dew" with { type: "text" };
+import { parse, parse_file } from "./parser.js";
 import { ArrowBindSugarPass } from "./passes/arrow_bind_sugar.js";
 import { CreateScopes } from "./passes/create_scopes.js";
 import { ElaboratePass } from "./passes/elaborate.js";
 import { ImportResolution } from "./passes/import_resolution.js";
 import { ResolveImports } from "./passes/resolve_imports.js";
 import { type Binding, typecheck } from "./types_system_f_omega.js";
-import { to_file_entry } from "./util.js";
+import { type Builtin, to_file_entry } from "./util.js";
 
 export type CompilerOptions = {
   basedir: string;
@@ -20,6 +21,7 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   const entry = to_file_entry(main, basedir);
 
   const to_visit = new Set([entry.relative]);
+  const builtins = new Map<string, Builtin>();
   const resolver = new ResolveImports(basedir);
 
   // pass 1: Resolve all the modules
@@ -39,9 +41,16 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   }
 
   // pass 3: name indexing
-  const scope_pass = new CreateScopes();
+  const scope_pass = new CreateScopes(builtins);
+
+  // all the pervasives are globals
+  const pervasives_module = await parse(pervasives);
+  scope_pass.visitModule(pervasives_module);
+  scope_pass.useGlobalsFrom(pervasives_module);
+
+  // scopify each module
   for (const entry of modules) {
-    scope_pass.visitModule(entry.module!);
+    scope_pass.scopifyModule(entry.relativePath, entry.module!);
   }
 
   if (scope_pass.errors.length > 0) {

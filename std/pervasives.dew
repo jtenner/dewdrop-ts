@@ -1,0 +1,21 @@
+type Void = #()
+
+let void = #()
+
+enum Option<t> {
+  Some(t),
+  None
+}
+
+enum Result<t_err, t_ok> {
+  Ok(t_ok),
+  Err(t_err)
+}
+
+fn expect<t_err, t_ok>(n: Result<t_err, t_ok>) {
+  match n {
+    Ok(val) => val,
+    Err(_) => unreachable()
+  }
+}
+

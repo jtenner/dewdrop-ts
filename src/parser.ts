@@ -189,9 +189,6 @@ export type NameImport = {
 export type TraitImport = {
   trait: { name: TypeIdentifier; alias: TypeIdentifier | null };
 };
-export type BuiltinImport = {
-  builtin: { name: StringToken; alias: NameIdentifier };
-};
 export type EnumImport = {
   enum: { name: TypeIdentifier; alias: TypeIdentifier | null };
 };
@@ -199,7 +196,6 @@ export type ConstructorImport = {
   constr: { name: TypeIdentifier; alias: TypeIdentifier | null };
 };
 export type Import =
-  | BuiltinImport
   | ConstructorImport
   | EnumImport
   | FnImport
@@ -289,8 +285,16 @@ export type EnumDeclaration = {
 };
 
 export type FnDeclaration = { fn: { pub: boolean; fn: Fn } };
-
+export type BuiltinDeclaration = {
+  builtin: {
+    name: StringToken;
+    alias: NameIdentifier;
+    params: TypeExpression[];
+    return_type: TypeExpression;
+  };
+};
 export type Declaration =
+  | BuiltinDeclaration
   | FnDeclaration
   | EnumDeclaration
   | ImportDeclaration
@@ -1473,25 +1477,6 @@ export const take_import = async (
     return [next_token, { trait: { name: type, alias: type_alias } }];
   }
 
-  // builtin import
-  [next_token, success_token] = await take_keyword(
-    next_token,
-    tokens,
-    "builtin",
-  );
-  if (success_token) {
-    [next_token, name] = await take_string(next_token, tokens);
-    if (!name) return [next_token, null];
-
-    [next_token, success_token] = await take_keyword(next_token, tokens, "as");
-    if (!success_token) return [next_token, null];
-
-    [next_token, alias] = await take_name(next_token, tokens);
-    if (!alias) return [next_token, null];
-
-    return [next_token, { builtin: { alias, name } }];
-  }
-
   [next_token, success_token] = await take_keyword(next_token, tokens, "enum");
   if (success_token) {
     [next_token, type] = await take_type(next_token, tokens);
@@ -1542,6 +1527,53 @@ export const take_import = async (
 
   // failed import
   return [next_token, null];
+};
+
+export const take_builtin_declaration = async (
+  next_token: Token | null,
+  tokens: TokenIter,
+): Promise<[Token | null, Declaration | null]> => {
+  let success_token: Token | null;
+  let name: StringToken | null;
+  let alias: NameIdentifier | null;
+  let params: TypeExpression[] | null;
+  let return_type: TypeExpression | null;
+
+  [next_token, success_token] = await take_keyword(
+    next_token,
+    tokens,
+    "builtin",
+  );
+  if (!success_token) return [next_token, null];
+
+  [next_token, name] = await take_string(next_token, tokens);
+  if (!name) return [next_token, null];
+
+  [next_token, success_token] = await take_keyword(next_token, tokens, "as");
+  if (!success_token) return [next_token, null];
+
+  [next_token, alias] = await take_name(next_token, tokens);
+  if (!alias) return [next_token, null];
+
+  [next_token, success_token] = await take_symbol(next_token, tokens, "(");
+  if (!success_token) return [next_token, null];
+
+  [next_token, params] = await take_list(
+    next_token,
+    tokens,
+    take_type_expression,
+    ",",
+    ")",
+  );
+  if (!params) return [next_token, null];
+
+  [next_token, success_token] = await take_symbol(next_token, tokens, ":");
+  if (!success_token) return [next_token, null];
+
+  [next_token, return_type] = await take_type_expression(next_token, tokens);
+  if (!return_type) return [next_token, null];
+
+  return [next_token, { builtin: { name, alias, params, return_type } }];
 };
 
 export const take_import_declaration = async (
@@ -2127,6 +2159,9 @@ export async function take_declaration(
   if (decl) return [next_token, decl];
 
   [next_token, decl] = await take_import_declaration(next_token, tokens);
+  if (decl) return [next_token, decl];
+
+  [next_token, decl] = await take_builtin_declaration(next_token, tokens);
   if (decl) return [next_token, decl];
 
   next_token = await consume_until_keyword_or_semicolon(tokens);

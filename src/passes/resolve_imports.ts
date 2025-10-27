@@ -31,7 +31,10 @@ export class ResolveImports extends BaseVisitor {
 
   override visitImportDeclaration(node: ImportDeclaration): Declaration {
     let desc = node.import_dec.import_from;
-    if (desc.startsWith("@std")) return node;
+    if (desc.startsWith("@std")) {
+      this.imported.push(desc);
+      return node;
+    }
     if (path.extname(desc) !== ".dew") desc += ".dew";
     this.imported.push(desc);
     return node;

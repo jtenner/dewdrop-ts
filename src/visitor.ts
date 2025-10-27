@@ -6,7 +6,7 @@ import type {
   BlockExpression,
   BodyExpression,
   BoolExpression,
-  BuiltinImport,
+  BuiltinDeclaration,
   CallExpression,
   ConstructorImport,
   ConstructorPatternExpression,
@@ -121,6 +121,7 @@ export interface ASTVisitor {
   visitLetDeclaration?(node: LetDeclaration): Declaration;
   visitTraitDeclaration?(node: TraitDeclaration): Declaration;
   visitImplDeclaration?(node: ImplDeclaration): Declaration;
+  visitBuiltinDeclaration?(node: BuiltinDeclaration): Declaration;
 
   // Type Expressions
   visitNameTypeExpression?(node: NameIdentifier): TypeExpression;
@@ -190,7 +191,6 @@ export interface ASTVisitor {
   visitMemoryImport?(node: MemoryImport): Import;
   visitNameImport?(node: NameImport): Import;
   visitTraitImport?(node: TraitImport): Import;
-  visitBuiltinImport?(node: BuiltinImport): Import;
   visitConstructorImport(node: ConstructorImport): Import;
 
   visitFnSignature?(node: FnSignature): FnSignature;
@@ -217,7 +217,19 @@ export class BaseVisitor implements ASTVisitor {
     if ("let_dec" in node) return this.visitLetDeclaration(node);
     if ("trait" in node) return this.visitTraitDeclaration(node);
     if ("impl" in node) return this.visitImplDeclaration(node);
+    if ("builtin" in node) return this.visitBuiltinDeclaration(node);
     throw new Error("Unknown declaration type");
+  }
+
+  visitBuiltinDeclaration(node: BuiltinDeclaration): Declaration {
+    return {
+      builtin: {
+        name: this.visitString(node.builtin.name),
+        alias: this.visitNameIdentifier(node.builtin.alias),
+        params: node.builtin.params.map((t) => this.visitTypeExpression(t)),
+        return_type: this.visitTypeExpression(node.builtin.return_type),
+      },
+    };
   }
 
   visitFnDeclaration(node: FnDeclaration): Declaration {
@@ -617,7 +629,6 @@ export class BaseVisitor implements ASTVisitor {
     if ("memory" in node) return this.visitMemoryImport(node);
     if ("name" in node) return this.visitNameImport(node);
     if ("trait" in node) return this.visitTraitImport(node);
-    if ("builtin" in node) return this.visitBuiltinImport(node);
     if ("constr" in node) return this.visitConstructorImport(node);
     return node;
   }
@@ -710,14 +721,6 @@ export class BaseVisitor implements ASTVisitor {
       trait: {
         name: this.visitTypeIdentifier(node.trait.name),
         alias: node.trait.alias && this.visitTypeIdentifier(node.trait.alias),
-      },
-    };
-  }
-  visitBuiltinImport(node: BuiltinImport): Import {
-    return {
-      builtin: {
-        name: this.visitString(node.builtin.name),
-        alias: this.visitNameIdentifier(node.builtin.alias),
       },
     };
   }

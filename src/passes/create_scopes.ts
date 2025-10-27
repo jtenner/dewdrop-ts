@@ -2,7 +2,7 @@
 import type { NameToken, TypeToken } from "../lexer.js";
 import type {
   BlockExpression,
-  BuiltinImport,
+  BuiltinDeclaration,
   Declaration,
   EnumDeclaration,
   EnumVariant,
@@ -41,8 +41,7 @@ export type Scope = {
 };
 
 export type ScopeElement =
-  | { builtin_import: BuiltinImport }
-  | { builtin: Builtin }
+  | { builtin: BuiltinDeclaration }
   | { enum: EnumDeclaration }
   | { fn_import: FnImport }
   | { fn_param: FnParam }
@@ -82,36 +81,8 @@ export class CreateScopes extends BaseVisitor {
   id = 0;
   current: Scope = {
     children: [],
-    term_elements: new Map([
-      [
-        "void",
-        {
-          let_decl: {
-            let_dec: {
-              guard: null,
-              id: { name: "void" },
-              pub: false,
-              value: { tuple: [] as Expression[] },
-            },
-          },
-        },
-      ],
-    ]),
-    type_elements: new Map([
-      [
-        "Void",
-        {
-          type_decl: {
-            type_dec: {
-              pub: false,
-              id: { type: "Void" },
-              params: [],
-              value: { tuple: [] },
-            },
-          },
-        },
-      ],
-    ]),
+    term_elements: new Map(),
+    type_elements: new Map(),
     id: this.id++,
     node: null,
     parent: null,
@@ -121,6 +92,17 @@ export class CreateScopes extends BaseVisitor {
   module_scopes = new Map<string, Scope>();
   errors = [] as ScopeError[];
   variants = new Map<EnumVariant, EnumDeclaration>();
+
+  constructor(public builtins: Map<string, Builtin>) {
+    super();
+  }
+
+  useGlobalsFrom(mod: Module) {
+    const global_scope = this.scopes.get(mod);
+    if (!global_scope)
+      throw new Error("Cannot find global scope from given module!");
+    this.current = global_scope;
+  }
 
   scopifyModule(mod_path: string, mod: Module) {
     this.mod_path = mod_path;
@@ -250,7 +232,11 @@ export class CreateScopes extends BaseVisitor {
     return node;
   }
 
-  override visitBuiltinImport(node: BuiltinImport): Import {
+  override visitBuiltinDeclaration(node: BuiltinDeclaration): Declaration {
+    const name = node.builtin.name;
+    if (!this.builtins.has(name.string)) {
+      throw new Error(`Cannot find builtin: ${name.string}`);
+    }
     this.define_term(node.builtin.alias, { builtin: node });
     return node;
   }

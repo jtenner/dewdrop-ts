@@ -1,6 +1,7 @@
 import * as path from "node:path";
+
 import type {
-  BuiltinImport,
+  BuiltinDeclaration,
   ConstructorImport,
   Declaration,
   FnImport,
@@ -53,7 +54,6 @@ export class ImportResolution extends BaseVisitor {
 
   override visitImportDeclaration(node: ImportDeclaration): Declaration {
     const import_loc = node.import_dec.import_from;
-    if (import_loc.startsWith("@std/")) throw new Error("Not implemeneted");
 
     const current_folder = path.dirname(this.current_module);
     let relative_file = path.join(current_folder, import_loc);
@@ -173,17 +173,6 @@ export class ImportResolution extends BaseVisitor {
     const symbol = alias?.name ?? (name as NameIdentifier).name;
     this.current_scope!.term_elements.set(symbol, { memory_import });
     return memory_import;
-  }
-
-  override visitBuiltinImport(builtin_import: BuiltinImport): Import {
-    const { alias, name } = builtin_import.builtin;
-    if (!alias && "string" in name) {
-      this.errors.push({ misnamed_import: { imp: builtin_import } });
-      return builtin_import;
-    }
-    const symbol = alias.name;
-    this.current_scope!.term_elements.set(symbol, { builtin_import });
-    return builtin_import;
   }
 
   override visitTraitImport(node: TraitImport): Import {

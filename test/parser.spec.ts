@@ -160,7 +160,6 @@ test.each([
   { decl: `import "wasm" { table "table": I32 0 0 as tbl }` },
   { decl: `import "wasm" { type Option as Maybe }` },
   { decl: `import "wasm" { trait Semiring }` },
-  { decl: `import "wasm" { builtin "i32.add" as add }` },
   { decl: `import "wasm" { item }` },
   { decl: `import "wasm" { item as blah }` },
   { decl: `import "std" { Some }` },
@@ -401,6 +400,9 @@ test.each([
   // Functions with complex bodies
   { decl: `fn factorial(n: Int): Int { if n <= 1 { 1 } else { n * factorial(n - 1) } }` },
   { decl: `fn process(data: List<Int>): Int { let sum = data.fold(0, fn(acc, x) { acc + x }); sum / data.length() }` },
+
+  // builtins
+  { decl: `builtin "i32.add" as i32_add(a: I32, b: I32): I32`}
 ])("Declaration: $decl matches snapshot", async ({ decl }) => {
   const result = await take_declaration(null, lex(chars(decl)));
   expect(result[1]).not.toBeNull();

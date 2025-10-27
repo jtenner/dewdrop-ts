@@ -528,8 +528,11 @@ export class ElaboratePass extends BaseVisitor {
   }
 
   override visitNamePatternExpression(node: NameIdentifier): PatternExpression {
-    const name: Pattern = { var: node.name };
-    this.patterns.set(node, name);
+    if (node.name === "_") {
+      this.patterns.set(node, { wildcard: null });
+    } else {
+      this.patterns.set(node, { var: node.name });
+    }
     return node;
   }
 
