@@ -51,7 +51,10 @@ export class TypeChecker extends BaseVisitor {
 
   override visitLetDeclaration(node: LetDeclaration): Declaration {
     const term = this.termMap.get(node.let_dec.value);
-    if (!term) throw new Error("Term not generated for let.");
+    if (!term) {
+      console.log(node.let_dec.value);
+      throw new Error("Term not generated for let.");
+    }
     const result = typecheck(this.context, term);
     if ("ok" in result) {
       this.globalContext.push({

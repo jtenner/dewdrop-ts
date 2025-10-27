@@ -72,7 +72,16 @@ function lookup_term(name: string, scope: Scope) {
   return null;
 }
 
-export type TypeMap = Map<TypeExpression | EnumVariant, Type>;
+function getVariantFromType(name: string, t: Type) {
+  if ("variant" in t) {
+    return t.variant.find((t) => t[0] === name);
+  }
+  if ("forall" in t) {
+    return getVariantFromType(name, t.forall.body);
+  }
+}
+
+export type TypeMap = Map<EnumDeclaration | TypeExpression | EnumVariant, Type>;
 export type TermMap = Map<BodyExpression | Expression | Fn | EnumVariant, Term>;
 
 export type ElaborationError =
@@ -90,8 +99,6 @@ export class ElaboratePass extends BaseVisitor {
   types: TypeMap = new Map();
   terms: TermMap = new Map();
   patterns = new Map<PatternExpression, Pattern>();
-
-  enumTypes = new Map<EnumDeclaration, VariantType>();
 
   constructor(
     public scopes: Map<Scopable, Scope>,
@@ -232,7 +239,10 @@ export class ElaboratePass extends BaseVisitor {
     else if ("expression" in last) lastExpr = last.expression;
     if (!lastExpr) throw new Error("Impossible state.");
     let term = this.terms.get(lastExpr);
-    if (!term) throw new Error("No expression generated.");
+    if (!term) {
+      console.log(showExpression(lastExpr));
+      throw new Error("No expression generated.");
+    }
 
     for (let i = node.block.length - 2; i >= 0; i--) {
       const next = node.block[i]!;
@@ -583,12 +593,14 @@ export class ElaboratePass extends BaseVisitor {
       const parent = this.variants.get(element.variant);
       if (!parent) throw new Error("Variant not generated for enum element.");
 
-      const enumType = this.enumTypes.get(parent);
-      if (!enumType) throw new Error("EnumType not generated for declaration.");
+      const enumType = this.types.get(parent);
+      if (!enumType) {
+        console.log(parent);
+        throw new Error("EnumType not generated for declaration.");
+      }
 
-      const variantType = enumType.variant.find(
-        (t) => t[0] === node.constr.type.type,
-      );
+      const variantType = getVariantFromType(node.constr.type.type, enumType);
+
       if (!variantType)
         throw new Error("Variant has no variant type generated.");
 
@@ -768,6 +780,8 @@ export class ElaboratePass extends BaseVisitor {
         // function type parameters
       }
     }
+
+    this.types.set(node, enumType);
     // We need to create the enum terms
     // and constructor types here
     return node;

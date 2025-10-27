@@ -1,0 +1,4 @@
+pub enum Either<t, u> {
+  Left(t),
+  Right(u)
+}

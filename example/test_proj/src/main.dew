@@ -1,6 +1,6 @@
-import "./option.dew" { type Option, Some }
+import "./either.dew" { type Either, Left }
 
 pub fn main(): Void {
-  let a = Some(21)
+  let a = Left(21)
 }
 
