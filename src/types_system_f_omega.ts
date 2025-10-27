@@ -60,7 +60,7 @@ export type RecordType = { record: [string, Type][] };
 export type VariantType = { variant: [string, Type][] };
 export type MuType = { mu: { var: string; body: Type } };
 export type TupleType = { tuple: Type[] };
-
+export type NeverType = { never: null };
 export type Type =
   | VarType // type variable α
   | ArrowType // τ₁ → τ₂
@@ -72,7 +72,8 @@ export type Type =
   | RecordType // {l₁:τ₁, l₂:τ₂, ...}
   | VariantType // <l₁:τ₁ | l₂:τ₂ | ...>
   | MuType // μα.τ - recursive type
-  | TupleType; // tuples;
+  | TupleType // tuples
+  | NeverType; // bottom type (⊥)
 
 // Terms
 export type VarTerm = { var: string };
@@ -246,6 +247,17 @@ export type Constraint =
 export type Worklist = Constraint[];
 export type Substitution = Map<string, Type>;
 
+// Add this new function
+export function isAssignableTo(from: Type, to: Type): boolean {
+  // Bottom type rule: never is assignable to everything
+  if ("never" in from) {
+    return true;
+  }
+
+  // Otherwise, fall back to structural equality
+  return typesEqual(from, to);
+}
+
 // Show patterns for debugging
 export function showPattern(p: Pattern): string {
   if ("var" in p) return p.var;
@@ -311,6 +323,7 @@ export function showType(t: Type): string {
   if ("var" in t) return t.var;
   if ("arrow" in t)
     return `(${showType(t.arrow.from)} → ${showType(t.arrow.to)})`;
+  if ("never" in t) return "⊥";
   if ("forall" in t)
     return `∀${t.forall.var}::${showKind(t.forall.kind)}.${showType(t.forall.body)}`;
   if ("app" in t) return `(${showType(t.app.func)} ${showType(t.app.arg)})`;
@@ -504,7 +517,7 @@ export function checkPattern(
 
   if ("con" in pattern) {
     // Constant pattern must match type exactly
-    if (!typesEqual(pattern.con.type, type)) {
+    if (!isAssignableTo(pattern.con.type, type)) {
       return {
         err: {
           type_mismatch: { expected: type, actual: pattern.con.type },
@@ -750,6 +763,7 @@ export function substituteType(
       ),
     };
   }
+
   return inType;
 }
 
@@ -787,6 +801,10 @@ export function checkKind(
 
   if ("con" in type) {
     // Base types have kind *
+    return { ok: { star: null } };
+  }
+
+  if ("never" in type) {
     return { ok: { star: null } };
   }
 
@@ -1000,6 +1018,8 @@ export function typesEqual(left: Type, right: Type): boolean {
   if ("var" in left && "var" in right && left.var === right.var) return true;
 
   if ("con" in left && "con" in right && left.con === right.con) return true;
+
+  if ("never" in left && "never" in right) return true;
 
   if (
     "arrow" in left &&
@@ -1689,12 +1709,14 @@ export function inferType(
     if ("err" in argType) return argType;
 
     if (!("arrow" in calleeType.ok)) {
+      console.log("Callee is", showType(calleeType.ok));
+      console.log(new Error().stack);
       return {
         err: { not_a_function: calleeType.ok },
       };
     }
 
-    if (!typesEqual(calleeType.ok.arrow.from, argType.ok)) {
+    if (!isAssignableTo(argType.ok, calleeType.ok.arrow.from)) {
       return {
         err: {
           type_mismatch: {
@@ -1841,7 +1863,7 @@ export function inferType(
       const implType = inferType(context, methodImpl);
       if ("err" in implType) return implType;
 
-      if (!typesEqual(expectedType, implType.ok)) {
+      if (!isAssignableTo(implType.ok, expectedType)) {
         return {
           err: {
             type_mismatch: {
@@ -2145,6 +2167,8 @@ export function inferType(
     const variantKind = checkKind(context, variantType);
     if ("err" in variantKind) return variantKind;
 
+    variantType = normalizeType(variantType);
+
     if (!("variant" in variantType)) {
       return {
         err: { not_a_variant: variantType },
@@ -2168,7 +2192,7 @@ export function inferType(
     const valueType = inferType(context, term.inject.value);
     if ("err" in valueType) return valueType;
 
-    if (!typesEqual(expectedType[1], valueType.ok)) {
+    if (!isAssignableTo(valueType.ok, expectedType[1])) {
       return {
         err: {
           type_mismatch: {
@@ -2185,15 +2209,20 @@ export function inferType(
   if ("match" in term) {
     const scrutineeType = inferType(context, term.match.scrutinee);
     if ("err" in scrutineeType) return scrutineeType;
+    const normalizedScrutineeType = normalizeType(scrutineeType.ok);
 
     const patterns = term.match.cases.map(first);
-    const exhaustCheck = checkExhaustive(patterns, scrutineeType.ok);
+    const exhaustCheck = checkExhaustive(patterns, normalizedScrutineeType);
     if ("err" in exhaustCheck) return exhaustCheck;
 
     let resultType: Type | null = null;
 
     for (const [pattern, body] of term.match.cases) {
-      const patternResult = checkPattern(pattern, scrutineeType.ok, context);
+      const patternResult = checkPattern(
+        pattern,
+        normalizedScrutineeType,
+        context,
+      );
       if ("err" in patternResult) return patternResult;
 
       const extendedContext: Context = [...context, ...patternResult.ok];
@@ -2203,7 +2232,7 @@ export function inferType(
 
       if (resultType === null) {
         resultType = bodyType.ok;
-      } else if (!typesEqual(resultType, bodyType.ok)) {
+      } else if (!isAssignableTo(bodyType.ok, resultType)) {
         return {
           err: {
             type_mismatch: {
@@ -2240,7 +2269,7 @@ export function inferType(
     const termType = inferType(context, term.fold.term);
     if ("err" in termType) return termType;
 
-    if (!typesEqual(unfoldedType, termType.ok)) {
+    if (!isAssignableTo(termType.ok, unfoldedType)) {
       return {
         err: {
           type_mismatch: {
@@ -2425,7 +2454,7 @@ export function normalizeType(type: Type, seen = new Set<string>()): Type {
 }
 
 function normalizeSubtypes(type: Type, seen: Set<string>): Type {
-  if ("var" in type || "con" in type) {
+  if ("var" in type || "con" in type || "never" in type) {
     return type;
   }
 

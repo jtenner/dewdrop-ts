@@ -2,6 +2,8 @@ type Void = #()
 
 let void = #()
 
+builtin "unreachable" as unreachable(): Never
+
 enum Option<t> {
   Some(t),
   None

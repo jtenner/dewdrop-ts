@@ -3,6 +3,7 @@ import type { NameToken, TypeToken } from "../lexer.js";
 import type {
   BlockExpression,
   BuiltinDeclaration,
+  ConstructorImport,
   Declaration,
   EnumDeclaration,
   EnumVariant,
@@ -39,6 +40,26 @@ export type Scope = {
   term_elements: Map<string, ScopeElement>;
   type_elements: Map<string, ScopeElement>;
 };
+
+export function lookup_type(name: string, scope: Scope) {
+  let current: Scope | null = scope;
+  while (current) {
+    const value = current.type_elements.get(name);
+    if (value) return value;
+    current = current.parent;
+  }
+  return null;
+}
+
+export function lookup_term(name: string, scope: Scope) {
+  let current: Scope | null = scope;
+  while (current) {
+    const value = current.term_elements.get(name);
+    if (value) return value;
+    current = current.parent;
+  }
+  return null;
+}
 
 export type ScopeElement =
   | { builtin: BuiltinDeclaration }
@@ -211,6 +232,11 @@ export class CreateScopes extends BaseVisitor {
     return node;
   }
 
+  override visitConstructorImport(node: ConstructorImport): Import {
+    this.scopes.set(node.constr.name, this.current);
+    return node;
+  }
+
   override visitTypeDeclaration(node: TypeDeclaration): Declaration {
     this.define_type(node.type_dec.id, { type_decl: node });
     this.enter(node);
@@ -238,6 +264,7 @@ export class CreateScopes extends BaseVisitor {
       throw new Error(`Cannot find builtin: ${name.string}`);
     }
     this.define_term(node.builtin.alias, { builtin: node });
+    super.visitBuiltinDeclaration(node);
     return node;
   }
 
@@ -343,6 +370,7 @@ export class CreateScopes extends BaseVisitor {
       this.errors.push({ duplicate_definition: { name, scope: this.current } });
     }
     this.current.term_elements.set(name.name, element);
+    this.scopes.set(name, this.current);
   }
 
   define_type(name: NameIdentifier | TypeIdentifier, element: ScopeElement) {
@@ -351,6 +379,7 @@ export class CreateScopes extends BaseVisitor {
       this.errors.push({ duplicate_definition: { name, scope: this.current } });
     }
     this.current.type_elements.set(elem_id, element);
+    this.scopes.set(name, this.current);
   }
 
   getScopeIndex(): ScopeIndex {

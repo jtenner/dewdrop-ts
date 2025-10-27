@@ -4,6 +4,7 @@ import {
   type BlockExpression,
   type BodyExpression,
   type BoolExpression,
+  type BuiltinDeclaration,
   type CallExpression,
   type ConstructorPatternExpression,
   type Declaration,
@@ -21,6 +22,7 @@ import {
   type IntExpression,
   type LetBindBodyExpression,
   type LetDeclaration,
+  type MatchExpression,
   type Module,
   type NamedTypeExpression,
   type NameIdentifier,
@@ -33,44 +35,31 @@ import {
   type SelectExpression,
   type SelectTypeExpression,
   type SelfExpression,
+  showDeclaration,
   showExpression,
+  showTypeExpression,
   type TupleExpression,
   type TuplePatternExpression,
   type TupleTypeExpression,
   type TypeExpression,
 } from "../parser.js";
-import type {
-  Kind,
-  Pattern,
-  Term,
-  Type,
-  VariantType,
+import {
+  type Kind,
+  type MatchTerm,
+  type Pattern,
+  showTerm,
+  showType,
+  type Term,
+  type Type,
+  unitType,
+  type VariantType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
-import type { Scopable, Scope } from "./create_scopes.js";
+import { lookup_type, type Scopable, type Scope } from "./create_scopes.js";
 
 function arrows(args: Type[], ret: Type): Type {
+  if (args.length === 0) return { arrow: { from: unitType, to: ret } };
   return args.reduceRight((acc, from) => ({ arrow: { from, to: acc } }), ret);
-}
-
-function lookup_type(name: string, scope: Scope) {
-  let current: Scope | null = scope;
-  while (current) {
-    const value = current.type_elements.get(name);
-    if (value) return value;
-    current = current.parent;
-  }
-  return null;
-}
-
-function lookup_term(name: string, scope: Scope) {
-  let current: Scope | null = scope;
-  while (current) {
-    const value = current.term_elements.get(name);
-    if (value) return value;
-    current = current.parent;
-  }
-  return null;
 }
 
 function getVariantFromType(name: string, t: Type) {
@@ -80,10 +69,19 @@ function getVariantFromType(name: string, t: Type) {
   if ("forall" in t) {
     return getVariantFromType(name, t.forall.body);
   }
+  if ("lam" in t) {
+    return getVariantFromType(name, t.lam.body);
+  }
 }
 
-export type TypeMap = Map<EnumDeclaration | TypeExpression | EnumVariant, Type>;
-export type TermMap = Map<BodyExpression | Expression | Fn | EnumVariant, Term>;
+export type TypeMap = Map<
+  BuiltinDeclaration | EnumDeclaration | TypeExpression | EnumVariant,
+  Type
+>;
+export type TermMap = Map<
+  BuiltinDeclaration | BodyExpression | Expression | Fn | EnumVariant,
+  Term
+>;
 
 export type ElaborationError =
   | { not_a_record_type: TypeExpression }
@@ -232,6 +230,38 @@ export class ElaboratePass extends BaseVisitor {
     return node;
   }
 
+  override visitBuiltinDeclaration(node: BuiltinDeclaration): Declaration {
+    super.visitBuiltinDeclaration(node);
+    const builtin = node.builtin;
+
+    // 1. Elaborate parameter types
+    const paramTypes: Type[] = builtin.params.map((p) => {
+      const ty = this.types.get(p);
+      if (!ty) throw new Error("Parameter type not elaborated");
+      return ty;
+    });
+
+    // 2. Elaborate return type
+    const returnType = this.types.get(builtin.return_type);
+    if (!returnType) throw new Error("Return type not elaborated");
+
+    // 3. Build the function type: τ₁ → τ₂ → ... → τₙ → τᵣₑₜ
+    const builtinType = arrows(paramTypes, returnType);
+
+    // 4. Create a con term with the i`nternal builtin name
+    const builtinTerm: Term = {
+      con: {
+        name: builtin.name.string, // e.g., "llvm.add"
+        type: builtinType,
+      },
+    };
+
+    // 5. Register both the term and type
+    this.terms.set(node, builtinTerm);
+    this.types.set(node, builtinType);
+    return node;
+  }
+
   override visitBlockExpression(node: BlockExpression): Expression {
     super.visitBlockExpression(node);
     const last = node.block[node.block.length - 1]!;
@@ -241,7 +271,6 @@ export class ElaboratePass extends BaseVisitor {
     if (!lastExpr) throw new Error("Impossible state.");
     let term = this.terms.get(lastExpr);
     if (!term) {
-      console.log(showExpression(lastExpr));
       throw new Error("No expression generated.");
     }
 
@@ -375,6 +404,34 @@ export class ElaboratePass extends BaseVisitor {
         scrutinee,
       },
     } as Term;
+    this.terms.set(node, term);
+    return node;
+  }
+
+  override visitMatchExpression(node: MatchExpression) {
+    super.visitMatchExpression(node);
+
+    const scrutinee = this.terms.get(node.match[0]);
+    if (!scrutinee) throw new Error("Expression not generated.");
+
+    const cases = [] as [Pattern, Term][];
+
+    for (const arm of node.match[1]) {
+      const pattern = this.patterns.get(arm.pattern);
+      if (!pattern) throw new Error("Pattern not generated.");
+
+      const body = this.terms.get(arm.body);
+      if (!body) throw new Error("Expression not generated");
+
+      cases.push([pattern, body]);
+    }
+
+    const term: MatchTerm = {
+      match: {
+        scrutinee,
+        cases,
+      },
+    };
     this.terms.set(node, term);
     return node;
   }
@@ -584,29 +641,54 @@ export class ElaboratePass extends BaseVisitor {
   ): PatternExpression {
     super.visitConstructorPatternExpression(node);
 
-    // resolve the variant and type
     const scope = this.scopes.get(node);
     if (!scope) throw new Error("Scope not generated for pattern.");
 
     const element = lookup_type(node.constr.type.type, scope);
-    // we need the type of the constructor
+
     if (element && "variant" in element) {
       const parent = this.variants.get(element.variant);
       if (!parent) throw new Error("Variant not generated for enum element.");
 
       const enumType = this.types.get(parent);
-      if (!enumType) {
-        console.log(parent);
-        throw new Error("EnumType not generated for declaration.");
-      }
+      if (!enumType) throw new Error("EnumType not generated for declaration.");
 
       const variantType = getVariantFromType(node.constr.type.type, enumType);
 
       if (!variantType)
         throw new Error("Variant has no variant type generated.");
 
+      // Build the inner pattern based on the number of patterns and variant type
+      let innerPattern: Pattern;
+
+      if (node.constr.patterns.length === 0) {
+        // No patterns: unit/wildcard
+        innerPattern = { tuple: [] }; // or { wildcard: null }
+      } else if (node.constr.patterns.length === 1) {
+        // Single pattern: use it directly (not wrapped in tuple)
+        const elaborated = this.patterns.get(node.constr.patterns[0]!);
+        if (!elaborated) {
+          throw new Error("Inner pattern not elaborated");
+        }
+        innerPattern = elaborated;
+      } else {
+        // Multiple patterns: wrap in tuple
+        const tuplePatterns: Pattern[] = [];
+        for (const p of node.constr.patterns) {
+          const elaborated = this.patterns.get(p);
+          if (!elaborated) {
+            throw new Error("Inner pattern not elaborated");
+          }
+          tuplePatterns.push(elaborated);
+        }
+        innerPattern = { tuple: tuplePatterns };
+      }
+
       const pattern: Pattern = {
-        con: { name: node.constr.type.type, type: variantType[1] },
+        variant: {
+          label: node.constr.type.type,
+          pattern: innerPattern,
+        },
       };
 
       this.patterns.set(node, pattern);
@@ -632,10 +714,21 @@ export class ElaboratePass extends BaseVisitor {
     super.visitEnumDeclaration(node);
     const variant = [] as [string, Type][];
     let enumType: Type = { variant };
+    const variantType = enumType;
+
+    let enumKind: Kind = { star: null };
+    for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
+      enumKind = {
+        arrow: {
+          from: { star: null },
+          to: enumKind,
+        },
+      };
+    }
 
     for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
       enumType = {
-        forall: {
+        lam: {
           var: node.enum.type_params[i]!.name,
           body: enumType,
           kind: { star: null },
@@ -658,25 +751,17 @@ export class ElaboratePass extends BaseVisitor {
           record.push([name, fieldType]);
         }
 
-        // 1. Add the variant to the type itself
         variant.push([v.fields.id.type, recordType]);
 
-        // 2. Add a term constructor with type params
         let body: Term = {
           lam: {
             arg: "$value",
-            type: {
-              lam: {
-                body: enumType,
-                kind: { star: null },
-                var: "$value",
-              },
-            },
+            type: recordType, // ✅ Changed from type-level lambda
             body: {
               inject: {
                 label: v.fields.id.type,
                 value: { var: "$value" },
-                variant_type: enumType,
+                variant_type: variantType,
               },
             },
           },
@@ -696,7 +781,7 @@ export class ElaboratePass extends BaseVisitor {
         let ctorType: Type = {
           arrow: {
             from: recordType,
-            to: enumType,
+            to: variantType,
           },
         };
         for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
@@ -720,12 +805,9 @@ export class ElaboratePass extends BaseVisitor {
         }
         variant.push([v.values.id.type, tupleType]);
 
-        // variant is a constructor term with term parameters named `$value{n}`
-        // to `$value{0}`
-
         let term: Term = {
           inject: {
-            variant_type: enumType,
+            variant_type: variantType,
             label: v.values.id.type,
             value: {
               tuple: termTypes.map((_, i) => ({ var: `$value${i}` })),
@@ -733,7 +815,6 @@ export class ElaboratePass extends BaseVisitor {
           },
         };
 
-        // wrap params backwards
         for (let i = termTypes.length - 1; i >= 0; i--) {
           term = {
             lam: {
@@ -744,7 +825,6 @@ export class ElaboratePass extends BaseVisitor {
           };
         }
 
-        // wrap type lambdas
         for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
           term = {
             tylam: {
@@ -756,10 +836,8 @@ export class ElaboratePass extends BaseVisitor {
         }
         this.terms.set(v, term);
 
-        // function type
-        let ctorType = enumType;
+        let ctorType = variantType as Type;
 
-        // function parameter types
         for (let i = termTypes.length - 1; i >= 0; i--) {
           ctorType = {
             arrow: {
@@ -778,13 +856,10 @@ export class ElaboratePass extends BaseVisitor {
           };
         }
         this.types.set(v, ctorType);
-        // function type parameters
       }
     }
 
     this.types.set(node, enumType);
-    // We need to create the enum terms
-    // and constructor types here
     return node;
   }
 
@@ -820,6 +895,12 @@ export class ElaboratePass extends BaseVisitor {
     const scope = this.scopes.get(node);
     if (!scope) throw new Error("Scope not found for identifier!");
 
+    // short for "never" type which is always defined
+    if (this.mode === "type" && node.type === "Never") {
+      this.types.set(node, { never: null });
+      return node;
+    }
+
     const item = lookup_type(node.type, scope);
     if (!item) {
       this.errors.push({ cannot_resolve_symbol: node });
@@ -827,8 +908,12 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     if (this.mode === "type") {
-      if (
-        "enum" in item ||
+      if ("enum" in item) {
+        const enumDecl = item.enum;
+        const enumType = this.types.get(enumDecl);
+        if (!enumType) throw new Error("Enum type not elaborated.");
+        this.types.set(node, enumType);
+      } else if (
         "star_import" in item ||
         "trait" in item ||
         "type_decl" in item ||

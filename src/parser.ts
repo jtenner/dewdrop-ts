@@ -2281,509 +2281,339 @@ export const fn_param = (
   name: name_expr(name),
   guard,
 });
+// Show methods for AST stringification
 
-// Basic show functions for identifiers
-export const showNameIdentifier = (id: NameIdentifier): string => id.name;
+export function showModule(mod: Module): string {
+  return mod.module.map(showDeclaration).join("\n\n");
+}
 
-export const showTypeIdentifier = (id: TypeIdentifier): string => id.type;
-
-export const showIdentifier = (id: Identifier): string => {
-  if ("type" in id) return showTypeIdentifier(id);
-  return showNameIdentifier(id);
-};
-
-export const showString = (str: StringToken) => {
-  return str.string;
-};
-
-export const showWasmName = (name: WasmName): string => {
-  if ("string" in name) return showString(name);
-  if ("name" in name) return showNameIdentifier(name);
-  return String(name);
-};
-
-// Show function for TypeExpression
-export const showTypeExpression = (expr: TypeExpression): string => {
-  if (typeof expr === "string") {
-    // This might be a NameIdentifier or TypeIdentifier
-    return expr;
+export function showDeclaration(decl: Declaration): string {
+  if ("builtin" in decl) {
+    const { name, alias, params, return_type } = decl.builtin;
+    return `builtin ${showToken(name)} as ${showToken(alias)}(${params.map(showTypeExpression).join(", ")}): ${showTypeExpression(return_type)}`;
   }
-
-  if ("name" in expr) {
-    // NameTypeExpression
-    return expr.name;
+  if ("fn" in decl) {
+    const { pub, fn } = decl.fn;
+    return `${pub ? "pub " : ""}${showFn(fn)}`;
   }
-
-  if ("select" in expr) {
-    // SelectTypeExpression
-    return `${showTypeExpression(expr.select.root)}.${showIdentifier(expr.select.name)}`;
+  if ("enum" in decl) {
+    const { pub, id, type_params, variants } = decl.enum;
+    const params =
+      type_params.length > 0
+        ? `<${type_params.map(showToken).join(", ")}>`
+        : "";
+    const vars = variants.map((v) => "\n  " + showEnumVariant(v)).join("");
+    return `${pub ? "pub " : ""}enum ${showToken(id)}${params} {${vars}\n}`;
   }
-
-  if ("app" in expr) {
-    // ApplicationTypeExpression
-    const args = expr.app.args.map(showTypeExpression).join(", ");
-    return `${showTypeExpression(expr.app.callee)}[${args}]`;
+  if ("import_dec" in decl) {
+    const { import_from, imports } = decl.import_dec;
+    return `import { ${imports.map(showImport).join(", ")} } from "${import_from}"`;
   }
-
-  if ("fn" in expr) {
-    // FnTypeExpression
-    const args = expr.fn.args.map(showTypeExpression).join(", ");
-    const ret = showTypeExpression(expr.fn.ret);
-    return `(${args}) -> ${ret}`;
+  if ("type_dec" in decl) {
+    const { pub, id, params, value } = decl.type_dec;
+    const p = params.length > 0 ? `<${params.map(showToken).join(", ")}>` : "";
+    return `${pub ? "pub " : ""}type ${showToken(id)}${p} = ${showTypeExpression(value)}`;
   }
-
-  if ("record" in expr) {
-    // RecordTypeExpression
-    const fields = expr.record
-      .map(
-        (field) =>
-          `${showNameIdentifier(field.name)}: ${showTypeExpression(field.ty)}`,
-      )
-      .join(", ");
-    return `{ ${fields} }`;
+  if ("let_dec" in decl) {
+    const { pub, id, guard, value } = decl.let_dec;
+    const g = guard ? `: ${showTypeExpression(guard)}` : "";
+    return `${pub ? "pub " : ""}let ${showToken(id)}${g} = ${showExpression(value)}`;
   }
-
-  if ("tuple" in expr) {
-    // TupleTypeExpression
-    const elements = expr.tuple.map(showTypeExpression).join(", ");
-    return `(${elements})`;
+  if ("trait" in decl) {
+    const { pub, id, type_params, fns } = decl.trait;
+    const params =
+      type_params.length > 0
+        ? `<${type_params.map(showToken).join(", ")}>`
+        : "";
+    const methods = fns.map((f) => "\n  " + showTraitFn(f)).join("");
+    return `${pub ? "pub " : ""}trait ${showToken(id)}${params} {${methods}\n}`;
   }
-
-  return String(expr);
-};
-
-// Show function for BodyExpression
-export const showBodyExpression = (expr: BodyExpression): string => {
-  if ("arrow_bind" in expr) {
-    // ArrowKindBodyExpression
-    return `${showNameIdentifier(expr.arrow_bind.name)} <- ${showExpression(expr.arrow_bind.expression)}`;
+  if ("impl" in decl) {
+    const { name, type_params, for: forType, fns } = decl.impl;
+    const params =
+      type_params.length > 0
+        ? `<${type_params.map(showTypeExpression).join(", ")}>`
+        : "";
+    const methods = fns.map((f) => "\n  " + showFn(f)).join("");
+    return `impl ${showToken(name)}${params} for ${showTypeExpression(forType)} {${methods}\n}`;
   }
+  return "";
+}
 
-  if ("let_bind" in expr) {
-    // LetBindBodyExpression
-    const assert = expr.let_bind.assert ? "assert " : "";
-    return `let ${showPatternExpression(expr.let_bind.pattern)} ${assert}= ${showExpression(expr.let_bind.expression)}`;
+export function showEnumVariant(variant: EnumVariant): string {
+  if ("fields" in variant) {
+    const { id, fields } = variant.fields;
+    return `${showToken(id)} { ${fields.map(showNamedTypeExpression).join(", ")} }`;
   }
-
-  if ("assign" in expr) {
-    // AssignBodyExpression
-    return `${showNameIdentifier(expr.assign.name)} = ${showExpression(expr.assign.expression)}`;
+  if ("values" in variant) {
+    const { id, values } = variant.values;
+    return `${showToken(id)}(${values.map(showTypeExpression).join(", ")})`;
   }
+  return "";
+}
 
-  if ("expression" in expr) {
-    // ExpressionBodyExpression
-    return showExpression(expr.expression);
+export function showTraitFn(fn: TraitFn): string {
+  const { name, params, return_type } = fn;
+  return `fn ${showToken(name)}(${params.map(showNamedTypeExpression).join(", ")}): ${showTypeExpression(return_type)}`;
+}
+
+export function showFn(fn: Fn): string {
+  const { name, type_params, params, return_type, body } = fn;
+  const n = name ? showToken(name) : "";
+  const tp =
+    type_params.length > 0 ? `<${type_params.map(showToken).join(", ")}>` : "";
+  const ret = return_type ? `: ${showTypeExpression(return_type)}` : "";
+  return `fn ${n}${tp}(${params.map(showFnParam).join(", ")})${ret} ${showExpression(body)}`;
+}
+
+export function showFnParam(param: FnParam): string {
+  const { name, guard } = param;
+  return guard
+    ? `${showToken(name)}: ${showTypeExpression(guard)}`
+    : showToken(name);
+}
+
+export function showImport(imp: Import): string {
+  if ("constr" in imp) {
+    const { name, alias } = imp.constr;
+    return alias
+      ? `${showToken(name)} as ${showToken(alias)}`
+      : showToken(name);
   }
-
-  return String(expr);
-};
-
-// Show function for Expression
-export const showExpression = (expr: Expression): string => {
-  if (typeof expr === "string") {
-    // This might be a NameIdentifier or TypeIdentifier
-    return expr;
+  if ("enum" in imp) {
+    const { name, alias } = imp.enum;
+    return alias
+      ? `${showToken(name)} as ${showToken(alias)}`
+      : showToken(name);
   }
+  if ("fn" in imp) {
+    const { name, signature, alias } = imp.fn;
+    const n = showWasmName(name);
+    const a = alias ? ` as ${showToken(alias)}` : "";
+    return `fn ${n}${showFnSignature(signature)}${a}`;
+  }
+  if ("global" in imp) {
+    const { mut, name, global_type, alias } = imp.global;
+    const m = mut ? "mut " : "";
+    const a = alias ? ` as ${showToken(alias)}` : "";
+    return `${m}global ${showWasmName(name)}: ${showTypeExpression(global_type)}${a}`;
+  }
+  if ("memory" in imp) {
+    const { name, min, max, alias } = imp.memory;
+    const limits = [min!, max!].filter(Boolean).map(showToken).join(", ");
+    const a = alias ? ` as ${showToken(alias)}` : "";
+    return `memory ${showWasmName(name)}[${limits}]${a}`;
+  }
+  if ("name" in imp) {
+    const { name, alias } = imp.name;
+    return alias
+      ? `${showToken(name)} as ${showToken(alias)}`
+      : showToken(name);
+  }
+  if ("star" in imp) {
+    return `* as ${showToken(imp.star)}`;
+  }
+  if ("table" in imp) {
+    const { name, table_type, min, max, alias } = imp.table;
+    const limits = [min!, max!].filter(Boolean).map(showToken).join(", ");
+    const a = alias ? ` as ${showToken(alias)}` : "";
+    return `table ${showWasmName(name)}: ${showTypeExpression(table_type)}[${limits}]${a}`;
+  }
+  if ("trait" in imp) {
+    const { name, alias } = imp.trait;
+    return alias
+      ? `${showToken(name)} as ${showToken(alias)}`
+      : showToken(name);
+  }
+  if ("type" in imp) {
+    const { name, alias } = imp.type;
+    return alias
+      ? `${showToken(name)} as ${showToken(alias)}`
+      : showToken(name);
+  }
+  return "";
+}
 
+export function showFnSignature(sig: FnSignature): string {
+  const { param_types, return_type } = sig;
+  return `(${param_types.map(showFnParam).join(", ")}): ${showTypeExpression(return_type)}`;
+}
+
+export function showWasmName(name: WasmName): string {
+  return showToken(name);
+}
+
+export function showTypeExpression(te: TypeExpression): string {
+  if (isNameToken(te) || isTypeToken(te)) {
+    return showToken(te);
+  }
+  if ("select" in te) {
+    const { root, name } = te.select;
+    return `${showTypeExpression(root)}.${showToken(name)}`;
+  }
+  if ("app" in te) {
+    const { callee, args } = te.app;
+    return `${showTypeExpression(callee)}<${args.map(showTypeExpression).join(", ")}>`;
+  }
+  if ("fn" in te) {
+    const { args, ret } = te.fn;
+    return `(${args.map(showTypeExpression).join(", ")}) -> ${showTypeExpression(ret)}`;
+  }
+  if ("record" in te) {
+    return `{ ${te.record.map(showNamedTypeExpression).join(", ")} }`;
+  }
+  if ("tuple" in te) {
+    return `(${te.tuple.map(showTypeExpression).join(", ")})`;
+  }
+  console.error(te);
+  throw new Error("Something is wrong");
+}
+
+export function showNamedTypeExpression(nte: NamedTypeExpression): string {
+  return `${showToken(nte.name)}: ${showTypeExpression(nte.ty)}`;
+}
+
+export function showExpression(expr: Expression): string {
+  if (isNameToken(expr) || isTypeToken(expr) || isStringToken(expr)) {
+    return showToken(expr);
+  }
   if ("call" in expr) {
-    // CallExpression
     const [callee, args] = expr.call;
-    const argsStr = args.map(showExpression).join(", ");
-    return `${showExpression(callee)}(${argsStr})`;
+    return `${showExpression(callee)}(${args.map(showExpression).join(", ")})`;
   }
-
   if ("block" in expr) {
-    // BlockExpression
-    const body = expr.block.map(showBodyExpression).join("; ");
-    return `{ ${body} }`;
+    const body = expr.block.map((b) => "\n  " + showBodyExpression(b)).join("");
+    return `{${body}\n}`;
   }
-
   if ("if_expr" in expr) {
-    // IfExpression
-    const cond = showExpression(expr.if_expr.cond);
-    const ifBody = showExpression(expr.if_expr.if_body);
-    const elseBody = expr.if_expr.else_body
-      ? ` else ${showExpression(expr.if_expr.else_body)}`
-      : "";
-    return `if ${cond} { ${ifBody} }${elseBody}`;
+    const { cond, if_body, else_body } = expr.if_expr;
+    const els = else_body ? ` else ${showExpression(else_body)}` : "";
+    return `if ${showExpression(cond)} ${showExpression(if_body)}${els}`;
   }
-
   if ("select" in expr) {
-    // SelectExpression
-    const [record, field] = expr.select;
-    return `${showExpression(record)}.${showNameIdentifier(field)}`;
+    const [obj, field] = expr.select;
+    return `${showExpression(obj)}.${showToken(field)}`;
   }
-
   if ("match" in expr) {
-    // MatchExpression
-    const [value, arms] = expr.match;
-    const valueStr = showExpression(value);
-    const armsStr = arms
-      .map(
-        (arm) =>
-          `${showPatternExpression(arm.pattern)}${arm.guard ? ` if ${showExpression(arm.guard)}` : ""}: ${showExpression(arm.body)}`,
-      )
-      .join(", ");
-    return `match ${valueStr} { ${armsStr} }`;
+    const [val, arms] = expr.match;
+    const a = arms.map((arm) => "\n  " + showMatchArm(arm)).join("");
+    return `match ${showExpression(val)} {${a}\n}`;
   }
-
   if ("float" in expr) {
-    // FloatExpression
     return `${expr.float.value}f${expr.float.size}`;
   }
-
   if ("int" in expr) {
-    // IntExpression
     return `${expr.int.value}i${expr.int.size}`;
   }
-
   if ("bool" in expr) {
-    // BoolExpression
-    return String(expr.bool);
+    return expr.bool.toString();
   }
-
   if ("prefix" in expr) {
-    // PrefixExpression
-    return `${expr.prefix.op} ${showExpression(expr.prefix.operand)}`;
+    return `${expr.prefix.op}${showExpression(expr.prefix.operand)}`;
   }
-
   if ("postfix" in expr) {
-    // PostfixExpression
-    return `${showExpression(expr.postfix.operand)} ${expr.postfix.op}`;
+    return `${showExpression(expr.postfix.operand)}${expr.postfix.op}`;
   }
-
   if ("infix" in expr) {
-    // InfixExpression
-    return `${showExpression(expr.infix.left)} ${expr.infix.op} ${showExpression(expr.infix.right)}`;
+    const { op, left, right } = expr.infix;
+    return `${showExpression(left)} ${op} ${showExpression(right)}`;
   }
-
   if ("fn" in expr) {
-    // FnExpression
     return showFn(expr.fn);
   }
-
   if ("record" in expr) {
-    // RecordExpression
     const fields = expr.record
-      .map(
-        ([name, value]) =>
-          `${showNameIdentifier(name)}: ${showExpression(value)}`,
-      )
+      .map(([k, v]) => `${showToken(k)}: ${showExpression(v)}`)
       .join(", ");
     return `{ ${fields} }`;
   }
-
   if ("tuple" in expr) {
-    // TupleExpression
-    const elements = expr.tuple.map(showExpression).join(", ");
-    return `(${elements})`;
+    return `(${expr.tuple.map(showExpression).join(", ")})`;
   }
-
   if ("self" in expr) {
-    // SelfExpression
     return "self";
   }
+  return "";
+}
 
-  return String(expr);
-};
-
-// Show function for PatternExpression
-const showPatternExpression = (pattern: PatternExpression): string => {
-  if (typeof pattern === "string") {
-    // NameIdentifier
-    return pattern;
+export function showBodyExpression(body: BodyExpression): string {
+  if ("arrow_bind" in body) {
+    const { name, expression } = body.arrow_bind;
+    return `${showToken(name)} <- ${showExpression(expression)}`;
   }
-
-  if ("constr" in pattern) {
-    // ConstructorPatternExpression
-    const typeStr = showTypeIdentifier(pattern.constr.type);
-    const patternsStr = pattern.constr.patterns
-      .map(showPatternExpression)
-      .join(", ");
-    return `${typeStr}(${patternsStr})`;
+  if ("let_bind" in body) {
+    const { pattern, assert, expression } = body.let_bind;
+    const a = assert ? "!" : "";
+    return `let${a} ${showPatternExpression(pattern)} = ${showExpression(expression)}`;
   }
-
-  if ("int" in pattern) {
-    // IntPatternExpression
-    return `${pattern.int.value}i${pattern.int.size}`;
+  if ("assign" in body) {
+    const { name, expression } = body.assign;
+    return `${showToken(name)} = ${showExpression(expression)}`;
   }
-
-  if ("float" in pattern) {
-    // FloatPatternExpression
-    return `${pattern.float.value}f${pattern.float.size}`;
+  if ("expression" in body) {
+    return showExpression(body.expression);
   }
+  return "";
+}
 
-  if ("string" in pattern) {
-    // StringPatternExpression
-    return `"${pattern.string}"`;
+export function showMatchArm(arm: MatchArm): string {
+  const { pattern, guard, body } = arm;
+  const g = guard ? ` if ${showExpression(guard)}` : "";
+  return `${showPatternExpression(pattern)}${g} => ${showExpression(body)}`;
+}
+
+export function showPatternExpression(pat: PatternExpression): string {
+  if (isNameToken(pat)) {
+    return showToken(pat);
   }
-
-  if ("record" in pattern) {
-    // RecordPatternExpression
-    const fields = pattern.record
-      .map(
-        ([name, value]) =>
-          `${showNameIdentifier(name)}: ${showPatternExpression(value)}`,
-      )
+  if ("constr" in pat) {
+    const { type, patterns } = pat.constr;
+    return `${showToken(type)}(${patterns.map(showPatternExpression).join(", ")})`;
+  }
+  if ("int" in pat) {
+    return `${pat.int.value}i${pat.int.size}`;
+  }
+  if ("float" in pat) {
+    return `${pat.float.value}f${pat.float.size}`;
+  }
+  if ("string" in pat) {
+    return `"${pat.string}"`;
+  }
+  if ("record" in pat) {
+    const fields = pat.record
+      .map(([k, v]) => `${showToken(k)}: ${showPatternExpression(v)}`)
       .join(", ");
     return `{ ${fields} }`;
   }
-
-  if ("tuple" in pattern) {
-    // TuplePatternExpression
-    const elements = pattern.tuple.map(showPatternExpression).join(", ");
-    return `(${elements})`;
+  if ("tuple" in pat) {
+    return `(${pat.tuple.map(showPatternExpression).join(", ")})`;
   }
+  return "";
+}
 
-  return String(pattern);
-};
+// Token helper functions
+export function showToken(
+  token: NameToken | TypeToken | StringToken | IntToken,
+): string {
+  if (isNameToken(token)) return token.name;
+  if (isTypeToken(token)) return token.type;
+  if (isStringToken(token)) return `"${token.string}"`;
+  if (isIntToken(token)) return token.int.toString();
+  return "";
+}
 
-// Show function for MatchArm
-export const showMatchArm = (arm: MatchArm): string => {
-  const patternStr = showPatternExpression(arm.pattern);
-  const guardStr = arm.guard ? ` if ${showExpression(arm.guard)}` : "";
-  const bodyStr = showExpression(arm.body);
-  return `${patternStr}${guardStr}: ${bodyStr}`;
-};
+function isNameToken(t: any): t is NameToken {
+  return t && "name" in t;
+}
 
-// Show function for Fn
-export const showFn = (fn: Fn): string => {
-  const nameStr = fn.name ? `${showNameIdentifier(fn.name)}` : "";
-  const typeParamsStr =
-    fn.type_params.length > 0
-      ? `[${fn.type_params.map(showNameIdentifier).join(", ")}]`
-      : "";
-  const paramsStr = fn.params
-    .map((param) => {
-      const guardStr = param.guard
-        ? `: ${showTypeExpression(param.guard)}`
-        : "";
-      return `${showNameIdentifier(param.name)}${guardStr}`;
-    })
-    .join(", ");
-  const returnStr = fn.return_type
-    ? ` -> ${showTypeExpression(fn.return_type)}`
-    : "";
-  const bodyStr = showExpression(fn.body);
+function isTypeToken(t: any): t is TypeToken {
+  return t && "type" in t;
+}
 
-  return `fn ${nameStr}${typeParamsStr}(${paramsStr})${returnStr} { ${bodyStr} }`;
-};
+function isStringToken(t: any): t is StringToken {
+  return t && "string" in t;
+}
 
-// Show function for FnParam
-export const showFnParam = (param: FnParam): string => {
-  const guardStr = param.guard ? `: ${showTypeExpression(param.guard)}` : "";
-  return `${showNameIdentifier(param.name)}${guardStr}`;
-};
-
-// Show function for TraitFn
-export const showTraitFn = (fn: TraitFn): string => {
-  const paramsStr = fn.params
-    .map(
-      (param) =>
-        `${showNameIdentifier(param.name)}: ${showTypeExpression(param.ty)}`,
-    )
-    .join(", ");
-  return `${showNameIdentifier(fn.name)}(${paramsStr}) -> ${showTypeExpression(fn.return_type)}`;
-};
-
-// Show function for EnumVariant
-export const showEnumVariant = (variant: EnumVariant): string => {
-  if ("fields" in variant) {
-    const fieldsStr = variant.fields.fields
-      .map(
-        (field) =>
-          `${showNameIdentifier(field.name)}: ${showTypeExpression(field.ty)}`,
-      )
-      .join(", ");
-    return `${showTypeIdentifier(variant.fields.id)} { ${fieldsStr} }`;
-  }
-
-  if ("values" in variant) {
-    const valuesStr = variant.values.values.map(showTypeExpression).join(", ");
-    return `${showTypeIdentifier(variant.values.id)}(${valuesStr})`;
-  }
-
-  return String(variant);
-};
-
-// Show function for Declaration
-export const showDeclaration = (decl: Declaration): string => {
-  if ("type_dec" in decl) {
-    // TypeDeclaration
-    const pub = decl.type_dec.pub ? "pub " : "";
-    const id = showTypeIdentifier(decl.type_dec.id);
-    const paramsStr =
-      decl.type_dec.params.length > 0
-        ? `[${decl.type_dec.params.map(showNameIdentifier).join(", ")}]`
-        : "";
-    const valueStr = showTypeExpression(decl.type_dec.value);
-    return `${pub}type ${id}${paramsStr} = ${valueStr}`;
-  }
-
-  if ("let_dec" in decl) {
-    // LetDeclaration
-    const pub = decl.let_dec.pub ? "pub " : "";
-    const id = showNameIdentifier(decl.let_dec.id);
-    const guardStr = decl.let_dec.guard
-      ? `: ${showTypeExpression(decl.let_dec.guard)}`
-      : "";
-    const valueStr = showExpression(decl.let_dec.value);
-    return `${pub}let ${id}${guardStr} = ${valueStr}`;
-  }
-
-  if ("trait" in decl) {
-    // TraitDeclaration
-    const pub = decl.trait.pub ? "pub " : "";
-    const id = showTypeIdentifier(decl.trait.id);
-    const typeParamsStr =
-      decl.trait.type_params.length > 0
-        ? `[${decl.trait.type_params.map(showNameIdentifier).join(", ")}]`
-        : "";
-    const fnsStr = decl.trait.fns.map(showTraitFn).join("; ");
-    return `${pub}trait ${id}${typeParamsStr} { ${fnsStr} }`;
-  }
-
-  if ("impl" in decl) {
-    // ImplDeclaration
-    const name = showTypeIdentifier(decl.impl.name);
-    const typeParamsStr =
-      decl.impl.type_params.length > 0
-        ? `[${decl.impl.type_params.map(showTypeExpression).join(", ")}]`
-        : "";
-    const forStr = showTypeExpression(decl.impl.for);
-    const fnsStr = decl.impl.fns.map(showFn).join("; ");
-    return `impl ${name}${typeParamsStr} for ${forStr} { ${fnsStr} }`;
-  }
-
-  if ("import_dec" in decl) {
-    // ImportDeclaration
-    const importsStr = decl.import_dec.imports.map(showImport).join(", ");
-    return `import from "${decl.import_dec.import_from}" { ${importsStr} }`;
-  }
-
-  if ("enum" in decl) {
-    // EnumDeclaration
-    const pub = decl.enum.pub ? "pub " : "";
-    const id = showTypeIdentifier(decl.enum.id);
-    const typeParamsStr =
-      decl.enum.type_params.length > 0
-        ? `[${decl.enum.type_params.map(showNameIdentifier).join(", ")}]`
-        : "";
-    const variantsStr = decl.enum.variants.map(showEnumVariant).join(", ");
-    return `${pub}enum ${id}${typeParamsStr} { ${variantsStr} }`;
-  }
-
-  if ("fn" in decl) {
-    // FnDeclaration
-    const pub = decl.fn.pub ? "pub " : "";
-    return `${pub}${showFn(decl.fn.fn)}`;
-  }
-
-  if ("builtin" in decl) {
-    // BuiltinDeclaration
-    return `builtin ${showNameIdentifier(decl.builtin.alias)} = ${decl.builtin.name}(${decl.builtin.params.map(showTypeExpression).join(", ")}) -> ${showTypeExpression(decl.builtin.return_type)}`;
-  }
-
-  return String(decl);
-};
-
-// Show function for Import
-export const showImport = (imp: Import): string => {
-  if ("constr" in imp) {
-    const alias = imp.constr.alias
-      ? ` as ${showTypeIdentifier(imp.constr.alias)}`
-      : "";
-    return `constr ${showTypeIdentifier(imp.constr.name)}${alias}`;
-  }
-
-  if ("enum" in imp) {
-    const alias = imp.enum.alias
-      ? ` as ${showTypeIdentifier(imp.enum.alias)}`
-      : "";
-    return `enum ${showTypeIdentifier(imp.enum.name)}${alias}`;
-  }
-
-  if ("fn" in imp) {
-    const alias = imp.fn.alias ? ` as ${showNameIdentifier(imp.fn.alias)}` : "";
-    const name =
-      "name" in imp.fn.name
-        ? showNameIdentifier(imp.fn.name)
-        : showWasmName(imp.fn.name);
-    return `fn ${name}${alias}`;
-  }
-
-  if ("global" in imp) {
-    const alias = imp.global.alias
-      ? ` as ${showNameIdentifier(imp.global.alias)}`
-      : "";
-    const name =
-      "name" in imp.global.name
-        ? showNameIdentifier(imp.global.name)
-        : showWasmName(imp.global.name);
-    return `global ${name}${alias}`;
-  }
-
-  if ("memory" in imp) {
-    const alias = imp.memory.alias
-      ? ` as ${showNameIdentifier(imp.memory.alias)}`
-      : "";
-    const name =
-      "name" in imp.memory.name
-        ? showNameIdentifier(imp.memory.name)
-        : showWasmName(imp.memory.name);
-    return `memory ${name}${alias}`;
-  }
-
-  if ("name" in imp) {
-    const alias = imp.name.alias
-      ? ` as ${showNameIdentifier(imp.name.alias)}`
-      : "";
-    return `name ${showNameIdentifier(imp.name.name)}${alias}`;
-  }
-
-  if ("star" in imp) {
-    return `* from ${showTypeIdentifier(imp.star)}`;
-  }
-
-  if ("table" in imp) {
-    const alias = imp.table.alias
-      ? ` as ${showNameIdentifier(imp.table.alias)}`
-      : "";
-    const name =
-      "name" in imp.table.name
-        ? showNameIdentifier(imp.table.name)
-        : showWasmName(imp.table.name);
-    return `table ${name}${alias}`;
-  }
-
-  if ("trait" in imp) {
-    const alias = imp.trait.alias
-      ? ` as ${showTypeIdentifier(imp.trait.alias)}`
-      : "";
-    return `trait ${showTypeIdentifier(imp.trait.name)}${alias}`;
-  }
-
-  if ("type" in imp) {
-    const alias = imp.type.alias
-      ? ` as ${showTypeIdentifier(imp.type.alias)}`
-      : "";
-    return `type ${showTypeIdentifier(imp.type.name)}${alias}`;
-  }
-
-  return String(imp);
-};
-
-// Show function for Module
-export const showModule = (module: Module): string => {
-  return module.module.map(showDeclaration).join("\n");
-};
-
-// Additional helper functions for types that might be needed
-export const showNamedTypeExpression = (expr: NamedTypeExpression): string => {
-  return `${showNameIdentifier(expr.name)}: ${showTypeExpression(expr.ty)}`;
-};
-
-export const showFnSignature = (sig: FnSignature): string => {
-  const paramsStr = sig.param_types.map(showFnParam).join(", ");
-  return `(${paramsStr}) -> ${showTypeExpression(sig.return_type)}`;
-};
+function isIntToken(t: any): t is IntToken {
+  return t && "int" in t;
+}

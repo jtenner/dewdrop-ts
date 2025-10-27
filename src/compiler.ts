@@ -22,7 +22,7 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   const entry = to_file_entry(main, basedir);
 
   const to_visit = new Set([entry.relative]);
-  const builtins = new Map<string, Builtin>();
+  const builtins = new Map<string, Builtin>([["unreachable", {}]]);
   const resolver = new ResolveImports(basedir);
 
   // pass 1: Resolve all the modules
@@ -95,7 +95,7 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   const { terms, types } = elaborate;
   const globalScope = scope_pass.scopes.get(pervasives_module)!;
   if (!globalScope) throw new Error("Global scope not generated!");
-  const checker = new TypeChecker(terms, types, globalScope);
+  const checker = new TypeChecker(terms, types, globalScope, scopes);
   checker.check(pervasives_module);
   for (const entry of modules) {
     checker.check(entry.module!);
