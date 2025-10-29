@@ -494,7 +494,7 @@ export const take_type_expression = async (
     );
     if ("err" in args) return [next_token, args];
 
-    [next_token, success_token] = await take_symbol(next_token, tokens, "-");
+    [next_token, success_token] = await take_symbol(next_token, tokens, "=");
     if ("err" in success_token) return [next_token, success_token];
 
     next_token ??= await next(tokens, false);

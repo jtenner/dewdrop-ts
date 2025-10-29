@@ -6045,3 +6045,489 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
   },
 }
 `;
+
+exports[`(Int) => Bool matches snapshot: TypeExpression: (Int) => Bool 1`] = `
+{
+  "ok": {
+    "fn": {
+      "args": [
+        {
+          "type": "Int",
+        },
+      ],
+      "ret": {
+        "type": "Bool",
+      },
+    },
+  },
+}
+`;
+
+exports[`(Int, String) => Bool matches snapshot: TypeExpression: (Int, String) => Bool 1`] = `
+{
+  "ok": {
+    "fn": {
+      "args": [
+        {
+          "type": "Int",
+        },
+        {
+          "type": "String",
+        },
+      ],
+      "ret": {
+        "type": "Bool",
+      },
+    },
+  },
+}
+`;
+
+exports[`() => Void matches snapshot: TypeExpression: () => Void 1`] = `
+{
+  "ok": {
+    "fn": {
+      "args": [],
+      "ret": {
+        "type": "Void",
+      },
+    },
+  },
+}
+`;
+
+exports[`(Int, List<String>) => Map<String, Int> matches snapshot: TypeExpression: (Int, List<String>) => Map<String, Int> 1`] = `
+{
+  "ok": {
+    "fn": {
+      "args": [
+        {
+          "type": "Int",
+        },
+        {
+          "app": {
+            "args": [
+              {
+                "type": "String",
+              },
+            ],
+            "callee": {
+              "type": "List",
+            },
+          },
+        },
+      ],
+      "ret": {
+        "app": {
+          "args": [
+            {
+              "type": "String",
+            },
+            {
+              "type": "Int",
+            },
+          ],
+          "callee": {
+            "type": "Map",
+          },
+        },
+      },
+    },
+  },
+}
+`;
+
+exports[`(#(Int, Bool)) => #{ok: String, err: String} matches snapshot: TypeExpression: (#(Int, Bool)) => #{ok: String, err: String} 1`] = `
+{
+  "ok": {
+    "fn": {
+      "args": [
+        {
+          "tuple": [
+            {
+              "type": "Int",
+            },
+            {
+              "type": "Bool",
+            },
+          ],
+        },
+      ],
+      "ret": {
+        "record": [
+          {
+            "name": {
+              "name": "ok",
+            },
+            "ty": {
+              "type": "String",
+            },
+          },
+          {
+            "name": {
+              "name": "err",
+            },
+            "ty": {
+              "type": "String",
+            },
+          },
+        ],
+      },
+    },
+  },
+}
+`;
+
+exports[`Declaration: fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { fn(x: a): c { f(g(x)) } } matches snapshot: Declaration: fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { fn(x: a): c { f(g(x)) } } 1`] = `
+[
+  null,
+  {
+    "ok": {
+      "fn": {
+        "fn": {
+          "body": {
+            "block": [
+              {
+                "expression": {
+                  "fn": {
+                    "body": {
+                      "block": [
+                        {
+                          "expression": {
+                            "call": [
+                              {
+                                "name": "f",
+                              },
+                              [
+                                {
+                                  "call": [
+                                    {
+                                      "name": "g",
+                                    },
+                                    [
+                                      {
+                                        "name": "x",
+                                      },
+                                    ],
+                                  ],
+                                },
+                              ],
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                    "name": null,
+                    "params": [
+                      {
+                        "guard": {
+                          "name": "a",
+                        },
+                        "name": {
+                          "name": "x",
+                        },
+                      },
+                    ],
+                    "return_type": {
+                      "name": "c",
+                    },
+                    "type_params": [],
+                  },
+                },
+              },
+            ],
+          },
+          "name": {
+            "name": "compose",
+          },
+          "params": [
+            {
+              "guard": {
+                "fn": {
+                  "args": [
+                    {
+                      "name": "b",
+                    },
+                  ],
+                  "ret": {
+                    "name": "c",
+                  },
+                },
+              },
+              "name": {
+                "name": "f",
+              },
+            },
+            {
+              "guard": {
+                "fn": {
+                  "args": [
+                    {
+                      "name": "a",
+                    },
+                  ],
+                  "ret": {
+                    "name": "b",
+                  },
+                },
+              },
+              "name": {
+                "name": "g",
+              },
+            },
+          ],
+          "return_type": {
+            "fn": {
+              "args": [
+                {
+                  "name": "a",
+                },
+              ],
+              "ret": {
+                "name": "c",
+              },
+            },
+          },
+          "type_params": [
+            {
+              "name": "a",
+            },
+            {
+              "name": "b",
+            },
+            {
+              "name": "c",
+            },
+          ],
+        },
+        "pub": false,
+      },
+    },
+  },
+]
+`;
+
+exports[`Declaration: pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) => acc): acc { init } matches snapshot: Declaration: pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) => acc): acc { init } 1`] = `
+[
+  null,
+  {
+    "ok": {
+      "fn": {
+        "fn": {
+          "body": {
+            "block": [
+              {
+                "expression": {
+                  "name": "init",
+                },
+              },
+            ],
+          },
+          "name": {
+            "name": "fold",
+          },
+          "params": [
+            {
+              "guard": {
+                "app": {
+                  "args": [
+                    {
+                      "name": "t",
+                    },
+                  ],
+                  "callee": {
+                    "type": "List",
+                  },
+                },
+              },
+              "name": {
+                "name": "list",
+              },
+            },
+            {
+              "guard": {
+                "name": "acc",
+              },
+              "name": {
+                "name": "init",
+              },
+            },
+            {
+              "guard": {
+                "fn": {
+                  "args": [
+                    {
+                      "name": "acc",
+                    },
+                    {
+                      "name": "t",
+                    },
+                  ],
+                  "ret": {
+                    "name": "acc",
+                  },
+                },
+              },
+              "name": {
+                "name": "f",
+              },
+            },
+          ],
+          "return_type": {
+            "name": "acc",
+          },
+          "type_params": [
+            {
+              "name": "t",
+            },
+            {
+              "name": "acc",
+            },
+          ],
+        },
+        "pub": true,
+      },
+    },
+  },
+]
+`;
+
+exports[`Type: () => Void matches snapshot: TypeExpression: () => Void 1`] = `
+{
+  "ok": {
+    "fn": {
+      "args": [],
+      "ret": {
+        "type": "Void",
+      },
+    },
+  },
+}
+`;
+
+exports[`Type: ((Int) => Int) => Int matches snapshot: TypeExpression: ((Int) => Int) => Int 1`] = `
+{
+  "ok": {
+    "fn": {
+      "args": [
+        {
+          "fn": {
+            "args": [
+              {
+                "type": "Int",
+              },
+            ],
+            "ret": {
+              "type": "Int",
+            },
+          },
+        },
+      ],
+      "ret": {
+        "type": "Int",
+      },
+    },
+  },
+}
+`;
+
+exports[`Type: (Int, (String) => Bool) => Result matches snapshot: TypeExpression: (Int, (String) => Bool) => Result 1`] = `
+{
+  "ok": {
+    "fn": {
+      "args": [
+        {
+          "type": "Int",
+        },
+        {
+          "fn": {
+            "args": [
+              {
+                "type": "String",
+              },
+            ],
+            "ret": {
+              "type": "Bool",
+            },
+          },
+        },
+      ],
+      "ret": {
+        "type": "Result",
+      },
+    },
+  },
+}
+`;
+
+exports[`Expression: fn<t>(x: t): t { x } matches snapshot: Expression: fn<t>(x: t): t { x } 1`] = `
+{
+  "ok": {
+    "fn": {
+      "body": {
+        "block": [
+          {
+            "expression": {
+              "name": "x",
+            },
+          },
+        ],
+      },
+      "name": null,
+      "params": [
+        {
+          "guard": {
+            "name": "t",
+          },
+          "name": {
+            "name": "x",
+          },
+        },
+      ],
+      "return_type": {
+        "name": "t",
+      },
+      "type_params": [
+        {
+          "name": "t",
+        },
+      ],
+    },
+  },
+}
+`;
+
+exports[`Expression: map(fn (b) b, a) matches snapshot: Expression: map(fn (b) b, a) 1`] = `
+{
+  "ok": {
+    "call": [
+      {
+        "name": "map",
+      },
+      [
+        {
+          "fn": {
+            "body": {
+              "name": "b",
+            },
+            "name": null,
+            "params": [
+              {
+                "guard": null,
+                "name": {
+                  "name": "b",
+                },
+              },
+            ],
+            "return_type": null,
+            "type_params": [],
+          },
+        },
+        {
+          "name": "a",
+        },
+      ],
+    ],
+  },
+}
+`;

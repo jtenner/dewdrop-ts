@@ -8,6 +8,7 @@ import { ElaboratePass } from "./passes/elaborate.js";
 import { ImportResolution } from "./passes/import_resolution.js";
 import { ResolveImports } from "./passes/resolve_imports.js";
 import { TypeChecker } from "./passes/type_checker.js";
+import { showKind } from "./types_system_f_omega.js";
 import { type Builtin, to_file_entry } from "./util.js";
 
 export type CompilerOptions = {
@@ -28,6 +29,7 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   for (const relative of to_visit) {
     const module = await parse_file(relative);
     if (module.errors.length > 0) {
+      console.error(`in file: ${relative}`);
       for (const error of module.errors) {
         console.error(error);
       }
@@ -52,7 +54,8 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
 
   // all the pervasives are globals
   const pervasives_module = await parse(pervasives);
-  if (pervasives_module.errors) {
+  if (pervasives_module.errors.length > 0) {
+    console.error("In pervasives module");
     for (const error of pervasives_module.errors) {
       console.error(error);
     }
@@ -114,6 +117,10 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
     if (checker.errors.length > 0) {
       for (const error of checker.errors) {
         console.error(error);
+        if ("kind_mismatch" in error) {
+          console.log("actual:", showKind(error.kind_mismatch.actual));
+          console.log("expected:", showKind(error.kind_mismatch.expected));
+        }
       }
       process.exit(1);
     }

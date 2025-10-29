@@ -1,7 +1,7 @@
 import "./either.dew" { type Either, Left }
 
 pub fn main(): Void {
-  let a = Left(21)
+  let a = Left(21);
   map(fn (b) b, a)
 }
 

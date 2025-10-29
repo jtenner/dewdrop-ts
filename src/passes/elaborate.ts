@@ -1,50 +1,53 @@
 import type { StringToken, TypeToken } from "../lexer.js";
-import type {
-  ApplicationTypeExpression,
-  BlockExpression,
-  BodyExpression,
-  BoolExpression,
-  BuiltinDeclaration,
-  CallExpression,
-  ConstructorPatternExpression,
-  Declaration,
-  EnumDeclaration,
-  EnumVariant,
-  Expression,
-  FloatExpression,
-  Fn,
-  FnExpression,
-  FnParam,
-  FnTypeExpression,
-  Identifier,
-  IfExpression,
-  ImplDeclaration,
-  Import,
-  InfixExpression,
-  IntExpression,
-  MatchExpression,
-  Module,
-  NameIdentifier,
-  PatternExpression,
-  PostfixExpression,
-  PrefixExpression,
-  RecordExpression,
-  RecordPatternExpression,
-  RecordTypeExpression,
-  SelectExpression,
-  SelectTypeExpression,
-  SelfExpression,
-  TraitDeclaration,
-  TupleExpression,
-  TuplePatternExpression,
-  TupleTypeExpression,
-  TypeExpression,
+import {
+  type ApplicationTypeExpression,
+  type BlockExpression,
+  type BodyExpression,
+  type BoolExpression,
+  type BuiltinDeclaration,
+  type CallExpression,
+  type ConstructorPatternExpression,
+  type Declaration,
+  type EnumDeclaration,
+  type EnumVariant,
+  type Expression,
+  type FloatExpression,
+  type Fn,
+  type FnExpression,
+  type FnParam,
+  type FnTypeExpression,
+  type Identifier,
+  type IfExpression,
+  type ImplDeclaration,
+  type Import,
+  type InfixExpression,
+  type IntExpression,
+  type MatchExpression,
+  type Module,
+  type NameIdentifier,
+  type PatternExpression,
+  type PostfixExpression,
+  type PrefixExpression,
+  type RecordExpression,
+  type RecordPatternExpression,
+  type RecordTypeExpression,
+  type SelectExpression,
+  type SelectTypeExpression,
+  type SelfExpression,
+  showExpression,
+  type TraitDeclaration,
+  type TraitFn,
+  type TupleExpression,
+  type TuplePatternExpression,
+  type TupleTypeExpression,
+  type TypeExpression,
 } from "../parser.js";
 import {
   type Context,
   type Kind,
   type MatchTerm,
   type Pattern,
+  showTerm,
   showType,
   type Term,
   type TraitDef,
@@ -78,6 +81,7 @@ function getVariantFromType(name: string, t: Type) {
 
 export type TypeMap = Map<
   | TraitDeclaration
+  | TraitFn
   | ImplDeclaration
   | Expression
   | Fn
@@ -740,28 +744,239 @@ export class ElaboratePass extends BaseVisitor {
   override visitNameIdentifier(node: NameIdentifier): NameIdentifier {
     if (this.mode === "type") {
       this.types.set(node, { var: node.name });
-    } else if (this.mode === "term") {
-      const scope = this.scopes.get(node);
-      if (!scope) throw new Error(`No scope generated for: ${node.name}`);
-      const scopedType = lookup_term(node.name, scope);
-      if (!scopedType)
-        throw new Error(`No element generated for: ${node.name}`);
-      if ("fn" in scopedType) {
-        const ty = this.types.get(scopedType.fn);
-        if (!ty) throw new Error("No function type generated for fn.");
-        this.types.set(node, ty);
-      } else if ("builtin" in scopedType) {
-        const ty = this.types.get(scopedType.builtin);
-        if (!ty)
-          throw new Error(
-            `No function type generated for builtin: ${node.name}`,
-          );
-        this.types.set(node, ty);
-      }
-      this.terms.set(node, { var: node.name } as Term);
+      return node;
     }
 
+    if (this.mode === "pattern") {
+      // Patterns are handled separately
+      return node;
+    }
+
+    // Term mode - look up in scope
+    const scope = this.scopes.get(node);
+    if (!scope) throw new Error(`No scope generated for: ${node.name}`);
+
+    const scopedElement = lookup_term(node.name, scope);
+    if (!scopedElement) {
+      this.errors.push({ cannot_resolve_symbol: node });
+      return node;
+    }
+
+    // Handle different kinds of term bindings
+    if ("fn_param" in scopedElement) {
+      // Function parameter: it's a bound variable
+      // The type should already be in the scope from the function signature
+      const param = scopedElement.fn_param;
+
+      // Get the parameter type
+      let paramType: Type;
+      if (param.guard) {
+        const guardType = this.types.get(param.guard);
+        if (!guardType) {
+          throw new Error(`Parameter type not elaborated: ${param.name.name}`);
+        }
+        paramType = guardType;
+      } else {
+        // No type annotation - this shouldn't happen after elaboration
+        paramType = { var: this.freshVar("param") };
+      }
+
+      this.terms.set(node, { var: node.name });
+      this.types.set(node, paramType);
+      return node;
+    }
+
+    if ("let_decl" in scopedElement) {
+      // Let binding: it's a variable reference
+      const letDecl = scopedElement.let_decl;
+      const letType = this.types.get(
+        letDecl.let_dec.guard ?? letDecl.let_dec.value,
+      );
+
+      if (!letType) {
+        throw new Error(`Let binding type not elaborated: ${node.name}`);
+      }
+
+      this.terms.set(node, { var: node.name });
+      this.types.set(node, letType);
+      return node;
+    }
+
+    if ("fn" in scopedElement) {
+      // Function reference
+      const fnDecl = scopedElement.fn;
+      const fnType = this.types.get(fnDecl);
+
+      if (!fnType) {
+        throw new Error(`Function type not elaborated: ${node.name}`);
+      }
+
+      this.terms.set(node, { var: node.name });
+      this.types.set(node, fnType);
+      return node;
+    }
+
+    if ("builtin" in scopedElement) {
+      // Builtin reference
+      const builtinDecl = scopedElement.builtin;
+      const builtinType = this.types.get(builtinDecl);
+
+      if (!builtinType) {
+        throw new Error(`Builtin type not elaborated: ${node.name}`);
+      }
+
+      this.terms.set(node, { var: node.name });
+      this.types.set(node, builtinType);
+      return node;
+    }
+
+    if ("variant" in scopedElement) {
+      // Enum variant constructor
+      const variant = scopedElement.variant;
+      const variantType = this.types.get(variant);
+
+      if (!variantType) {
+        throw new Error(`Variant type not elaborated: ${node.name}`);
+      }
+
+      this.terms.set(node, { var: node.name });
+      this.types.set(node, variantType);
+      return node;
+    }
+
+    if ("name_pattern" in scopedElement) {
+      // Pattern binding from let expression or match arm
+      const pattern = scopedElement.name_pattern;
+
+      // Try to infer the type from the bound expression
+      let bindingType: Type;
+      const exprType = this.types.get(scopedElement.name_pattern);
+
+      if (exprType) {
+        // Extract the type for this specific binding from the pattern
+        bindingType = this.extractPatternBindingType(
+          pattern,
+          node.name,
+          exprType,
+        );
+      } else {
+        bindingType = { var: this.freshVar("let_bind") };
+      }
+
+      this.terms.set(node, { var: node.name });
+      this.types.set(node, bindingType);
+      return node;
+    }
+
+    if ("enum" in scopedElement) {
+      // This shouldn't happen in term position
+      this.errors.push({ cannot_resolve_symbol: node });
+      return node;
+    }
+
+    if ("trait" in scopedElement) {
+      // This shouldn't happen in term position
+      this.errors.push({ cannot_resolve_symbol: node });
+      return node;
+    }
+
+    if ("type_decl" in scopedElement) {
+      // This shouldn't happen in term position
+      this.errors.push({ cannot_resolve_symbol: node });
+      return node;
+    }
+
+    if ("trait_fn" in scopedElement) {
+      const type = this.types.get(scopedElement.trait_fn);
+      if (!type) throw new Error("Type not generated for trait function.");
+
+      this.terms.set(node, { var: node.name });
+      this.types.set(node, type);
+      return node;
+    }
+
+    // if ("term_import" in scopedElement) {
+    //   // Imported term
+    //   const importedName =
+    //     scopedElement.term_import.alias?.name ??
+    //     scopedElement.term_import.name.name;
+
+    //   this.terms.set(node, { var: importedName });
+    //   // Type should be resolved from the imported module
+    //   // For now, use a placeholder
+    //   this.types.set(node, { var: this.freshVar("import") });
+    //   return node;
+    // }
+
+    if (
+      "star_import" in scopedElement ||
+      "type_import" in scopedElement ||
+      "trait_import" in scopedElement
+    ) {
+      // These shouldn't appear in term position
+      this.errors.push({ cannot_resolve_symbol: node });
+      return node;
+    }
+
+    // Unknown scope element type
+    this.errors.push({ cannot_resolve_symbol: node });
     return node;
+  }
+
+  // Helper method to extract the type of a specific binding from a pattern
+  private extractPatternBindingType(
+    pattern: PatternExpression,
+    bindingName: string,
+    patternType: Type,
+  ): Type {
+    if ("name" in pattern && pattern.name === bindingName) {
+      return patternType;
+    }
+
+    if ("tuple" in pattern && "tuple" in patternType) {
+      for (let i = 0; i < pattern.tuple.length; i++) {
+        const result = this.extractPatternBindingType(
+          pattern.tuple[i]!,
+          bindingName,
+          patternType.tuple[i]!,
+        );
+        if (result !== unitType) return result;
+      }
+    }
+
+    if ("record" in pattern && "record" in patternType) {
+      for (const [fieldName, fieldPattern] of pattern.record) {
+        const fieldType = patternType.record.find(
+          ([label]) => label === fieldName.name,
+        );
+        if (fieldType) {
+          const result = this.extractPatternBindingType(
+            fieldPattern,
+            bindingName,
+            fieldType[1],
+          );
+          if (result !== unitType) return result;
+        }
+      }
+    }
+
+    if ("constr" in pattern && "variant" in patternType) {
+      const variantCase = patternType.variant.find(
+        ([label]) => label === pattern.constr.type.type,
+      );
+      if (variantCase) {
+        for (const innerPattern of pattern.constr.patterns) {
+          const result = this.extractPatternBindingType(
+            innerPattern,
+            bindingName,
+            variantCase[1],
+          );
+          if (result !== unitType) return result;
+        }
+      }
+    }
+
+    return unitType; // Not found in this pattern
   }
 
   override visitEnumDeclaration(node: EnumDeclaration): Declaration {
@@ -779,6 +994,9 @@ export class ElaboratePass extends BaseVisitor {
         },
       };
     }
+    this.context.push({
+      type: { name: node.enum.id.type, kind: enumKind },
+    });
 
     for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
       enumType = {
@@ -946,6 +1164,11 @@ export class ElaboratePass extends BaseVisitor {
       return node;
     }
 
+    if (this.mode === "type" && node.type === "Self") {
+      this.types.set(node, { var: "Self" });
+      return node;
+    }
+
     const item = lookup_type(node.type, scope);
     if (!item) {
       this.errors.push({ cannot_resolve_symbol: node });
@@ -984,34 +1207,60 @@ export class ElaboratePass extends BaseVisitor {
     return node;
   }
 
-  // Traits:
   override visitTraitDeclaration(node: TraitDeclaration): Declaration {
-    console.log("visiting trait declaration in elaborate");
     const trait_decl = node.trait;
 
-    // Build the kind for the trait based on type parameters
-    let traitKind: Kind = { star: null };
-    for (let i = trait_decl.type_params.length - 1; i >= 0; i--) {
-      traitKind = {
-        arrow: {
-          from: { star: null },
-          to: traitKind,
-        },
-      };
-    }
-
     // Build method signatures
-    // For Map<t, u>.map<r, s>(cb: (r) => s, self: Self<t>): Self<u>
-    // This becomes: ∀r. ∀s. (r → s) → Self<t> → Self<u>
     const methods: [string, Type][] = [];
 
+    // First, visit all type expressions to populate the type map
     for (const traitFn of trait_decl.fns) {
-      // Visit all types
       for (const param of traitFn.params) {
         this.visitTypeExpression(param.ty);
       }
       this.visitTypeExpression(traitFn.return_type);
+    }
 
+    // Now, analyze how Self is used to determine its kind
+    let selfKind: Kind = { star: null }; // Default to * if Self isn't used
+
+    // Find the maximum arity of Self applications in method signatures
+    for (const traitFn of trait_decl.fns) {
+      // Check return type
+      const returnSelfArity = this.countSelfApplications(traitFn.return_type);
+      if (returnSelfArity > 0) {
+        // Build kind based on the arity
+        selfKind = { star: null };
+        for (let i = 0; i < returnSelfArity; i++) {
+          selfKind = {
+            arrow: {
+              from: { star: null },
+              to: selfKind,
+            },
+          };
+        }
+      }
+
+      // Check parameter types
+      for (const param of traitFn.params) {
+        const paramSelfArity = this.countSelfApplications(param.ty);
+        if (paramSelfArity > 0) {
+          // Build kind based on the arity
+          selfKind = { star: null };
+          for (let i = 0; i < paramSelfArity; i++) {
+            selfKind = {
+              arrow: {
+                from: { star: null },
+                to: selfKind,
+              },
+            };
+          }
+        }
+      }
+    }
+
+    // Now build method types
+    for (const traitFn of trait_decl.fns) {
       // Get elaborated types
       const paramTypes: Type[] = traitFn.params.map((p) => {
         const ty = this.types.get(p.ty);
@@ -1068,13 +1317,13 @@ export class ElaboratePass extends BaseVisitor {
       }
 
       methods.push([traitFn.name.name, methodType]);
+      this.types.set(traitFn, methodType);
     }
 
-    // Create trait definition
     const traitDef: TraitDef = {
       name: trait_decl.id.type,
       type_param: "Self",
-      kind: traitKind,
+      kind: selfKind, // Use the computed kind for Self
       methods,
     };
 
@@ -1087,8 +1336,39 @@ export class ElaboratePass extends BaseVisitor {
     return node;
   }
 
+  // Helper to count Self applications in a type expression
+  private countSelfApplications(typeExpr: TypeExpression): number {
+    if ("type" in typeExpr && typeExpr.type === "Self") {
+      return 0; // Self itself, not an application
+    }
+
+    if ("app" in typeExpr) {
+      // Check if the root is Self
+      const root = this.getApplicationRoot(typeExpr);
+      if ("type" in root && root.type === "Self") {
+        // Count the arguments
+        return this.countApplicationArgs(typeExpr);
+      }
+    }
+
+    return 0;
+  }
+
+  private getApplicationRoot(typeExpr: TypeExpression): TypeExpression {
+    if ("app" in typeExpr) {
+      return this.getApplicationRoot(typeExpr.app.callee);
+    }
+    return typeExpr;
+  }
+
+  private countApplicationArgs(typeExpr: TypeExpression): number {
+    if ("app" in typeExpr) {
+      return typeExpr.app.args.length;
+    }
+    return 0;
+  }
+
   override visitImplDeclaration(node: ImplDeclaration): Declaration {
-    console.log("visiting impl declaration in elaboration");
     const impl_decl = node.impl;
 
     // Visit the target type

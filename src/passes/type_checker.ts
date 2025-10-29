@@ -63,12 +63,6 @@ export class TypeChecker extends BaseVisitor {
     this.visitModule(module);
   }
 
-  override visitDeclaration(node: Declaration): Declaration {
-    if ("trait" in node) console.log("visiting trait");
-    else console.log("not found");
-    return super.visitDeclaration(node);
-  }
-
   override visitTypeImport(node: TypeImport): Import {
     const scope = this.scopes.get(node.type.name);
     if (!scope) throw new Error("Scope not generated for import");
@@ -259,6 +253,7 @@ export class TypeChecker extends BaseVisitor {
     }
     return node;
   }
+
   override visitTraitDeclaration(node: TraitDeclaration): Declaration {
     const trait_decl = node.trait;
 

@@ -100,9 +100,9 @@ test.each([
   { expr: "MyNamespace.Type" }, // dotted select
 
   // Function types
-  { expr: "(Int) -> Bool" }, // single arg function
-  { expr: "(Int, String) -> Bool" }, // multiple args
-  { expr: "() -> Void" }, // no args function
+  { expr: "(Int) => Bool" }, // single arg function
+  { expr: "(Int, String) => Bool" }, // multiple args
+  { expr: "() => Void" }, // no args function
 
   // Tuple types
   { expr: "#(Int, Bool, String)" }, // tuple with multiple types
@@ -121,8 +121,8 @@ test.each([
   { expr: "Outer.Inner<Nested<T>>" }, // nested application and select
 
   // Combined constructs
-  { expr: "(Int, List<String>) -> Map<String, Int>" }, // function with generics
-  { expr: "(#(Int, Bool)) -> #{ok: String, err: String}" }, // function returning record
+  { expr: "(Int, List<String>) => Map<String, Int>" }, // function with generics
+  { expr: "(#(Int, Bool)) => #{ok: String, err: String}" }, // function returning record
 ])("$expr matches snapshot", async ({ expr }) => {
   const [, typeExpr] = await take_type_expression(null, lex(chars(expr)));
   expect(typeExpr).toMatchSnapshot(`TypeExpression: ${expr}`);
@@ -181,7 +181,8 @@ test.each([
   // Anonymous functions
   { expr: "fn (x: Int) { x + 1 }" },
   { expr: "fn (x, y) { x + y }" },
-  // { expr: "fn<t>(x: t): t { x }" },
+  { expr: "fn<t>(x: t): t { x }" },
+  { expr: "map(fn (b) b, a)"},
   
   // Prefix operators
   { expr: "!x" },
@@ -327,7 +328,7 @@ test.each([
   // Empty constructs
   { expr: "#()" },
   { expr: "#{}" },
-  { expr: "() -> Void" },
+  { expr: "() => Void" },
   
   // Complex chains
   { expr: "A.B.C.D" },
@@ -339,8 +340,8 @@ test.each([
   { expr: "Fn<#(A, B), C>" },
   
   // Nested function types
-  { expr: "((Int) -> Int) -> Int" },
-  { expr: "(Int, (String) -> Bool) -> Result" },
+  { expr: "((Int) => Int) => Int" },
+  { expr: "(Int, (String) => Bool) => Result" },
   
   // Complex record types
   { expr: "#{pos: #(f64, f64), vel: #(f64, f64)}" },
@@ -376,8 +377,8 @@ test.each([
   { decl: `impl Default for Vec<t> { fn default(): Vec<t> { Vec() } }` },
   
   // Complex function declarations
-  { decl: `fn compose<a, b, c>(f: (b) -> c, g: (a) -> b): (a) -> c { fn(x: a): c { f(g(x)) } }` },
-  { decl: `pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) -> acc): acc { init }` },
+  { decl: `fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { fn(x: a): c { f(g(x)) } }` },
+  { decl: `pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) => acc): acc { init }` },
   
   // Multi-parameter type declarations
   { decl: `enum Result<t, e> { Ok(t), Err(e) }` },
