@@ -55,7 +55,12 @@ import {
   type VariantType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
-import { lookup_type, type Scopable, type Scope } from "./create_scopes.js";
+import {
+  lookup_term,
+  lookup_type,
+  type Scopable,
+  type Scope,
+} from "./create_scopes.js";
 
 function arrows(args: Type[], ret: Type): Type {
   if (args.length === 0) return { arrow: { from: unitType, to: ret } };
@@ -75,7 +80,12 @@ function getVariantFromType(name: string, t: Type) {
 }
 
 export type TypeMap = Map<
-  BuiltinDeclaration | EnumDeclaration | TypeExpression | EnumVariant,
+  | Expression
+  | Fn
+  | BuiltinDeclaration
+  | EnumDeclaration
+  | TypeExpression
+  | EnumVariant,
   Type
 >;
 export type TermMap = Map<
@@ -231,8 +241,9 @@ export class ElaboratePass extends BaseVisitor {
   }
 
   override visitBuiltinDeclaration(node: BuiltinDeclaration): Declaration {
-    super.visitBuiltinDeclaration(node);
     const builtin = node.builtin;
+    for (const param of builtin.params) this.visitTypeExpression(param);
+    this.visitTypeExpression(builtin.return_type);
 
     // 1. Elaborate parameter types
     const paramTypes: Type[] = builtin.params.map((p) => {
@@ -244,7 +255,6 @@ export class ElaboratePass extends BaseVisitor {
     // 2. Elaborate return type
     const returnType = this.types.get(builtin.return_type);
     if (!returnType) throw new Error("Return type not elaborated");
-
     // 3. Build the function type: τ₁ → τ₂ → ... → τₙ → τᵣₑₜ
     const builtinType = arrows(paramTypes, returnType);
 
@@ -451,12 +461,14 @@ export class ElaboratePass extends BaseVisitor {
     this.terms.set(node, { project: { record, label: node.select[1].name } });
     return node;
   }
-
   override visitCallExpression(node: CallExpression): Expression {
     super.visitCallExpression(node);
     const [fn, params] = node.call;
     const callee = this.terms.get(fn);
+    const calleeType = this.types.get(fn);
+
     if (!callee) throw new Error("Expression not generated.");
+    if (!calleeType) throw new Error("Expression generated no type.");
 
     let term: Term | undefined =
       params.length === 0
@@ -476,7 +488,6 @@ export class ElaboratePass extends BaseVisitor {
     this.terms.set(node, term);
     return node;
   }
-
   override visitPrefixExpression(node: PrefixExpression): Expression {
     super.visitPrefixExpression(node);
     const { operand, op } = node.prefix;
@@ -560,6 +571,7 @@ export class ElaboratePass extends BaseVisitor {
 
     // Step 3: Elaborate parameters — wrap as LamTerms
     let term = bodyTerm;
+    let type = returnType;
     for (let i = node.params.length - 1; i >= 0; i--) {
       const param = node.params[i]!;
       const paramName = param.name.name;
@@ -572,6 +584,12 @@ export class ElaboratePass extends BaseVisitor {
           arg: paramName,
           type: paramType,
           body: term,
+        },
+      };
+      type = {
+        arrow: {
+          from: paramType,
+          to: type,
         },
       };
     }
@@ -588,10 +606,17 @@ export class ElaboratePass extends BaseVisitor {
           body: term,
         },
       };
+      type = {
+        forall: {
+          var: name,
+          body: type,
+          kind,
+        },
+      };
     }
 
     this.terms.set(node, term);
-
+    this.types.set(node, type);
     return node;
   }
 
@@ -700,10 +725,27 @@ export class ElaboratePass extends BaseVisitor {
     }
   }
 
-  override visitNameIdentifier(node: NameToken): NameToken {
+  override visitNameIdentifier(node: NameIdentifier): NameIdentifier {
     if (this.mode === "type") {
       this.types.set(node, { var: node.name });
     } else if (this.mode === "term") {
+      const scope = this.scopes.get(node);
+      if (!scope) throw new Error(`No scope generated for: ${node.name}`);
+      const scopedType = lookup_term(node.name, scope);
+      if (!scopedType)
+        throw new Error(`No element generated for: ${node.name}`);
+      if ("fn" in scopedType) {
+        const ty = this.types.get(scopedType.fn);
+        if (!ty) throw new Error("No function type generated for fn.");
+        this.types.set(node, ty);
+      } else if ("builtin" in scopedType) {
+        const ty = this.types.get(scopedType.builtin);
+        if (!ty)
+          throw new Error(
+            `No function type generated for builtin: ${node.name}`,
+          );
+        this.types.set(node, ty);
+      }
       this.terms.set(node, { var: node.name } as Term);
     }
 
@@ -882,15 +924,6 @@ export class ElaboratePass extends BaseVisitor {
     return node;
   }
 
-  protected generateConstructor(name: string, variantType: VariantType) {
-    const variant = variantType.variant.find((t) => t[0] === name);
-    // if the type was found already, we should know the name
-    if (!variant) throw new Error("Invalid constructor name for variant.");
-
-    if ("field" in variant[1]) {
-    }
-  }
-
   override visitTypeIdentifier(node: TypeToken): TypeToken {
     const scope = this.scopes.get(node);
     if (!scope) throw new Error("Scope not found for identifier!");
@@ -927,7 +960,10 @@ export class ElaboratePass extends BaseVisitor {
     if (this.mode === "term") {
       if ("variant" in item) {
         const term: Term = { var: node.type };
+        const type = this.types.get(item.variant);
+        if (!type) throw new Error("No type was generated for this variant.");
         this.terms.set(node, term);
+        this.types.set(node, type);
       } else {
         this.errors.push({ type_is_not_a_variant: node.type });
       }

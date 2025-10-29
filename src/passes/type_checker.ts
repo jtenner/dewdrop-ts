@@ -1,16 +1,17 @@
-import type {
-  BuiltinDeclaration,
-  ConstructorImport,
-  Declaration,
-  EnumDeclaration,
-  Fn,
-  FnDeclaration,
-  Import,
-  LetDeclaration,
-  Module,
-  NameImport,
-  TypeDeclaration,
-  TypeImport,
+import {
+  showFn,
+  type BuiltinDeclaration,
+  type ConstructorImport,
+  type Declaration,
+  type EnumDeclaration,
+  type Fn,
+  type FnDeclaration,
+  type Import,
+  type LetDeclaration,
+  type Module,
+  type NameImport,
+  type TypeDeclaration,
+  type TypeImport,
 } from "../parser.js";
 import {
   type Context,
@@ -22,6 +23,7 @@ import {
   showTerm,
   type TypingError,
   typecheck,
+  showType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import { lookup_type, type Scope, type ScopeIndex } from "./create_scopes.js";
@@ -157,7 +159,10 @@ export class TypeChecker extends BaseVisitor {
         },
       });
     } else {
-      console.log("Term is bad", showTerm(term));
+      console.log(showFn(node));
+      if ("not_a_function" in result.err) {
+        console.log(showType(result.err.not_a_function));
+      }
       this.errors.push(result.err);
     }
     return node;
