@@ -247,6 +247,105 @@ export type Constraint =
 export type Worklist = Constraint[];
 export type Substitution = Map<string, Type>;
 
+export type InferMode =
+  | { infer: null } // Infer type arguments
+  | { check: Type }; // Check against expected type
+
+export function inferTypeWithMode(
+  context: Context,
+  term: Term,
+  mode: InferMode,
+): Result<TypingError, Type> {
+  // Delegate based on mode
+  if ("check" in mode) {
+    return checkType(context, term, mode.check);
+  }
+  return inferType(context, term);
+}
+
+export type MetaVar = { meta: number };
+
+let metaVarCounter = 0;
+const metaVarSolutions = new Map<number, Type>();
+
+export function freshMetaVar(): Type {
+  return { var: `?${metaVarCounter++}` };
+}
+
+export function isMetaVar(type: Type): boolean {
+  return "var" in type && type.var.startsWith("?");
+}
+
+export function solveMetaVar(
+  metaVar: string,
+  solution: Type,
+): Result<TypingError, null> {
+  if (metaVarSolutions.has(parseInt(metaVar.slice(1), 10))) {
+    const existing = metaVarSolutions.get(parseInt(metaVar.slice(1), 10))!;
+    if (!typesEqual(existing, solution)) {
+      return {
+        err: { type_mismatch: { expected: existing, actual: solution } },
+      };
+    }
+  } else {
+    metaVarSolutions.set(parseInt(metaVar.slice(1), 10), solution);
+  }
+  return { ok: null };
+}
+
+export function instantiate(
+  type: Type,
+  fresh: () => Type = freshMetaVar,
+): Type {
+  if ("forall" in type) {
+    const freshVar = fresh();
+    const instantiatedBody = substituteType(
+      type.forall.var,
+      freshVar,
+      type.forall.body,
+    );
+    return instantiate(instantiatedBody, fresh);
+  }
+
+  if ("bounded_forall" in type) {
+    const freshVar = fresh();
+
+    // Instantiate constraints
+    const instantiatedConstraints = type.bounded_forall.constraints.map(
+      (c) => ({
+        trait: c.trait,
+        type: substituteType(type.bounded_forall.var, freshVar, c.type),
+      }),
+    );
+
+    // Check constraints with the instantiated type
+    // (You may want to defer this until unification completes)
+
+    const instantiatedBody = substituteType(
+      type.bounded_forall.var,
+      freshVar,
+      type.bounded_forall.body,
+    );
+    return instantiate(instantiatedBody, fresh);
+  }
+
+  return type;
+}
+
+export function subsumes(
+  context: Context,
+  general: Type,
+  specific: Type,
+  worklist: Worklist,
+  subst: Substitution,
+): Result<TypingError, null> {
+  // Instantiate foralls in general type
+  const instantiatedGeneral = instantiate(general);
+
+  // Unify with specific type
+  return unifyTypes(instantiatedGeneral, specific, worklist, subst);
+}
+
 // Add this new function
 export function isAssignableTo(from: Type, to: Type): boolean {
   // Bottom type rule: never is assignable to everything
@@ -1642,6 +1741,300 @@ export function applySubstitution(subst: Substitution, type: Type): Type {
   return type;
 }
 
+// Bidirectional type checking - check a term against an expected type
+export function checkType(
+  context: Context,
+  term: Term,
+  expectedType: Type,
+): Result<TypingError, Type> {
+  // Check kind of expected type
+  const kindResult = checkKind(context, expectedType);
+  if ("err" in kindResult) return kindResult;
+
+  // Lambda: check against arrow type
+  if ("lam" in term && "arrow" in expectedType) {
+    const extendedContext: Context = [
+      ...context,
+      { term: { name: term.lam.arg, type: expectedType.arrow.from } },
+    ];
+
+    const bodyResult = checkType(
+      extendedContext,
+      term.lam.body,
+      expectedType.arrow.to,
+    );
+    if ("err" in bodyResult) return bodyResult;
+
+    return { ok: expectedType };
+  }
+
+  // Type lambda: check against forall
+  if ("tylam" in term && "forall" in expectedType) {
+    // Verify kinds match
+    if (!kindsEqual(term.tylam.kind, expectedType.forall.kind)) {
+      return {
+        err: {
+          kind_mismatch: {
+            expected: expectedType.forall.kind,
+            actual: term.tylam.kind,
+          },
+        },
+      };
+    }
+
+    const extendedContext: Context = [
+      ...context,
+      { type: { name: term.tylam.var, kind: term.tylam.kind } },
+    ];
+
+    // Alpha-rename expected type if necessary
+    const renamedExpected = alphaRename(
+      expectedType.forall.var,
+      term.tylam.var,
+      expectedType.forall.body,
+    );
+
+    const bodyResult = checkType(
+      extendedContext,
+      term.tylam.body,
+      renamedExpected,
+    );
+    if ("err" in bodyResult) return bodyResult;
+
+    return { ok: expectedType };
+  }
+
+  // Trait lambda: check against bounded forall
+  if ("trait_lam" in term && "bounded_forall" in expectedType) {
+    // Verify kinds match
+    if (!kindsEqual(term.trait_lam.kind, expectedType.bounded_forall.kind)) {
+      return {
+        err: {
+          kind_mismatch: {
+            expected: expectedType.bounded_forall.kind,
+            actual: term.trait_lam.kind,
+          },
+        },
+      };
+    }
+
+    // Check constraints match
+    if (
+      term.trait_lam.constraints.length !==
+      expectedType.bounded_forall.constraints.length
+    ) {
+      return {
+        err: {
+          type_mismatch: { expected: expectedType, actual: expectedType },
+        },
+      };
+    }
+
+    for (let i = 0; i < term.trait_lam.constraints.length; i++) {
+      const termConstraint = term.trait_lam.constraints[i]!;
+      const expectedConstraint = expectedType.bounded_forall.constraints[i]!;
+
+      if (termConstraint.trait !== expectedConstraint.trait) {
+        return {
+          err: {
+            type_mismatch: { expected: expectedType, actual: expectedType },
+          },
+        };
+      }
+
+      // Alpha-rename constraint types
+      const renamedConstraintType = alphaRename(
+        expectedType.bounded_forall.var,
+        term.trait_lam.type_var,
+        expectedConstraint.type,
+      );
+
+      if (!typesEqual(termConstraint.type, renamedConstraintType)) {
+        return {
+          err: {
+            type_mismatch: {
+              expected: renamedConstraintType,
+              actual: termConstraint.type,
+            },
+          },
+        };
+      }
+    }
+
+    const extendedContext: Context = [
+      ...context,
+      {
+        type: {
+          name: term.trait_lam.type_var,
+          kind: term.trait_lam.kind,
+        },
+      },
+      {
+        dict: {
+          name: term.trait_lam.trait_var,
+          trait: term.trait_lam.trait,
+          type: { var: term.trait_lam.type_var },
+        },
+      },
+    ];
+
+    // Alpha-rename expected body
+    const renamedExpected = alphaRename(
+      expectedType.bounded_forall.var,
+      term.trait_lam.type_var,
+      expectedType.bounded_forall.body,
+    );
+
+    const bodyResult = checkType(
+      extendedContext,
+      term.trait_lam.body,
+      renamedExpected,
+    );
+    if ("err" in bodyResult) return bodyResult;
+
+    return { ok: expectedType };
+  }
+
+  // Record: check field by field
+  if ("record" in term && "record" in expectedType) {
+    const termLabels = term.record.map(first).sort();
+    const typeLabels = expectedType.record.map(first).sort();
+
+    // Check labels match
+    if (
+      termLabels.length !== typeLabels.length ||
+      !termLabels.every((l, i) => l === typeLabels[i])
+    ) {
+      return {
+        err: {
+          type_mismatch: {
+            expected: expectedType,
+            actual: { record: term.record.map(([l, _]) => [l, unitType]) },
+          },
+        },
+      };
+    }
+
+    // Check each field
+    for (const [label, fieldTerm] of term.record) {
+      const expectedFieldType = expectedType.record.find(
+        (f) => f[0] === label,
+      )![1];
+
+      const fieldResult = checkType(context, fieldTerm, expectedFieldType);
+      if ("err" in fieldResult) return fieldResult;
+    }
+
+    return { ok: expectedType };
+  }
+
+  // Tuple: check element by element
+  if ("tuple" in term && "tuple" in expectedType) {
+    if (term.tuple.length !== expectedType.tuple.length) {
+      return {
+        err: {
+          type_mismatch: {
+            expected: expectedType,
+            actual: { tuple: term.tuple.map(() => unitType) },
+          },
+        },
+      };
+    }
+
+    for (let i = 0; i < term.tuple.length; i++) {
+      const elementResult = checkType(
+        context,
+        term.tuple[i]!,
+        expectedType.tuple[i]!,
+      );
+      if ("err" in elementResult) return elementResult;
+    }
+
+    return { ok: expectedType };
+  }
+
+  // Injection: check value against variant case type
+  if ("inject" in term) {
+    const variantType = normalizeType(expectedType);
+
+    if (!("variant" in variantType)) {
+      return {
+        err: { not_a_variant: expectedType },
+      };
+    }
+
+    const caseType = variantType.variant.find(
+      (c) => c[0] === term.inject.label,
+    );
+
+    if (!caseType) {
+      return {
+        err: {
+          invalid_variant_label: {
+            variant: variantType,
+            label: term.inject.label,
+          },
+        },
+      };
+    }
+
+    const valueResult = checkType(context, term.inject.value, caseType[1]);
+    if ("err" in valueResult) return valueResult;
+
+    return { ok: expectedType };
+  }
+
+  // Fold: check the inner term against the unfolded type
+  if ("fold" in term && "mu" in expectedType) {
+    const unfoldedType = substituteType(
+      expectedType.mu.var,
+      expectedType,
+      expectedType.mu.body,
+      new Set([expectedType.mu.var]),
+    );
+
+    const termResult = checkType(context, term.fold.term, unfoldedType);
+    if ("err" in termResult) return termResult;
+
+    return { ok: expectedType };
+  }
+
+  // Subsumption: infer and check if compatible
+  const inferredType = inferType(context, term);
+  if ("err" in inferredType) return inferredType;
+
+  // Use subsumption to allow polymorphic instantiation
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>();
+
+  const subsumesResult = subsumes(
+    context,
+    inferredType.ok,
+    expectedType,
+    worklist,
+    subst,
+  );
+  if ("err" in subsumesResult) return subsumesResult;
+
+  const solveResult = solveConstraints(worklist, subst);
+  if ("err" in solveResult) return solveResult;
+
+  const resolvedExpected = applySubstitution(solveResult.ok, expectedType);
+
+  if (!isAssignableTo(inferredType.ok, resolvedExpected)) {
+    return {
+      err: {
+        type_mismatch: {
+          expected: resolvedExpected,
+          actual: inferredType.ok,
+        },
+      },
+    };
+  }
+
+  return { ok: resolvedExpected };
+}
+
 // Typing judgment: Γ ⊢ e : τ
 export function inferType(
   context: Context,
@@ -1708,26 +2101,35 @@ export function inferType(
     const argType = inferType(context, term.app.arg);
     if ("err" in argType) return argType;
 
-    if (!("arrow" in calleeType.ok)) {
-      console.log("Callee is", showType(calleeType.ok));
-      console.log(new Error().stack);
-      return {
-        err: { not_a_function: calleeType.ok },
-      };
+    // Instantiate polymorphic function type
+    const instantiatedCallee = instantiate(calleeType.ok);
+
+    if (!("arrow" in instantiatedCallee)) {
+      return { err: { not_a_function: calleeType.ok } };
     }
 
-    if (!isAssignableTo(argType.ok, calleeType.ok.arrow.from)) {
-      return {
-        err: {
-          type_mismatch: {
-            expected: calleeType.ok.arrow.from,
-            actual: argType.ok,
-          },
-        },
-      };
-    }
+    // Unify argument type with parameter type
+    const worklist: Worklist = [];
+    const subst = new Map<string, Type>();
 
-    return { ok: calleeType.ok.arrow.to };
+    const unifyResult = unifyTypes(
+      argType.ok,
+      instantiatedCallee.arrow.from,
+      worklist,
+      subst,
+    );
+    if ("err" in unifyResult) return unifyResult;
+
+    const solveResult = solveConstraints(worklist, subst);
+    if ("err" in solveResult) return solveResult;
+
+    // Apply substitution to result type
+    const resultType = applySubstitution(
+      solveResult.ok,
+      instantiatedCallee.arrow.to,
+    );
+
+    return { ok: resultType };
   }
 
   if ("let" in term) {
@@ -2647,6 +3049,104 @@ function typeVariablesInType(type: Type, vars: Set<string>): boolean {
   }
 
   return false;
+}
+
+export function instantiateWithTraits(
+  context: Context,
+  type: Type,
+): Result<TypingError, { type: Type; dicts: Term[] }> {
+  const dicts: Term[] = [];
+  let currentType = type;
+
+  // while ("bounded_forall" in currentType) {
+  //   const freshVar = freshMetaVar();
+
+  //   // Instantiate constraints with fresh variable
+  //   const instantiatedConstraints = currentType.bounded_forall.constraints.map(
+  //     (c) => ({
+  //       trait: c.trait,
+  //       type: substituteType(currentType.bounded_forall.var, freshVar, c.type),
+  //     }),
+  //   );
+
+  //   // Find dictionary evidence for each constraint
+  //   for (const constraint of instantiatedConstraints) {
+  //     const dictResult = checkTraitImplementation(
+  //       context,
+  //       constraint.trait,
+  //       constraint.type,
+  //     );
+  //     if ("err" in dictResult) return dictResult;
+  //     dicts.push(dictResult.ok);
+  //   }
+
+  //   // Substitute in body
+  //   currentType = substituteType(
+  //     currentType.bounded_forall.var,
+  //     freshVar,
+  //     currentType.bounded_forall.body,
+  //   );
+  // }
+
+  return { ok: { type: currentType, dicts } };
+}
+
+// When you encounter a polymorphic value in application position:
+export function autoInstantiate(
+  context: Context,
+  term: Term,
+): Result<TypingError, { term: Term; type: Type }> {
+  const termType = inferType(context, term);
+  if ("err" in termType) return termType;
+
+  let currentTerm = term;
+  let currentType = termType.ok;
+
+  // Auto-apply type arguments
+  while ("forall" in currentType) {
+    const freshVar = freshMetaVar();
+    currentTerm = tyapp_term(currentTerm, freshVar);
+    currentType = substituteType(
+      currentType.forall.var,
+      freshVar,
+      currentType.forall.body,
+    );
+  }
+
+  // Auto-apply trait dictionaries
+  while ("bounded_forall" in currentType) {
+    const instantiateResult = instantiateWithTraits(context, currentType);
+    if ("err" in instantiateResult) return instantiateResult;
+
+    currentTerm = trait_app_term(
+      currentTerm,
+      freshMetaVar(),
+      instantiateResult.ok.dicts,
+    );
+    currentType = instantiateResult.ok.type;
+  }
+
+  return { ok: { term: currentTerm, type: currentType } };
+}
+
+export function resolveMetaVars(type: Type): Type {
+  if ("var" in type && isMetaVar(type)) {
+    const solution = metaVarSolutions.get(parseInt(type.var.slice(1)));
+    return solution ? resolveMetaVars(solution) : type;
+  }
+
+  if ("arrow" in type) {
+    return {
+      arrow: {
+        from: resolveMetaVars(type.arrow.from),
+        to: resolveMetaVars(type.arrow.to),
+      },
+    };
+  }
+
+  // ... handle other type constructors similarly
+
+  return type;
 }
 
 // Type Constructors:
