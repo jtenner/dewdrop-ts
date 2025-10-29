@@ -4,11 +4,13 @@ import {
   type Declaration,
   type EnumDeclaration,
   type Fn,
+  type ImplDeclaration,
   type Import,
   type LetDeclaration,
   type Module,
   type NameImport,
   showFn,
+  type TraitDeclaration,
   type TypeDeclaration,
   type TypeImport,
 } from "../parser.js";
@@ -18,6 +20,8 @@ import {
   type Kind,
   kindsEqual,
   showType,
+  type TraitDef,
+  type Type,
   type TypingError,
   typecheck,
 } from "../types_system_f_omega.js";
@@ -38,22 +42,31 @@ export class TypeChecker extends BaseVisitor {
     super();
     this.context = this.globalContext;
 
-    for (const [_, element] of globalScope.term_elements) {
-      if ("let_decl" in element) {
-        this.visitLetDeclaration(element.let_decl);
-      } else if ("enum" in element) {
-        this.visitEnumDeclaration(element.enum);
-      } else if ("fn" in element) {
-        this.visitFn(element.fn);
-      } else if ("builtin" in element) {
-        this.visitBuiltinDeclaration(element.builtin);
-      }
-    }
+    // for (const [_, element] of globalScope.term_elements) {
+    //   if ("let_decl" in element) {
+    //     this.visitLetDeclaration(element.let_decl);
+    //   } else if ("enum" in element) {
+    //     this.visitEnumDeclaration(element.enum);
+    //   } else if ("fn" in element) {
+    //     this.visitFn(element.fn);
+    //   } else if ("builtin" in element) {
+    //     this.visitBuiltinDeclaration(element.builtin);
+    //   } else {
+    //     console.log(element);
+    //     process.exit(1);
+    //   }
+    // }
   }
 
   check(module: Module) {
     this.context = this.globalContext.slice();
     this.visitModule(module);
+  }
+
+  override visitDeclaration(node: Declaration): Declaration {
+    if ("trait" in node) console.log("visiting trait");
+    else console.log("not found");
+    return super.visitDeclaration(node);
   }
 
   override visitTypeImport(node: TypeImport): Import {
@@ -244,6 +257,129 @@ export class TypeChecker extends BaseVisitor {
     } else {
       this.errors.push(kind_result.err);
     }
+    return node;
+  }
+  override visitTraitDeclaration(node: TraitDeclaration): Declaration {
+    const trait_decl = node.trait;
+
+    // Build trait kind
+    let traitKind: Kind = { star: null };
+    for (let i = trait_decl.type_params.length - 1; i >= 0; i--) {
+      traitKind = {
+        arrow: {
+          from: { star: null },
+          to: traitKind,
+        },
+      };
+    }
+
+    // Build method types (similar to elaboration but for checking)
+    const methods: [string, Type][] = [];
+
+    for (const traitFn of trait_decl.fns) {
+      for (const param of traitFn.params) {
+        this.visitTypeExpression(param.ty);
+      }
+      this.visitTypeExpression(traitFn.return_type);
+
+      const paramTypes: Type[] = traitFn.params.map((p) => {
+        const ty = this.typeMap.get(p.ty);
+        if (!ty) throw new Error("Parameter type not found");
+        return ty;
+      });
+
+      const returnType = this.typeMap.get(traitFn.return_type);
+      if (!returnType) throw new Error("Return type not found");
+
+      let selfType: Type = { var: "Self" };
+      if (trait_decl.type_params.length > 0) {
+        selfType = {
+          app: {
+            func: selfType,
+            arg: { var: trait_decl.type_params[0]!.name },
+          },
+        };
+      }
+
+      let methodType = returnType;
+
+      methodType = {
+        arrow: {
+          from: selfType,
+          to: methodType,
+        },
+      };
+
+      for (let i = paramTypes.length - 1; i >= 0; i--) {
+        methodType = {
+          arrow: {
+            from: paramTypes[i]!,
+            to: methodType,
+          },
+        };
+      }
+
+      for (let i = traitFn.type_params.length - 1; i >= 0; i--) {
+        methodType = {
+          forall: {
+            var: traitFn.type_params[i]!.name,
+            kind: { star: null },
+            body: methodType,
+          },
+        };
+      }
+
+      methods.push([traitFn.name.name, methodType]);
+    }
+
+    const traitDef: TraitDef = {
+      name: trait_decl.id.type,
+      type_param: "Self",
+      kind: traitKind,
+      methods,
+    };
+
+    this.context.push({ trait_def: traitDef });
+
+    return node;
+  }
+
+  override visitImplDeclaration(node: ImplDeclaration): Declaration {
+    console.log("visiting impl declaration");
+    const impl_decl = node.impl;
+
+    // Get the trait definition
+    const traitDef = this.context.find(
+      (b) => "trait_def" in b && b.trait_def.name === impl_decl.name.type,
+    );
+
+    if (!traitDef || !("trait_def" in traitDef)) {
+      this.errors.push({ unbound: impl_decl.name.type });
+      return node;
+    }
+
+    const forType = this.typeMap.get(impl_decl.for);
+    if (!forType) throw new Error("Impl 'for' type not found");
+
+    // Type-check the dictionary term
+    const dictTerm = this.termMap.get(node);
+    if (!dictTerm) throw new Error("Dictionary term not generated");
+
+    const result = typecheck(this.context, dictTerm);
+
+    if ("ok" in result) {
+      console.log("Impl success");
+      this.context.push({
+        trait_impl: {
+          trait: impl_decl.name.type,
+          type: forType,
+          dict: dictTerm,
+        },
+      });
+    } else {
+      this.errors.push(result.err);
+    }
+
     return node;
   }
 }

@@ -373,7 +373,7 @@ test.each([
   // Impl declarations
   { decl: `impl Show for Int { fn show(): String { "int" } }` },
   { decl: `impl Eq<T> for Option<T> { fn eq(other: Option<T>): Bool { true } }` },
-  { decl: `impl<t> Default for Vec<t> { fn default(): Vec<t> { Vec() } }` },
+  { decl: `impl Default for Vec<t> { fn default(): Vec<t> { Vec() } }` },
   
   // Complex function declarations
   { decl: `fn compose<a, b, c>(f: (b) -> c, g: (a) -> b): (a) -> c { fn(x: a): c { f(g(x)) } }` },

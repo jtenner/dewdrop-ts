@@ -1,5 +1,7 @@
 // ./src/types_system_f_omega.ts
 
+import type { Result } from "./util.js";
+
 // utility function
 const first = <T, U>(tuple: [T, U]) => tuple[0];
 
@@ -235,8 +237,6 @@ export type TypingError =
   | UnboundTypeError
   | UnexpectedKindError
   | WrongNumberOfDictsError;
-
-export type Result<Err, T> = { ok: T } | { err: Err };
 
 export type Constraint =
   | { type_eq: { left: Type; right: Type } }
@@ -3071,7 +3071,7 @@ export function instantiateWithTraits(
   type: Type,
 ): Result<TypingError, { type: Type; dicts: Term[] }> {
   const dicts: Term[] = [];
-  let currentType = type;
+  const currentType = type;
 
   // while ("bounded_forall" in currentType) {
   //   const freshVar = freshMetaVar();

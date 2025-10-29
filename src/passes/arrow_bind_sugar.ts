@@ -6,6 +6,7 @@ import {
   type Fn,
   fn_expr,
   fn_param,
+  let_bind_body_expr,
   name_expr,
 } from "../parser.js";
 import { BaseVisitor } from "../visitor.js";
@@ -28,6 +29,14 @@ export class ArrowBindSugarPass extends BaseVisitor {
         const next = call_expr(name_expr("map"), [fn, expression]);
         const result = this.visitCallExpression(next);
         return result;
+      }
+
+      if ("expression" in body_expr) {
+        node.block[i] = let_bind_body_expr(
+          false,
+          name_expr("_"),
+          body_expr.expression,
+        );
       }
     }
 

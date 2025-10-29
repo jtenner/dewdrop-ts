@@ -18,6 +18,7 @@ import type {
   FnTypeExpression,
   Identifier,
   IfExpression,
+  ImplDeclaration,
   Import,
   InfixExpression,
   IntExpression,
@@ -33,16 +34,20 @@ import type {
   SelectExpression,
   SelectTypeExpression,
   SelfExpression,
+  TraitDeclaration,
   TupleExpression,
   TuplePatternExpression,
   TupleTypeExpression,
   TypeExpression,
 } from "../parser.js";
 import {
+  type Context,
   type Kind,
   type MatchTerm,
   type Pattern,
+  showType,
   type Term,
+  type TraitDef,
   type Type,
   unitType,
 } from "../types_system_f_omega.js";
@@ -72,6 +77,8 @@ function getVariantFromType(name: string, t: Type) {
 }
 
 export type TypeMap = Map<
+  | TraitDeclaration
+  | ImplDeclaration
   | Expression
   | Fn
   | BuiltinDeclaration
@@ -81,7 +88,12 @@ export type TypeMap = Map<
   Type
 >;
 export type TermMap = Map<
-  BuiltinDeclaration | BodyExpression | Expression | Fn | EnumVariant,
+  | ImplDeclaration
+  | BuiltinDeclaration
+  | BodyExpression
+  | Expression
+  | Fn
+  | EnumVariant,
   Term
 >;
 
@@ -101,6 +113,7 @@ export class ElaboratePass extends BaseVisitor {
   types: TypeMap = new Map();
   terms: TermMap = new Map();
   patterns = new Map<PatternExpression, Pattern>();
+  context = [] as Context;
 
   constructor(
     public scopes: Map<Scopable, Scope>,
@@ -969,5 +982,233 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     return node;
+  }
+
+  // Traits:
+  override visitTraitDeclaration(node: TraitDeclaration): Declaration {
+    console.log("visiting trait declaration in elaborate");
+    const trait_decl = node.trait;
+
+    // Build the kind for the trait based on type parameters
+    let traitKind: Kind = { star: null };
+    for (let i = trait_decl.type_params.length - 1; i >= 0; i--) {
+      traitKind = {
+        arrow: {
+          from: { star: null },
+          to: traitKind,
+        },
+      };
+    }
+
+    // Build method signatures
+    // For Map<t, u>.map<r, s>(cb: (r) => s, self: Self<t>): Self<u>
+    // This becomes: ∀r. ∀s. (r → s) → Self<t> → Self<u>
+    const methods: [string, Type][] = [];
+
+    for (const traitFn of trait_decl.fns) {
+      // Visit all types
+      for (const param of traitFn.params) {
+        this.visitTypeExpression(param.ty);
+      }
+      this.visitTypeExpression(traitFn.return_type);
+
+      // Get elaborated types
+      const paramTypes: Type[] = traitFn.params.map((p) => {
+        const ty = this.types.get(p.ty);
+        if (!ty)
+          throw new Error(`Parameter type not elaborated: ${p.name.name}`);
+        return ty;
+      });
+
+      const returnType = this.types.get(traitFn.return_type);
+      if (!returnType) throw new Error("Return type not elaborated");
+
+      // Build Self type applied to first trait type parameter
+      // For Map<t, u>, Self becomes Self<t>
+      let selfType: Type = { var: "Self" };
+      if (trait_decl.type_params.length > 0) {
+        selfType = {
+          app: {
+            func: selfType,
+            arg: { var: trait_decl.type_params[0]!.name },
+          },
+        };
+      }
+
+      // Build function type: param1 → param2 → ... → self → return
+      let methodType = returnType;
+
+      // Add self as the LAST parameter
+      methodType = {
+        arrow: {
+          from: selfType,
+          to: methodType,
+        },
+      };
+
+      // Add regular parameters (right to left)
+      for (let i = paramTypes.length - 1; i >= 0; i--) {
+        methodType = {
+          arrow: {
+            from: paramTypes[i]!,
+            to: methodType,
+          },
+        };
+      }
+
+      // Wrap in foralls for method-level type parameters
+      for (let i = traitFn.type_params.length - 1; i >= 0; i--) {
+        methodType = {
+          forall: {
+            var: traitFn.type_params[i]!.name,
+            kind: { star: null },
+            body: methodType,
+          },
+        };
+      }
+
+      methods.push([traitFn.name.name, methodType]);
+    }
+
+    // Create trait definition
+    const traitDef: TraitDef = {
+      name: trait_decl.id.type,
+      type_param: "Self",
+      kind: traitKind,
+      methods,
+    };
+
+    // Store in context for later lookup
+    this.context.push({ trait_def: traitDef });
+
+    // Also store a marker type
+    this.types.set(node, { con: `Trait<${trait_decl.id.type}>` });
+
+    return node;
+  }
+
+  override visitImplDeclaration(node: ImplDeclaration): Declaration {
+    console.log("visiting impl declaration in elaboration");
+    const impl_decl = node.impl;
+
+    // Visit the target type
+    this.visitTypeExpression(impl_decl.for);
+    const forType = this.types.get(impl_decl.for);
+    if (!forType) throw new Error("Impl 'for' type not elaborated");
+
+    // Visit trait type arguments (e.g., <r, u> in Map<r, u>)
+    for (const typeParam of impl_decl.type_params) {
+      this.visitTypeExpression(typeParam);
+    }
+
+    // Collect all free type variables in forType to determine skolems
+    // For Either<l, r>, we need to abstract over 'l' and 'r'
+    const skolems = this.collectTypeVars(forType);
+
+    // Elaborate each method implementation
+    const methodImpls: [string, Term][] = [];
+
+    for (const fn of impl_decl.fns) {
+      // The function already has 'self' available in its body
+      this.visitFn(fn);
+
+      const fnTerm = this.terms.get(fn);
+      if (!fnTerm) throw new Error(`Method ${fn.name?.name} not elaborated`);
+
+      if (!fn.name) throw new Error("Impl method must have a name");
+
+      methodImpls.push([fn.name.name, fnTerm]);
+    }
+
+    // Build the dictionary term
+    let dictTerm: Term = {
+      dict: {
+        trait: impl_decl.name.type,
+        type: forType,
+        methods: methodImpls,
+      },
+    };
+
+    // Wrap in type lambdas for each skolem variable
+    // For impl Map<r, u> for Either<l, r>, this wraps in Λl.
+    for (let i = skolems.length - 1; i >= 0; i--) {
+      dictTerm = {
+        tylam: {
+          var: skolems[i]!,
+          kind: { star: null },
+          body: dictTerm,
+        },
+      };
+    }
+
+    // Compute the dictionary type
+    // For impl<l> Map<r, u> for Either<l, r>, type is:
+    // ∀l. Dict<Map<r, u>, Either<l, r>>
+    let dictType: Type = {
+      con: `Dict<${impl_decl.name.type}, ${showType(forType)}>`,
+    };
+
+    for (let i = skolems.length - 1; i >= 0; i--) {
+      dictType = {
+        forall: {
+          var: skolems[i]!,
+          kind: { star: null },
+          body: dictType,
+        },
+      };
+    }
+
+    this.terms.set(node, dictTerm);
+    this.types.set(node, dictType);
+
+    // Register the impl in the type checker context
+    // This makes it available for automatic dictionary resolution
+    this.context.push({
+      trait_impl: {
+        trait: impl_decl.name.type,
+        type: forType,
+        dict: dictTerm,
+      },
+    });
+
+    return node;
+  }
+
+  // Helper to collect type variables from a type
+  private collectTypeVars(type: Type, vars = new Set<string>()): string[] {
+    if ("var" in type) {
+      vars.add(type.var);
+    } else if ("app" in type) {
+      this.collectTypeVars(type.app.func, vars);
+      this.collectTypeVars(type.app.arg, vars);
+    } else if ("arrow" in type) {
+      this.collectTypeVars(type.arrow.from, vars);
+      this.collectTypeVars(type.arrow.to, vars);
+    } else if ("forall" in type) {
+      // Don't collect bound variables
+      const inner = new Set<string>();
+      this.collectTypeVars(type.forall.body, inner);
+      inner.delete(type.forall.var);
+      for (const v of inner) vars.add(v);
+    } else if ("record" in type) {
+      for (const [_, fieldType] of type.record) {
+        this.collectTypeVars(fieldType, vars);
+      }
+    } else if ("tuple" in type) {
+      for (const elem of type.tuple) {
+        this.collectTypeVars(elem, vars);
+      }
+    } else if ("variant" in type) {
+      for (const [_, caseType] of type.variant) {
+        this.collectTypeVars(caseType, vars);
+      }
+    } else if ("lam" in type) {
+      const inner = new Set<string>();
+      this.collectTypeVars(type.lam.body, inner);
+      inner.delete(type.lam.var);
+      for (const v of inner) vars.add(v);
+    }
+
+    return Array.from(vars);
   }
 }

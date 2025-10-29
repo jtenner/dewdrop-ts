@@ -226,7 +226,7 @@ export class BaseVisitor implements ASTVisitor {
       builtin: {
         name: this.visitString(node.builtin.name),
         alias: this.visitNameIdentifier(node.builtin.alias),
-        params: node.builtin.params.map((t) => this.visitTypeExpression(t)),
+        params: node.builtin.params.map((t) => this.visitFnParam(t)),
         return_type: this.visitTypeExpression(node.builtin.return_type),
       },
     };
@@ -740,6 +740,7 @@ export class BaseVisitor implements ASTVisitor {
   visitTraitFn(node: TraitFn): TraitFn {
     return {
       name: node.name,
+      type_params: node.type_params.map((p) => this.visitNameIdentifier(p)),
       params: node.params.map((p) => this.visitNamedTypeExpression(p)),
       return_type: this.visitTypeExpression(node.return_type),
     };

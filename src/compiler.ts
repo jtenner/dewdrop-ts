@@ -8,7 +8,6 @@ import { ElaboratePass } from "./passes/elaborate.js";
 import { ImportResolution } from "./passes/import_resolution.js";
 import { ResolveImports } from "./passes/resolve_imports.js";
 import { TypeChecker } from "./passes/type_checker.js";
-import { type Binding, typecheck } from "./types_system_f_omega.js";
 import { type Builtin, to_file_entry } from "./util.js";
 
 export type CompilerOptions = {
@@ -28,17 +27,24 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   // pass 1: Resolve all the modules
   for (const relative of to_visit) {
     const module = await parse_file(relative);
+    if (module.errors.length > 0) {
+      for (const error of module.errors) {
+        console.error(error);
+      }
+      process.exit(1);
+    }
+
     resolver.module_path = relative;
-    resolver.resolve_imports(relative, module, to_visit);
+    resolver.resolve_imports(relative, module.module, to_visit);
   }
 
   const module_graph = resolver.graph;
   const modules = module_graph.getDependencyOrder();
 
-  // pass 2: desugar arrow binds
-  const arrow_pass = new ArrowBindSugarPass();
+  // pass 2: desugar arrow binds and expression statements
+  const desugar = new ArrowBindSugarPass();
   for (const entry of modules) {
-    entry.module = arrow_pass.visitModule(entry.module!);
+    entry.module = desugar.visitModule(entry.module!);
   }
 
   // pass 3: name indexing
@@ -46,8 +52,15 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
 
   // all the pervasives are globals
   const pervasives_module = await parse(pervasives);
-  scope_pass.scopifyModule("@std/pervasives.dew", pervasives_module);
-  scope_pass.useGlobalsFrom(pervasives_module);
+  if (pervasives_module.errors) {
+    for (const error of pervasives_module.errors) {
+      console.error(error);
+    }
+    process.exit(1);
+  }
+
+  scope_pass.scopifyModule("@std/pervasives.dew", pervasives_module.module);
+  scope_pass.useGlobalsFrom(pervasives_module.module);
 
   // scopify each module
   for (const entry of modules) {
@@ -70,7 +83,6 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   for (const entry of modules) {
     import_resolution.resolveImports(entry.relativePath, entry.module!);
   }
-
   if (import_resolution.errors.length > 0) {
     for (const error of import_resolution.errors) {
       console.error(error);
@@ -80,7 +92,7 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
 
   // pass 5: elaborate each module in dependency order
   const elaborate = new ElaboratePass(scopes, variants);
-  elaborate.elaborate(pervasives_module);
+  elaborate.elaborate(pervasives_module.module);
   for (const entry of modules) {
     elaborate.elaborate(entry.module!);
   }
@@ -93,10 +105,10 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
 
   // type check each module
   const { terms, types } = elaborate;
-  const globalScope = scope_pass.scopes.get(pervasives_module)!;
+  const globalScope = scope_pass.scopes.get(pervasives_module.module)!;
   if (!globalScope) throw new Error("Global scope not generated!");
   const checker = new TypeChecker(terms, types, globalScope, scopes);
-  checker.check(pervasives_module);
+  checker.check(pervasives_module.module);
   for (const entry of modules) {
     checker.check(entry.module!);
     if (checker.errors.length > 0) {

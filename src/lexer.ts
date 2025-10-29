@@ -38,10 +38,11 @@ export type FloatToken = { float: number };
 export type NameToken = { name: string };
 export type TypeToken = { type: string };
 export type StringToken = { string: string };
+export type SymbolToken = { symbol: string };
 export type Token =
   | { unknown: null }
   | { whitespace: null }
-  | { symbol: string }
+  | SymbolToken
   | IntToken
   | FloatToken
   | NameToken
