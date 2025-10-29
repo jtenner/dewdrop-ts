@@ -1,58 +1,50 @@
-import type { NameToken, StringToken, TypeToken } from "../lexer.js";
-import {
-  type ApplicationTypeExpression,
-  type BlockExpression,
-  type BodyExpression,
-  type BoolExpression,
-  type BuiltinDeclaration,
-  type CallExpression,
-  type ConstructorPatternExpression,
-  type Declaration,
-  type EnumDeclaration,
-  type EnumVariant,
-  type Expression,
-  type FloatExpression,
-  type Fn,
-  type FnExpression,
-  type FnTypeExpression,
-  type Identifier,
-  type IfExpression,
-  type Import,
-  type InfixExpression,
-  type IntExpression,
-  type LetBindBodyExpression,
-  type LetDeclaration,
-  type MatchExpression,
-  type Module,
-  type NamedTypeExpression,
-  type NameIdentifier,
-  type PatternExpression,
-  type PostfixExpression,
-  type PrefixExpression,
-  type RecordExpression,
-  type RecordPatternExpression,
-  type RecordTypeExpression,
-  type SelectExpression,
-  type SelectTypeExpression,
-  type SelfExpression,
-  showDeclaration,
-  showExpression,
-  showTypeExpression,
-  type TupleExpression,
-  type TuplePatternExpression,
-  type TupleTypeExpression,
-  type TypeExpression,
+import type { StringToken, TypeToken } from "../lexer.js";
+import type {
+  ApplicationTypeExpression,
+  BlockExpression,
+  BodyExpression,
+  BoolExpression,
+  BuiltinDeclaration,
+  CallExpression,
+  ConstructorPatternExpression,
+  Declaration,
+  EnumDeclaration,
+  EnumVariant,
+  Expression,
+  FloatExpression,
+  Fn,
+  FnExpression,
+  FnParam,
+  FnTypeExpression,
+  Identifier,
+  IfExpression,
+  Import,
+  InfixExpression,
+  IntExpression,
+  MatchExpression,
+  Module,
+  NameIdentifier,
+  PatternExpression,
+  PostfixExpression,
+  PrefixExpression,
+  RecordExpression,
+  RecordPatternExpression,
+  RecordTypeExpression,
+  SelectExpression,
+  SelectTypeExpression,
+  SelfExpression,
+  TupleExpression,
+  TuplePatternExpression,
+  TupleTypeExpression,
+  TypeExpression,
 } from "../parser.js";
 import {
   type Kind,
   type MatchTerm,
   type Pattern,
-  showTerm,
-  showType,
   type Term,
   type Type,
   unitType,
-  type VariantType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import {
@@ -98,7 +90,8 @@ export type ElaborationError =
   | { record_has_no_field: { type: TypeExpression; field: string } }
   | { cannot_resolve_symbol: Identifier }
   | { variant_type_not_found: string }
-  | { type_is_not_a_variant: string };
+  | { type_is_not_a_variant: string }
+  | { function_parameter_type_required: FnParam };
 
 type VisitorMode = "type" | "term" | "pattern";
 
@@ -242,12 +235,18 @@ export class ElaboratePass extends BaseVisitor {
 
   override visitBuiltinDeclaration(node: BuiltinDeclaration): Declaration {
     const builtin = node.builtin;
-    for (const param of builtin.params) this.visitTypeExpression(param);
+    for (const param of builtin.params) {
+      if (!param.guard) {
+        this.errors.push({ function_parameter_type_required: param });
+        return node;
+      }
+      this.visitTypeExpression(param.guard);
+    }
     this.visitTypeExpression(builtin.return_type);
 
     // 1. Elaborate parameter types
     const paramTypes: Type[] = builtin.params.map((p) => {
-      const ty = this.types.get(p);
+      const ty = this.types.get(p.guard!);
       if (!ty) throw new Error("Parameter type not elaborated");
       return ty;
     });

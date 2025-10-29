@@ -179,8 +179,8 @@ test.each([
   { expr: "self.method()" },
 
   // Anonymous functions
-  { expr: "fn (x: Int) => { x + 1 }" },
-  { expr: "fn (x, y) => { x + y }" },
+  { expr: "fn (x: Int) { x + 1 }" },
+  { expr: "fn (x, y) { x + y }" },
   // { expr: "fn<t>(x: t): t { x }" },
   
   // Prefix operators

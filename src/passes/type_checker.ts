@@ -1,29 +1,25 @@
 import {
-  showFn,
   type BuiltinDeclaration,
   type ConstructorImport,
   type Declaration,
   type EnumDeclaration,
   type Fn,
-  type FnDeclaration,
   type Import,
   type LetDeclaration,
   type Module,
   type NameImport,
+  showFn,
   type TypeDeclaration,
   type TypeImport,
 } from "../parser.js";
 import {
   type Context,
   checkKind,
-  isStarKind,
   type Kind,
   kindsEqual,
-  showKind,
-  showTerm,
+  showType,
   type TypingError,
   typecheck,
-  showType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import { lookup_type, type Scope, type ScopeIndex } from "./create_scopes.js";
@@ -42,7 +38,7 @@ export class TypeChecker extends BaseVisitor {
     super();
     this.context = this.globalContext;
 
-    for (const [type, element] of globalScope.term_elements) {
+    for (const [_, element] of globalScope.term_elements) {
       if ("let_decl" in element) {
         this.visitLetDeclaration(element.let_decl);
       } else if ("enum" in element) {
@@ -84,7 +80,7 @@ export class TypeChecker extends BaseVisitor {
     if (!scope) throw new Error("Scope not generated for import");
     const type = lookup_type(node.name.name.name, scope);
     if (!type) throw new Error("Could not find import at this point.");
-    const alias = node.name.alias?.name ?? node.name.name.name;
+    const _alias = node.name.alias?.name ?? node.name.name.name;
 
     throw new Error("Not implemented");
   }

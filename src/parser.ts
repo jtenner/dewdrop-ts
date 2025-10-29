@@ -116,6 +116,11 @@ export type MatchArm = {
   body: Expression;
 };
 
+const isName = (expr: Expression | TypeExpression | PatternExpression) =>
+  "name" in expr;
+const isType = (expr: Expression | TypeExpression) => "type" in expr;
+const isString = (expr: Expression) => "string" in expr;
+
 export type ConstructorPatternExpression = {
   constr: { type: TypeIdentifier; patterns: PatternExpression[] };
 };
@@ -289,7 +294,7 @@ export type BuiltinDeclaration = {
   builtin: {
     name: StringToken;
     alias: NameIdentifier;
-    params: TypeExpression[];
+    params: FnParam[];
     return_type: TypeExpression;
   };
 };
@@ -1536,7 +1541,7 @@ export const take_builtin_declaration = async (
   let success_token: Token | null;
   let name: StringToken | null;
   let alias: NameIdentifier | null;
-  let params: TypeExpression[] | null;
+  let params: FnParam[] | null;
   let return_type: TypeExpression | null;
 
   [next_token, success_token] = await take_keyword(
@@ -1561,12 +1566,11 @@ export const take_builtin_declaration = async (
   [next_token, params] = await take_list(
     next_token,
     tokens,
-    take_type_expression,
+    take_fn_param,
     ",",
     ")",
   );
   if (!params) return [next_token, null];
-
   [next_token, success_token] = await take_symbol(next_token, tokens, ":");
   if (!success_token) return [next_token, null];
 
@@ -2290,7 +2294,7 @@ export function showModule(mod: Module): string {
 export function showDeclaration(decl: Declaration): string {
   if ("builtin" in decl) {
     const { name, alias, params, return_type } = decl.builtin;
-    return `builtin ${showToken(name)} as ${showToken(alias)}(${params.map(showTypeExpression).join(", ")}): ${showTypeExpression(return_type)}`;
+    return `builtin ${showToken(name)} as ${showToken(alias)}(${params.map(showFnParam).join(", ")}): ${showTypeExpression(return_type)}`;
   }
   if ("fn" in decl) {
     const { pub, fn } = decl.fn;
@@ -2302,7 +2306,7 @@ export function showDeclaration(decl: Declaration): string {
       type_params.length > 0
         ? `<${type_params.map(showToken).join(", ")}>`
         : "";
-    const vars = variants.map((v) => "\n  " + showEnumVariant(v)).join("");
+    const vars = variants.map((v) => `\n  ${showEnumVariant(v)}`).join("");
     return `${pub ? "pub " : ""}enum ${showToken(id)}${params} {${vars}\n}`;
   }
   if ("import_dec" in decl) {
@@ -2325,7 +2329,7 @@ export function showDeclaration(decl: Declaration): string {
       type_params.length > 0
         ? `<${type_params.map(showToken).join(", ")}>`
         : "";
-    const methods = fns.map((f) => "\n  " + showTraitFn(f)).join("");
+    const methods = fns.map((f) => `\n  ${showTraitFn(f)}`).join("");
     return `${pub ? "pub " : ""}trait ${showToken(id)}${params} {${methods}\n}`;
   }
   if ("impl" in decl) {
@@ -2334,7 +2338,7 @@ export function showDeclaration(decl: Declaration): string {
       type_params.length > 0
         ? `<${type_params.map(showTypeExpression).join(", ")}>`
         : "";
-    const methods = fns.map((f) => "\n  " + showFn(f)).join("");
+    const methods = fns.map((f) => `\n  ${showFn(f)}`).join("");
     return `impl ${showToken(name)}${params} for ${showTypeExpression(forType)} {${methods}\n}`;
   }
   return "";
@@ -2444,7 +2448,7 @@ export function showWasmName(name: WasmName): string {
 }
 
 export function showTypeExpression(te: TypeExpression): string {
-  if (isNameToken(te) || isTypeToken(te)) {
+  if (isName(te) || isType(te)) {
     return showToken(te);
   }
   if ("select" in te) {
@@ -2474,7 +2478,7 @@ export function showNamedTypeExpression(nte: NamedTypeExpression): string {
 }
 
 export function showExpression(expr: Expression): string {
-  if (isNameToken(expr) || isTypeToken(expr) || isStringToken(expr)) {
+  if (isName(expr) || isType(expr) || isString(expr)) {
     return showToken(expr);
   }
   if ("call" in expr) {
@@ -2482,7 +2486,7 @@ export function showExpression(expr: Expression): string {
     return `${showExpression(callee)}(${args.map(showExpression).join(", ")})`;
   }
   if ("block" in expr) {
-    const body = expr.block.map((b) => "\n  " + showBodyExpression(b)).join("");
+    const body = expr.block.map((b) => `\n  ${showBodyExpression(b)}`).join("");
     return `{${body}\n}`;
   }
   if ("if_expr" in expr) {
@@ -2496,7 +2500,7 @@ export function showExpression(expr: Expression): string {
   }
   if ("match" in expr) {
     const [val, arms] = expr.match;
-    const a = arms.map((arm) => "\n  " + showMatchArm(arm)).join("");
+    const a = arms.map((arm) => `\n  ${showMatchArm(arm)}`).join("");
     return `match ${showExpression(val)} {${a}\n}`;
   }
   if ("float" in expr) {
@@ -2563,7 +2567,7 @@ export function showMatchArm(arm: MatchArm): string {
 }
 
 export function showPatternExpression(pat: PatternExpression): string {
-  if (isNameToken(pat)) {
+  if (isName(pat)) {
     return showToken(pat);
   }
   if ("constr" in pat) {
@@ -2602,18 +2606,18 @@ export function showToken(
   return "";
 }
 
-function isNameToken(t: any): t is NameToken {
+function isNameToken(t: Token): t is NameToken {
   return t && "name" in t;
 }
 
-function isTypeToken(t: any): t is TypeToken {
+function isTypeToken(t: Token): t is TypeToken {
   return t && "type" in t;
 }
 
-function isStringToken(t: any): t is StringToken {
+function isStringToken(t: Token): t is StringToken {
   return t && "string" in t;
 }
 
-function isIntToken(t: any): t is IntToken {
+function isIntToken(t: Token): t is IntToken {
   return t && "int" in t;
 }

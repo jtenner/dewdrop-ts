@@ -5424,3 +5424,84 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
   ],
 }
 `;
+
+exports[`Expression: fn (x: Int) { x + 1 } matches snapshot: Expression: fn (x: Int) { x + 1 } 1`] = `
+{
+  "fn": {
+    "body": {
+      "block": [
+        {
+          "expression": {
+            "infix": {
+              "left": {
+                "name": "x",
+              },
+              "op": "+",
+              "right": {
+                "int": {
+                  "size": 32,
+                  "value": 1n,
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
+    "name": null,
+    "params": [
+      {
+        "guard": {
+          "type": "Int",
+        },
+        "name": {
+          "name": "x",
+        },
+      },
+    ],
+    "return_type": null,
+    "type_params": [],
+  },
+}
+`;
+
+exports[`Expression: fn (x, y) { x + y } matches snapshot: Expression: fn (x, y) { x + y } 1`] = `
+{
+  "fn": {
+    "body": {
+      "block": [
+        {
+          "expression": {
+            "infix": {
+              "left": {
+                "name": "x",
+              },
+              "op": "+",
+              "right": {
+                "name": "y",
+              },
+            },
+          },
+        },
+      ],
+    },
+    "name": null,
+    "params": [
+      {
+        "guard": null,
+        "name": {
+          "name": "x",
+        },
+      },
+      {
+        "guard": null,
+        "name": {
+          "name": "y",
+        },
+      },
+    ],
+    "return_type": null,
+    "type_params": [],
+  },
+}
+`;
