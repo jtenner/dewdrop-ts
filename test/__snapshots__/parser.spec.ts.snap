@@ -25,12 +25,12 @@ exports[`a + b * c - d matches snapshot: Expression: a + b * c - d 1`] = `
 {
   "infix": {
     "left": {
-      "name": "a",
-    },
-    "op": "+",
-    "right": {
       "infix": {
         "left": {
+          "name": "a",
+        },
+        "op": "+",
+        "right": {
           "infix": {
             "left": {
               "name": "b",
@@ -41,11 +41,11 @@ exports[`a + b * c - d matches snapshot: Expression: a + b * c - d 1`] = `
             },
           },
         },
-        "op": "-",
-        "right": {
-          "name": "d",
-        },
       },
+    },
+    "op": "-",
+    "right": {
+      "name": "d",
     },
   },
 }
@@ -55,27 +55,27 @@ exports[`a + b + c + d matches snapshot: Expression: a + b + c + d 1`] = `
 {
   "infix": {
     "left": {
-      "name": "a",
-    },
-    "op": "+",
-    "right": {
       "infix": {
         "left": {
-          "name": "b",
-        },
-        "op": "+",
-        "right": {
           "infix": {
             "left": {
-              "name": "c",
+              "name": "a",
             },
             "op": "+",
             "right": {
-              "name": "d",
+              "name": "b",
             },
           },
         },
+        "op": "+",
+        "right": {
+          "name": "c",
+        },
       },
+    },
+    "op": "+",
+    "right": {
+      "name": "d",
     },
   },
 }
@@ -85,27 +85,27 @@ exports[`a ** b ** c ** d matches snapshot: Expression: a ** b ** c ** d 1`] = `
 {
   "infix": {
     "left": {
-      "infix": {
-        "left": {
-          "infix": {
-            "left": {
-              "name": "a",
-            },
-            "op": "**",
-            "right": {
-              "name": "b",
-            },
-          },
-        },
-        "op": "**",
-        "right": {
-          "name": "c",
-        },
-      },
+      "name": "a",
     },
     "op": "**",
     "right": {
-      "name": "d",
+      "infix": {
+        "left": {
+          "name": "b",
+        },
+        "op": "**",
+        "right": {
+          "infix": {
+            "left": {
+              "name": "c",
+            },
+            "op": "**",
+            "right": {
+              "name": "d",
+            },
+          },
+        },
+      },
     },
   },
 }
@@ -1839,29 +1839,6 @@ exports[`import "wasm" { trait Semiring } matches snapshot 1`] = `
 ]
 `;
 
-exports[`import "wasm" { builtin "i32.add" as add } matches snapshot 1`] = `
-[
-  null,
-  {
-    "import_dec": {
-      "import_from": "wasm",
-      "imports": [
-        {
-          "builtin": {
-            "alias": {
-              "name": "add",
-            },
-            "name": {
-              "string": "i32.add",
-            },
-          },
-        },
-      ],
-    },
-  },
-]
-`;
-
 exports[`import "wasm" { item } matches snapshot 1`] = `
 [
   null,
@@ -3108,19 +3085,19 @@ exports[`Expression: a |> b |> c matches snapshot: Expression: a |> b |> c 1`] =
 {
   "infix": {
     "left": {
-      "name": "a",
-    },
-    "op": "|>",
-    "right": {
       "infix": {
         "left": {
-          "name": "b",
+          "name": "a",
         },
         "op": "|>",
         "right": {
-          "name": "c",
+          "name": "b",
         },
       },
+    },
+    "op": "|>",
+    "right": {
+      "name": "c",
     },
   },
 }
@@ -3130,19 +3107,19 @@ exports[`Expression: a ?? b ?? c matches snapshot: Expression: a ?? b ?? c 1`] =
 {
   "infix": {
     "left": {
-      "infix": {
-        "left": {
-          "name": "a",
-        },
-        "op": "??",
-        "right": {
-          "name": "b",
-        },
-      },
+      "name": "a",
     },
     "op": "??",
     "right": {
-      "name": "c",
+      "infix": {
+        "left": {
+          "name": "b",
+        },
+        "op": "??",
+        "right": {
+          "name": "c",
+        },
+      },
     },
   },
 }

@@ -34,18 +34,18 @@ export class Yard<TExpression> {
 
     const top = this.top_op;
 
-    if ("infix" in op && "prefix" in top) return false;
-
     if ("infix" in op && "infix" in top) {
-      return (
-        // top has greater precidence
-        op.infix[1] > top.infix[1] ||
-        // top has same precidence but is left associative
-        (op.infix[1] === top.infix[1] &&
-          op.infix[2] === "left" &&
-          top.infix[2] === "left")
-      );
+      const [_, precOp, assocOp] = op.infix;
+      const [__, precTop] = top.infix;
+
+      // If top has higher precedence, or same + left-associative, we must eval top first
+      const shouldEvalTop =
+        precTop > precOp || (precTop === precOp && assocOp === "left");
+
+      return !shouldEvalTop;
     }
+
+    if ("infix" in op && "prefix" in top) return false;
 
     return true;
   }

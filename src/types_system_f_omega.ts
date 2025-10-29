@@ -928,8 +928,8 @@ export function checkKind(
 
   if ("forall" in type) {
     const extendedContext: Context = [
-      ...context,
       { type: { name: type.forall.var, kind: type.forall.kind } },
+      ...context,
     ];
 
     const bodyKind = checkKind(extendedContext, type.forall.body);
@@ -948,13 +948,13 @@ export function checkKind(
 
   if ("bounded_forall" in type) {
     const extendedContext: Context = [
-      ...context,
       {
         type: {
           name: type.bounded_forall.var,
           kind: type.bounded_forall.kind,
         },
       },
+      ...context,
     ];
 
     // Check that all constraint types are well-kinded
@@ -990,8 +990,8 @@ export function checkKind(
 
   if ("lam" in type) {
     const extendedContext: Context = [
-      ...context,
       { type: { name: type.lam.var, kind: type.lam.kind } },
+      ...context,
     ];
 
     const bodyKind = checkKind(extendedContext, type.lam.body);
@@ -1068,8 +1068,8 @@ export function checkKind(
   if ("mu" in type) {
     // μα.τ has kind * if τ has kind * in context extended with α::*
     const extendedContext: Context = [
-      ...context,
       { type: { name: type.mu.var, kind: { star: null } } },
+      ...context,
     ];
 
     const bodyKind = checkKind(extendedContext, type.mu.body);
@@ -1640,10 +1640,25 @@ export function occursCheck(varName: string, type: Type): boolean {
   return false;
 }
 
-export function applySubstitution(subst: Substitution, type: Type): Type {
+export function applySubstitution(
+  subst: Substitution,
+  type: Type,
+  visited = new Set<string>(),
+): Type {
   if ("var" in type) {
+    // Cycle detection
+    if (visited.has(type.var)) {
+      // Found a cycle, return the variable unchanged
+      return type;
+    }
+
     const replacement = subst.get(type.var);
-    return replacement ? replacement : type;
+    if (!replacement) return type;
+
+    // Add to visited set and recursively substitute
+    const newVisited = new Set(visited);
+    newVisited.add(type.var);
+    return applySubstitution(subst, replacement, newVisited);
   }
 
   if ("con" in type) return type;
@@ -2082,8 +2097,8 @@ export function inferType(
     }
 
     const extendedContext: Context = [
-      ...context,
       { term: { name: term.lam.arg, type: term.lam.type } },
+      ...context,
     ];
 
     const bodyType = inferType(extendedContext, term.lam.body);
@@ -2137,8 +2152,8 @@ export function inferType(
     if ("err" in valueType) return valueType;
 
     const extendedContext: Context = [
-      ...context,
       { term: { name: term.let.name, type: valueType.ok } },
+      ...context,
     ];
 
     const bodyType = inferType(extendedContext, term.let.body);
@@ -2149,8 +2164,8 @@ export function inferType(
 
   if ("tylam" in term) {
     const extendedContext: Context = [
-      ...context,
       { type: { name: term.tylam.var, kind: term.tylam.kind } },
+      ...context,
     ];
 
     const bodyType = inferType(extendedContext, term.tylam.body);
