@@ -43,15 +43,25 @@ import {
   type TypeExpression,
 } from "../parser.js";
 import {
+  type BoundedForallType,
   type Context,
+  checkKind,
+  collectTypeVars,
   type Kind,
+  kindsEqual,
   type MatchTerm,
+  normalizeType,
   type Pattern,
+  showContext,
   showTerm,
   showType,
+  substituteType,
   type Term,
   type TraitDef,
+  type TraitDefBinding,
+  type TraitLamTerm,
   type Type,
+  type TypingError,
   unitType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
@@ -77,6 +87,11 @@ function getVariantFromType(name: string, t: Type) {
   if ("lam" in t) {
     return getVariantFromType(name, t.lam.body);
   }
+}
+function getTypeConstructorName(typeExpr: TypeExpression): string | null {
+  if ("type" in typeExpr) return typeExpr.type;
+  if ("app" in typeExpr) return getTypeConstructorName(typeExpr.app.callee);
+  return null;
 }
 
 export type TypeMap = Map<
@@ -107,7 +122,8 @@ export type ElaborationError =
   | { cannot_resolve_symbol: Identifier }
   | { variant_type_not_found: string }
   | { type_is_not_a_variant: string }
-  | { function_parameter_type_required: FnParam };
+  | { function_parameter_type_required: FnParam }
+  | TypingError;
 
 type VisitorMode = "type" | "term" | "pattern";
 
@@ -139,8 +155,94 @@ export class ElaboratePass extends BaseVisitor {
     }
   }
 
+  // Helper: Map for caching derived projection types (optional, for perf)
+  private projectionTypes = new Map<string, Type>(); // "map" → bounded_forall type
+
+  // Helper: Map for projection terms (trait_lam)
+  private projectionTerms = new Map<string, Term>(); // "map" → trait_lam term
+
+  private impls: Map<
+    string,
+    Map<string, { dictTerm: Term; trait: string; methods: Map<string, Type> }>
+  > = new Map(); // trait -> typeCon -> impl info
+
+  private elaboratedTypes = new Set<Declaration>(); // Top-level decls elaborated in phase 1
+  private elaboratedTerms = new Set<
+    Declaration | Expression | Fn | EnumVariant
+  >(); // Phase 2
+
   elaborate(module: Module) {
-    this.visitModule(module);
+    // Clear tracking for fresh run
+    this.elaboratedTypes.clear();
+    this.elaboratedTerms.clear();
+
+    // Phase 1: Elaborate all type constructors first (enums, traits, type_decls, type imports)
+    // This populates types map before any references
+    console.log("Phase 1: Elaborating types (enums, traits, etc.)");
+    this.elaborateTypes(module);
+
+    // Phase 2: Full elaboration for terms, patterns, bodies (now types are available)
+    console.log("Phase 2: Full elaboration (terms, expressions)");
+    this.fullElaborate(module);
+
+    // Log summary (optional)
+    console.log(
+      `Elaborated ${this.types.size} types, ${this.terms.size} terms`,
+    );
+  }
+
+  private fullElaborate(module: Module) {
+    // Run the full visitor now that types are ready
+    this.visitModule(module); // Your existing super.visitModule(module)
+
+    // Explicitly elaborate term-level decls if not covered above
+    for (const decl of module.module) {
+      if (!this.elaboratedTerms.has(decl) && this.elaboratedTypes.has(decl)) {
+        this.visitDeclaration(decl);
+        this.elaboratedTerms.add(decl);
+      }
+    }
+  }
+
+  private elaborateTypes(module: Module) {
+    for (const decl of module.module) {
+      if (this.elaboratedTypes.has(decl)) continue; // Idempotent
+
+      if ("enum" in decl) {
+        // Elaborate enum type (populates types for enum + variants)
+        this.visitEnumDeclaration(decl);
+        this.elaboratedTypes.add(decl);
+      } else if ("trait" in decl) {
+        // Elaborate trait (populates types for method sigs, selfKind)
+        this.visitTraitDeclaration(decl);
+        this.elaboratedTypes.add(decl);
+      } else if ("type_dec" in decl) {
+        // Elaborate type alias/decl (populates types for the alias)
+        this.visitTypeDeclaration(decl); // Assume you have this visitor (add if missing, see below)
+        this.elaboratedTypes.add(decl);
+      } else if ("import_dec" in decl) {
+        // Elaborate type/ enum/ trait imports (binds external types to types map)
+        this.visitImportDeclaration(decl); // Your existing logic, but focus on type imports
+        this.elaboratedTypes.add(decl);
+      } else if ("impl" in decl) {
+        // Elaborate impl "for" type and method sig types (but not bodies yet)
+        const impl_decl = decl.impl;
+        this.visitTypeExpression(impl_decl.for); // Bind forType to types map
+        for (const fn of impl_decl.fns) {
+          // Elaborate sig types only (params, return_type) – no body yet
+          for (const param of fn.params) {
+            if (param.guard) this.visitTypeExpression(param.guard);
+          }
+          if (fn.return_type) this.visitTypeExpression(fn.return_type);
+
+          // Type params too
+          for (const tp of fn.type_params) {
+            this.visitTypeExpression(tp);
+          }
+        }
+        this.elaboratedTypes.add(decl);
+      }
+    }
   }
 
   override visitExpression(node: Expression): Expression {
@@ -758,6 +860,12 @@ export class ElaboratePass extends BaseVisitor {
 
     const scopedElement = lookup_term(node.name, scope);
     if (!scopedElement) {
+      if (this.projectionTypes.has(node.name)) {
+        console.log(`Resolving global projection "${node.name}"`);
+        this.types.set(node, this.projectionTypes.get(node.name)!);
+        this.terms.set(node, this.projectionTerms.get(node.name)!);
+        return node;
+      }
       this.errors.push({ cannot_resolve_symbol: node });
       return node;
     }
@@ -915,6 +1023,14 @@ export class ElaboratePass extends BaseVisitor {
     ) {
       // These shouldn't appear in term position
       this.errors.push({ cannot_resolve_symbol: node });
+      return node;
+    }
+
+    if (this.projectionTypes.has(node.name)) {
+      // Override with projection
+      console.log(`Resolving "${node.name}" as trait projection`);
+      this.types.set(node, this.projectionTypes.get(node.name)!);
+      this.terms.set(node, this.projectionTerms.get(node.name)!);
       return node;
     }
 
@@ -1179,7 +1295,10 @@ export class ElaboratePass extends BaseVisitor {
       if ("enum" in item) {
         const enumDecl = item.enum;
         const enumType = this.types.get(enumDecl);
-        if (!enumType) throw new Error("Enum type not elaborated.");
+        if (!enumType) {
+          console.log(enumDecl);
+          throw new Error("Enum type not elaborated.");
+        }
         this.types.set(node, enumType);
       } else if (
         "star_import" in item ||
@@ -1207,6 +1326,7 @@ export class ElaboratePass extends BaseVisitor {
     return node;
   }
 
+  // In ElaboratePass.visitTraitDeclaration:
   override visitTraitDeclaration(node: TraitDeclaration): Declaration {
     const trait_decl = node.trait;
 
@@ -1224,14 +1344,14 @@ export class ElaboratePass extends BaseVisitor {
     // Now, analyze how Self is used to determine its kind
     let selfKind: Kind = { star: null }; // Default to * if Self isn't used
 
-    // Find the maximum arity of Self applications in method signatures
+    // Look at all Self applications in method signatures
     for (const traitFn of trait_decl.fns) {
       // Check return type
-      const returnSelfArity = this.countSelfApplications(traitFn.return_type);
-      if (returnSelfArity > 0) {
-        // Build kind based on the arity
+      const returnSelfInfo = this.analyzeSelfUsage(traitFn.return_type);
+      if (returnSelfInfo.isUsed) {
+        // Update kind based on the arity
         selfKind = { star: null };
-        for (let i = 0; i < returnSelfArity; i++) {
+        for (let i = 0; i < returnSelfInfo.arity; i++) {
           selfKind = {
             arrow: {
               from: { star: null },
@@ -1243,11 +1363,11 @@ export class ElaboratePass extends BaseVisitor {
 
       // Check parameter types
       for (const param of traitFn.params) {
-        const paramSelfArity = this.countSelfApplications(param.ty);
-        if (paramSelfArity > 0) {
-          // Build kind based on the arity
+        const paramSelfInfo = this.analyzeSelfUsage(param.ty);
+        if (paramSelfInfo.isUsed) {
+          // Update kind based on the arity
           selfKind = { star: null };
-          for (let i = 0; i < paramSelfArity; i++) {
+          for (let i = 0; i < paramSelfInfo.arity; i++) {
             selfKind = {
               arrow: {
                 from: { star: null },
@@ -1333,13 +1453,64 @@ export class ElaboratePass extends BaseVisitor {
     // Also store a marker type
     this.types.set(node, { con: `Trait<${trait_decl.id.type}>` });
 
+    const traitName = traitDef.name; // e.g., "Map"
+    for (const [methodName, methodType] of traitDef.methods) {
+      const projKey = methodName; // e.g., "map" (assume unique; qualify if needed: `${traitName}.${methodName}`)
+
+      // Derive projection type: bounded_forall { Self :: kind where { Map<Self> }. methodType }
+      // methodType already has foralls for t,u and "Self" vars (e.g., ∀t u. (t→u) → Self t → Self u)
+      const projectionType: BoundedForallType = {
+        bounded_forall: {
+          var: "Self",
+          kind: traitDef.kind, // e.g., { arrow: { from: *, to: * } }
+          constraints: [
+            {
+              trait: traitName, // "Map"
+              type: { var: "Self" }, // Self must implement Map
+            },
+          ],
+          body: methodType, // Already correct: uses "Self" as var (no sub needed)
+        },
+      };
+
+      // Derive projection term: trait_lam that abstracts over Self and provides dict
+      const projectionTerm: TraitLamTerm = {
+        trait_lam: {
+          trait_var: `dict_${projKey}`, // Temp dict var (bound at use via trait_app)
+          trait: traitName,
+          type_var: "Self",
+          kind: traitDef.kind,
+          constraints: projectionType.bounded_forall.constraints, // Same as above
+          body: {
+            trait_method: {
+              dict: { var: `dict_${projKey}` }, // Ref to the provided dict (inferred at app)
+              method: methodName,
+            },
+          },
+        },
+      };
+
+      // Cache
+      this.projectionTypes.set(projKey, {
+        bounded_forall: projectionType.bounded_forall,
+      });
+      this.projectionTerms.set(projKey, projectionTerm);
+
+      console.log(
+        `Cached projection for ${methodName} (${traitName}): ${showType({ bounded_forall: projectionType.bounded_forall })}`,
+      );
+    }
+
     return node;
   }
 
-  // Helper to count Self applications in a type expression
-  private countSelfApplications(typeExpr: TypeExpression): number {
+  // Helper to analyze Self usage in a type expression
+  private analyzeSelfUsage(typeExpr: TypeExpression): {
+    isUsed: boolean;
+    arity: number;
+  } {
     if ("type" in typeExpr && typeExpr.type === "Self") {
-      return 0; // Self itself, not an application
+      return { isUsed: true, arity: 0 }; // Self itself, not an application
     }
 
     if ("app" in typeExpr) {
@@ -1347,11 +1518,11 @@ export class ElaboratePass extends BaseVisitor {
       const root = this.getApplicationRoot(typeExpr);
       if ("type" in root && root.type === "Self") {
         // Count the arguments
-        return this.countApplicationArgs(typeExpr);
+        return { isUsed: true, arity: this.countApplicationArgs(typeExpr) };
       }
     }
 
-    return 0;
+    return { isUsed: false, arity: 0 };
   }
 
   private getApplicationRoot(typeExpr: TypeExpression): TypeExpression {
@@ -1376,27 +1547,60 @@ export class ElaboratePass extends BaseVisitor {
     const forType = this.types.get(impl_decl.for);
     if (!forType) throw new Error("Impl 'for' type not elaborated");
 
-    // Visit trait type arguments (e.g., <r, u> in Map<r, u>)
-    for (const typeParam of impl_decl.type_params) {
-      this.visitTypeExpression(typeParam);
+    // Get the trait definition
+    const traitDef = this.context.find(
+      (b) => "trait_def" in b && b.trait_def.name === impl_decl.name.type,
+    );
+
+    if (!traitDef || !("trait_def" in traitDef)) {
+      this.errors.push({ cannot_resolve_symbol: impl_decl.name });
+      return node;
     }
 
-    // Collect all free type variables in forType to determine skolems
-    // For Either<l, r>, we need to abstract over 'l' and 'r'
-    const skolems = this.collectTypeVars(forType);
+    // Create a temporary context [REMOVED: No adding trait's original params 't','u']
+    const implContext: Context = [...this.context];
+
+    // [FIX: Add impl's type parameters to context, even for vars]
+    const implParamVars: string[] = [];
+    for (const typeParam of impl_decl.type_params) {
+      this.visitTypeExpression(typeParam);
+      const paramTy = this.types.get(typeParam);
+      if (paramTy && "var" in paramTy) {
+        const v = paramTy.var;
+        implParamVars.push(v);
+        if (!implContext.some((e) => "type" in e && e.type.name === v)) {
+          implContext.push({ type: { name: v, kind: { star: null } } });
+        }
+      }
+      // For concrete, elaborate but don't add as var
+    }
+
+    // Extract type variables from the 'for' type (e.g., 'l', 'r')
+    const forTypeVars = this.extractTypeVarsFromForType(impl_decl.for);
+
+    // Add them if not already present (adds 'l'; 'r' already from above)
+    for (const typeVar of forTypeVars) {
+      if (
+        !implContext.some(
+          (entry) => "type" in entry && entry.type.name === typeVar,
+        )
+      ) {
+        implContext.push({
+          type: {
+            name: typeVar,
+            kind: { star: null },
+          },
+        });
+      }
+    }
 
     // Elaborate each method implementation
     const methodImpls: [string, Term][] = [];
-
     for (const fn of impl_decl.fns) {
-      // The function already has 'self' available in its body
       this.visitFn(fn);
-
       const fnTerm = this.terms.get(fn);
       if (!fnTerm) throw new Error(`Method ${fn.name?.name} not elaborated`);
-
       if (!fn.name) throw new Error("Impl method must have a name");
-
       methodImpls.push([fn.name.name, fnTerm]);
     }
 
@@ -1409,8 +1613,11 @@ export class ElaboratePass extends BaseVisitor {
       },
     };
 
-    // Wrap in type lambdas for each skolem variable
-    // For impl Map<r, u> for Either<l, r>, this wraps in Λl.
+    // [FIX: Skolems only over true free vars (exclude impl param vars like 'r'; only 'l')]
+    const allFreeVars = collectTypeVars(forType);
+    const skolems = allFreeVars.filter((v) => !implParamVars.includes(v)); // e.g., ['l']
+
+    // Wrap in type lambdas for each skolem (only 'l')
     for (let i = skolems.length - 1; i >= 0; i--) {
       dictTerm = {
         tylam: {
@@ -1421,13 +1628,15 @@ export class ElaboratePass extends BaseVisitor {
       };
     }
 
-    // Compute the dictionary type
-    // For impl<l> Map<r, u> for Either<l, r>, type is:
-    // ∀l. Dict<Map<r, u>, Either<l, r>>
+    // [REMOVED: The entire kind computation, areKindsCompatible, app/lam branches, and arity wrapping]
+    // (Elaboration doesn't need deep kind checks; defer to type checker)
+
+    // Compute the dictionary type: ∀l. Dict<Map<r, u>, Either<l, r>>
     let dictType: Type = {
       con: `Dict<${impl_decl.name.type}, ${showType(forType)}>`,
     };
 
+    // Wrap foralls for skolems (only 'l')
     for (let i = skolems.length - 1; i >= 0; i--) {
       dictType = {
         forall: {
@@ -1442,7 +1651,6 @@ export class ElaboratePass extends BaseVisitor {
     this.types.set(node, dictType);
 
     // Register the impl in the type checker context
-    // This makes it available for automatic dictionary resolution
     this.context.push({
       trait_impl: {
         trait: impl_decl.name.type,
@@ -1454,41 +1662,40 @@ export class ElaboratePass extends BaseVisitor {
     return node;
   }
 
-  // Helper to collect type variables from a type
-  private collectTypeVars(type: Type, vars = new Set<string>()): string[] {
-    if ("var" in type) {
-      vars.add(type.var);
-    } else if ("app" in type) {
-      this.collectTypeVars(type.app.func, vars);
-      this.collectTypeVars(type.app.arg, vars);
-    } else if ("arrow" in type) {
-      this.collectTypeVars(type.arrow.from, vars);
-      this.collectTypeVars(type.arrow.to, vars);
-    } else if ("forall" in type) {
-      // Don't collect bound variables
-      const inner = new Set<string>();
-      this.collectTypeVars(type.forall.body, inner);
-      inner.delete(type.forall.var);
-      for (const v of inner) vars.add(v);
-    } else if ("record" in type) {
-      for (const [_, fieldType] of type.record) {
-        this.collectTypeVars(fieldType, vars);
+  // Helper to extract type variables from a 'for' type by analyzing the AST
+  private extractTypeVarsFromForType(
+    typeExpr: TypeExpression,
+    vars = new Set<string>(),
+  ): string[] {
+    if ("type" in typeExpr) {
+      // Check if this is a type constructor in the context
+      const isTypeConstructor = this.context.some(
+        (entry) => "type" in entry && entry.type.name === typeExpr.type,
+      );
+
+      // Only add if it's not a type constructor
+      if (!isTypeConstructor) {
+        vars.add(typeExpr.type);
       }
-    } else if ("tuple" in type) {
-      for (const elem of type.tuple) {
-        this.collectTypeVars(elem, vars);
+    } else if ("app" in typeExpr) {
+      this.extractTypeVarsFromForType(typeExpr.app.callee, vars);
+      for (const arg of typeExpr.app.args) {
+        this.extractTypeVarsFromForType(arg, vars);
       }
-    } else if ("variant" in type) {
-      for (const [_, caseType] of type.variant) {
-        this.collectTypeVars(caseType, vars);
-      }
-    } else if ("lam" in type) {
-      const inner = new Set<string>();
-      this.collectTypeVars(type.lam.body, inner);
-      inner.delete(type.lam.var);
-      for (const v of inner) vars.add(v);
     }
 
     return Array.from(vars);
+  }
+
+  // Helper to find a trait declaration by name
+  private findTraitDeclaration(traitName: string): TraitDeclaration | null {
+    // Look through the scopes to find the trait declaration
+    for (const [_, scope] of this.scopes) {
+      const element = lookup_type(traitName, scope);
+      if (element && "trait" in element) {
+        return element.trait;
+      }
+    }
+    return null;
   }
 }

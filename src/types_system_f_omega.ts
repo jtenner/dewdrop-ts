@@ -283,6 +283,7 @@ export function solveMetaVar(
   if (metaVarSolutions.has(parseInt(metaVar.slice(1), 10))) {
     const existing = metaVarSolutions.get(parseInt(metaVar.slice(1), 10))!;
     if (!typesEqual(existing, solution)) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: { type_mismatch: { expected: existing, actual: solution } },
       };
@@ -311,22 +312,13 @@ export function instantiate(
     const freshVar = fresh();
 
     // Instantiate constraints
-    const instantiatedConstraints = type.bounded_forall.constraints.map(
-      (c) => ({
-        trait: c.trait,
-        type: substituteType(type.bounded_forall.var, freshVar, c.type),
-      }),
-    );
-
-    // Check constraints with the instantiated type
-    // (You may want to defer this until unification completes)
-
-    const instantiatedBody = substituteType(
+    const instBody = substituteType(
       type.bounded_forall.var,
       freshVar,
       type.bounded_forall.body,
     );
-    return instantiate(instantiatedBody, fresh);
+    // Recurse (ignore constraints for now; assume provided externally)
+    return instantiate(instBody, fresh);
   }
 
   return type;
@@ -617,6 +609,7 @@ export function checkPattern(
   if ("con" in pattern) {
     // Constant pattern must match type exactly
     if (!isAssignableTo(pattern.con.type, type)) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: { expected: type, actual: pattern.con.type },
@@ -637,6 +630,7 @@ export function checkPattern(
 
     // Check that pattern labels match type labels
     if (patternLabels.length !== typeLabels.length) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: {
@@ -701,6 +695,7 @@ export function checkPattern(
     }
 
     if (pattern.tuple.length !== type.tuple.length) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: {
@@ -893,6 +888,7 @@ export function checkKind(
       (b) => "type" in b && b.type.name === type.var,
     );
     if (!binding || !("type" in binding)) {
+      console.error(new Error().stack);
       return { err: { unbound: type.var } };
     }
     return { ok: binding.type.kind };
@@ -916,6 +912,7 @@ export function checkKind(
 
     // Both operands must have kind *
     if (!isStarKind(fromKind.ok) || !isStarKind(toKind.ok)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: fromKind.ok },
@@ -936,6 +933,7 @@ export function checkKind(
     if ("err" in bodyKind) return bodyKind;
 
     if (!isStarKind(bodyKind.ok)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: bodyKind.ok },
@@ -963,6 +961,7 @@ export function checkKind(
       if ("err" in constraintKind) return constraintKind;
 
       if (!isStarKind(constraintKind.ok)) {
+        console.error(new Error().stack);
         return {
           err: {
             kind_mismatch: {
@@ -978,6 +977,7 @@ export function checkKind(
     if ("err" in bodyKind) return bodyKind;
 
     if (!isStarKind(bodyKind.ok)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: bodyKind.ok },
@@ -1016,6 +1016,7 @@ export function checkKind(
     }
 
     if (!kindsEqual(funcKind.ok.arrow.from, argKind.ok)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: {
@@ -1036,6 +1037,7 @@ export function checkKind(
       if ("err" in fieldKind) return fieldKind;
 
       if (!isStarKind(fieldKind.ok)) {
+        console.error(new Error().stack);
         return {
           err: {
             kind_mismatch: { expected: { star: null }, actual: fieldKind.ok },
@@ -1054,6 +1056,7 @@ export function checkKind(
       if ("err" in caseKind) return caseKind;
 
       if (!isStarKind(caseKind.ok)) {
+        console.error(new Error().stack);
         return {
           err: {
             kind_mismatch: { expected: { star: null }, actual: caseKind.ok },
@@ -1076,6 +1079,7 @@ export function checkKind(
     if ("err" in bodyKind) return bodyKind;
 
     if (!isStarKind(bodyKind.ok)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: bodyKind.ok },
@@ -1093,6 +1097,7 @@ export function checkKind(
       if ("err" in elementKind) return elementKind;
 
       if (!isStarKind(elementKind.ok)) {
+        console.error(new Error().stack);
         return {
           err: {
             kind_mismatch: {
@@ -1400,6 +1405,7 @@ export function unifyTypes(
       left.bounded_forall.constraints.length !==
       right.bounded_forall.constraints.length
     ) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: { type_mismatch: { expected: left, actual: right } },
       };
@@ -1410,6 +1416,7 @@ export function unifyTypes(
       const rc = right.bounded_forall.constraints[i]!;
 
       if (lc.trait !== rc.trait) {
+        console.error("type mismatch", new Error().stack);
         return {
           err: { type_mismatch: { expected: left, actual: right } },
         };
@@ -1466,6 +1473,7 @@ export function unifyTypes(
 
     // Must have same labels
     if (leftLabels.length !== rightLabels.length) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: { type_mismatch: { expected: left, actual: right } },
       };
@@ -1473,6 +1481,7 @@ export function unifyTypes(
 
     for (let i = 0; i < leftLabels.length; i++) {
       if (leftLabels[i] !== rightLabels[i]) {
+        console.error("type mismatch", new Error().stack);
         return {
           err: { type_mismatch: { expected: left, actual: right } },
         };
@@ -1501,6 +1510,7 @@ export function unifyTypes(
 
     // Must have same labels
     if (leftLabels.length !== rightLabels.length) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: { type_mismatch: { expected: left, actual: right } },
       };
@@ -1508,6 +1518,7 @@ export function unifyTypes(
 
     for (let i = 0; i < leftLabels.length; i++) {
       if (leftLabels[i] !== rightLabels[i]) {
+        console.error("type mismatch", new Error().stack);
         return {
           err: { type_mismatch: { expected: left, actual: right } },
         };
@@ -1536,6 +1547,7 @@ export function unifyTypes(
 
   if ("tuple" in left && "tuple" in right) {
     if (left.tuple.length !== right.tuple.length) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: { type_mismatch: { expected: left, actual: right } },
       };
@@ -1553,7 +1565,7 @@ export function unifyTypes(
 
     return { ok: null };
   }
-
+  console.error("type mismatch", new Error().stack);
   return {
     err: { type_mismatch: { expected: left, actual: right } },
   };
@@ -1567,6 +1579,7 @@ export function unifyVariable(
   if (subst.has(varName)) {
     const existing = subst.get(varName)!;
     if (!typesEqual(existing, type)) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: { type_mismatch: { expected: existing, actual: type } },
       };
@@ -1589,7 +1602,7 @@ export function unifyKinds(left: Kind, right: Kind): Result<TypingError, null> {
   if (kindsEqual(left, right)) {
     return { ok: null };
   }
-
+  console.error(new Error().stack);
   return {
     err: { kind_mismatch: { expected: left, actual: right } },
   };
@@ -1787,6 +1800,7 @@ export function checkType(
   if ("tylam" in term && "forall" in expectedType) {
     // Verify kinds match
     if (!kindsEqual(term.tylam.kind, expectedType.forall.kind)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: {
@@ -1823,6 +1837,7 @@ export function checkType(
   if ("trait_lam" in term && "bounded_forall" in expectedType) {
     // Verify kinds match
     if (!kindsEqual(term.trait_lam.kind, expectedType.bounded_forall.kind)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: {
@@ -1838,6 +1853,7 @@ export function checkType(
       term.trait_lam.constraints.length !==
       expectedType.bounded_forall.constraints.length
     ) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: { expected: expectedType, actual: expectedType },
@@ -1850,6 +1866,7 @@ export function checkType(
       const expectedConstraint = expectedType.bounded_forall.constraints[i]!;
 
       if (termConstraint.trait !== expectedConstraint.trait) {
+        console.error("type mismatch", new Error().stack);
         return {
           err: {
             type_mismatch: { expected: expectedType, actual: expectedType },
@@ -1865,6 +1882,7 @@ export function checkType(
       );
 
       if (!typesEqual(termConstraint.type, renamedConstraintType)) {
+        console.error("type mismatch", new Error().stack);
         return {
           err: {
             type_mismatch: {
@@ -1920,6 +1938,7 @@ export function checkType(
       termLabels.length !== typeLabels.length ||
       !termLabels.every((l, i) => l === typeLabels[i])
     ) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: {
@@ -1946,6 +1965,7 @@ export function checkType(
   // Tuple: check element by element
   if ("tuple" in term && "tuple" in expectedType) {
     if (term.tuple.length !== expectedType.tuple.length) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: {
@@ -2016,15 +2036,41 @@ export function checkType(
 
   // Subsumption: infer and check if compatible
   const inferredType = inferType(context, term);
+  // In checkType, after const inferredType = inferType(context, term);
   if ("err" in inferredType) return inferredType;
 
-  // Use subsumption to allow polymorphic instantiation
+  // [FIX: If inferred is poly and expected is mono, try instantiation + unification]
+  let polyInferred = inferredType.ok;
+  if ("forall" in polyInferred && !("forall" in expectedType)) {
+    // Instantiate poly to match expected
+    polyInferred = instantiate(polyInferred); // Fresh metas
+    // Unify with expected (solves metas)
+    const worklist: Worklist = [];
+    const subst = new Map<string, Type>();
+    const unifyRes = unifyTypes(polyInferred, expectedType, worklist, subst);
+    if ("err" in unifyRes) {
+      // Original subsumption as fallback
+      const subsumesRes = subsumes(
+        context,
+        inferredType.ok,
+        expectedType,
+        [],
+        new Map(),
+      );
+      if ("err" in subsumesRes) return subsumesRes;
+    } else {
+      const solveRes = solveConstraints(worklist, subst);
+      if ("err" in solveRes) return solveRes;
+      polyInferred = applySubstitution(solveRes.ok, polyInferred);
+    }
+  }
+
+  // Now proceed with subsumption
   const worklist: Worklist = [];
   const subst = new Map<string, Type>();
-
   const subsumesResult = subsumes(
     context,
-    inferredType.ok,
+    polyInferred,
     expectedType,
     worklist,
     subst,
@@ -2036,13 +2082,10 @@ export function checkType(
 
   const resolvedExpected = applySubstitution(solveResult.ok, expectedType);
 
-  if (!isAssignableTo(inferredType.ok, resolvedExpected)) {
+  if (!isAssignableTo(polyInferred, resolvedExpected)) {
     return {
       err: {
-        type_mismatch: {
-          expected: resolvedExpected,
-          actual: inferredType.ok,
-        },
+        type_mismatch: { expected: resolvedExpected, actual: polyInferred },
       },
     };
   }
@@ -2077,6 +2120,7 @@ export function inferType(
       };
     }
 
+    console.error(new Error().stack);
     return { err: { unbound: term.var } };
   }
 
@@ -2089,6 +2133,7 @@ export function inferType(
     if ("err" in argKind) return argKind;
 
     if (!isStarKind(argKind.ok)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: argKind.ok },
@@ -2110,39 +2155,62 @@ export function inferType(
   }
 
   if ("app" in term) {
-    const calleeType = inferType(context, term.app.callee);
-    if ("err" in calleeType) return calleeType;
+    const calleeInferred = inferType(context, term.app.callee);
+    if ("err" in calleeInferred) return calleeInferred;
 
-    const argType = inferType(context, term.app.arg);
-    if ("err" in argType) return argType;
+    const argInferred = inferType(context, term.app.arg);
+    if ("err" in argInferred) return argInferred;
 
-    // Instantiate polymorphic function type
-    const instantiatedCallee = instantiate(calleeType.ok);
+    let instantiatedCallee = calleeInferred.ok;
 
-    if (!("arrow" in instantiatedCallee)) {
-      return { err: { not_a_function: calleeType.ok } };
+    // [KEY FIX: Deep instantiation loop until no more foralls (full polymorphic instantiation)]
+    while ("forall" in instantiatedCallee) {
+      const freshVar = freshMetaVar(); // ?0, ?1, etc.
+      instantiatedCallee = substituteType(
+        instantiatedCallee.forall.var,
+        freshVar,
+        instantiatedCallee.forall.body,
+      );
     }
 
-    // Unify argument type with parameter type
+    // [NEW: If arg type is known, eagerly solve metas in callee's domain]
+    // For constructors, the domain after inst is the arg type (e.g., u → Variant<u>)
+    if (!("arrow" in instantiatedCallee)) {
+      // Try to instantiate one more time if it's a higher-kinded poly
+      instantiatedCallee = instantiate(instantiatedCallee);
+      if (!("arrow" in instantiatedCallee)) {
+        return { err: { not_a_function: instantiatedCallee } };
+      }
+    }
+
+    // Now unify arg with param type, but apply fresh metas to arg domain
+    const paramType = instantiatedCallee.arrow.from;
     const worklist: Worklist = [];
     const subst = new Map<string, Type>();
 
-    const unifyResult = unifyTypes(
-      argType.ok,
-      instantiatedCallee.arrow.from,
-      worklist,
-      subst,
-    );
+    // [FIX: Use bidirectional unification: solve metas in paramType against argInferred.ok]
+    const unifyResult = unifyTypes(argInferred.ok, paramType, worklist, subst);
     if ("err" in unifyResult) return unifyResult;
 
+    // Solve constraints immediately (eager solving for nested apps)
     const solveResult = solveConstraints(worklist, subst);
     if ("err" in solveResult) return solveResult;
 
-    // Apply substitution to result type
+    // Apply sub to entire result type (ensures Variant<u>, not ∀t. Variant<t>)
     const resultType = applySubstitution(
       solveResult.ok,
       instantiatedCallee.arrow.to,
     );
+
+    // [NEW: If result has unsolved metas, re-infer/solve in context]
+    if (hasUnboundMetas(resultType)) {
+      const metaResult = inferType(context, {
+        con: { name: "dummy", type: resultType },
+      });
+      if ("ok" in metaResult) {
+        return { ok: metaResult.ok };
+      }
+    }
 
     return { ok: resultType };
   }
@@ -2187,6 +2255,7 @@ export function inferType(
     if ("err" in termType) return termType;
 
     if (!("forall" in termType.ok)) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: {
@@ -2201,6 +2270,7 @@ export function inferType(
     if ("err" in argKind) return argKind;
 
     if (!kindsEqual(termType.ok.forall.kind, argKind.ok)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: {
@@ -2226,23 +2296,57 @@ export function inferType(
     );
 
     if (!traitDef || !("trait_def" in traitDef)) {
+      console.error(new Error().stack);
       return { err: { unbound: term.dict.trait } };
     }
 
-    const typeKind = checkKind(context, term.dict.type);
-    if ("err" in typeKind) return typeKind;
+    const dictType = term.dict.type;
+    const typeKindResult = checkKind(context, dictType); // Full kind for basic well-formedness
+    if ("err" in typeKindResult) return typeKindResult;
 
-    if (!kindsEqual(traitDef.trait_def.kind, typeKind.ok)) {
+    // [KEY FIX: Compute STRIPPED partial kind (e.g., Option<t> → Option : * → *)]
+    const strippedResult = computeStrippedKind(dictType, [], context);
+    if ("err" in strippedResult) return strippedResult;
+    const { kind: partialKind, stripped: strippedArity } = strippedResult.ok;
+
+    const expectedKind = traitDef.trait_def.kind;
+    if (!kindsEqual(expectedKind, partialKind)) {
+      console.error(new Error().stack);
+      console.error(showTraitDef(traitDef.trait_def));
+      console.error(showKind(expectedKind));
+      console.error(showKind(partialKind));
       return {
         err: {
           kind_mismatch: {
-            expected: traitDef.trait_def.kind,
-            actual: typeKind.ok,
+            expected: expectedKind,
+            actual: partialKind, // Now * → *, not *
           },
         },
       };
     }
 
+    // [NEW: Optional arity validation (stripped count should match expected)]
+    const expectedArity = kindArity(expectedKind); // e.g., 1 for * → *
+    if (strippedArity !== expectedArity) {
+      return {
+        err: {
+          kind_mismatch: {
+            // Or arity_mismatch if defined
+            expected: expectedKind,
+            actual: partialKind,
+          },
+        },
+      };
+    }
+
+    // This is the base type family (stripped of open args like t)
+    const partialDictType = stripApplicationsByArity(
+      dictType,
+      strippedArity,
+      context,
+    );
+
+    // Validate methods (existing logic, but now with instantiation fixes from prior)
     const requiredMethods = new Set(
       traitDef.trait_def.methods.map((m) => m[0]),
     );
@@ -2251,18 +2355,21 @@ export function inferType(
     for (const required of requiredMethods) {
       if (!providedMethods.has(required)) {
         return {
-          err: {
-            missing_method: { trait: term.dict.trait, method: required },
-          },
+          err: { missing_method: { trait: term.dict.trait, method: required } },
         };
       }
     }
+
+    // [FIX: Bind 'self' to dictType in a local method context for each impl inference]
+    const methodContext = [
+      ...context,
+      { term: { name: "self", type: dictType } },
+    ];
 
     for (const [methodName, methodImpl] of term.dict.methods) {
       const expectedMethod = traitDef.trait_def.methods.find(
         (m) => m[0] === methodName,
       );
-
       if (!expectedMethod) {
         return {
           err: {
@@ -2271,32 +2378,59 @@ export function inferType(
         };
       }
 
-      const expectedType = substituteType(
-        traitDef.trait_def.type_param,
-        term.dict.type,
-        expectedMethod[1],
+      // [FIX: Instantiate expected method type with PARTIAL dict type (shared)]
+      let expectedMethodType = expectedMethod[1];
+      expectedMethodType = substituteType(
+        traitDef.trait_def.type_param, // "Self"
+        partialDictType, // e.g., Option (not Option<t>)
+        expectedMethodType,
       );
 
-      const implType = inferType(context, methodImpl);
+      // [KEY FIX: Infer method type with 'self' bound in extended context]
+      const implType = inferType(methodContext, methodImpl);
       if ("err" in implType) return implType;
 
-      if (!isAssignableTo(implType.ok, expectedType)) {
-        return {
-          err: {
-            type_mismatch: {
-              expected: expectedType,
-              actual: implType.ok,
+      // Subsumption: allow impl to provide the expected type (handles instantiation)
+      const worklist: Worklist = [];
+      const subst = new Map<string, Type>();
+      const subsumesRes = subsumes(
+        methodContext, // [NEW: Use extended context for subsumption too]
+        implType.ok,
+        expectedMethodType,
+        worklist,
+        subst,
+      );
+      if ("err" in subsumesRes) {
+        // Fallback: Try solving any pending constraints from subsumes
+        const solveRes = solveConstraints(worklist, subst);
+        if ("err" in solveRes) {
+          return {
+            err: {
+              type_mismatch: {
+                expected: expectedMethodType,
+                actual: implType.ok,
+              },
             },
-          },
-        };
-      }
+          };
+        }
+        const resolvedImpl = applySubstitution(solveRes.ok, implType.ok);
+        if (!isAssignableTo(resolvedImpl, expectedMethodType)) {
+          return {
+            err: {
+              type_mismatch: {
+                expected: expectedMethodType,
+                actual: resolvedImpl,
+              },
+            },
+          };
+        }
+      } // else: subsumes succeeded (unification OK)
     }
 
-    return {
-      ok: {
-        con: `Dict<${term.dict.trait}, ${showType(term.dict.type)}>`,
-      },
-    };
+    // [NEW: Return abstracted dict type (partial over stripped, full for concrete)]
+    // e.g., Dict<Map, Option> (kind * → *), not Dict<Map, Option<t>> (kind *)
+    const abstractedType = `Dict<${term.dict.trait}, ${showType(partialDictType)}>`;
+    return { ok: { con: abstractedType } };
   }
 
   if ("trait_lam" in term) {
@@ -2325,6 +2459,7 @@ export function inferType(
     );
 
     if (!traitDef || !("trait_def" in traitDef)) {
+      console.error(new Error().stack);
       return { err: { unbound: term.trait_lam.trait } };
     }
 
@@ -2349,6 +2484,7 @@ export function inferType(
     if ("err" in termType) return termType;
 
     if (!("bounded_forall" in termType.ok)) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: {
@@ -2364,6 +2500,7 @@ export function inferType(
     if ("err" in argKind) return argKind;
     const bounded_forall = termType.ok.bounded_forall;
     if (!kindsEqual(bounded_forall.kind, argKind.ok)) {
+      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: {
@@ -2412,6 +2549,7 @@ export function inferType(
           providedDict.dict.trait !== constraint.trait ||
           !typesEqual(providedDict.dict.type, constraint.type)
         ) {
+          console.error("type mismatch", new Error().stack);
           return {
             err: {
               type_mismatch: {
@@ -2455,6 +2593,7 @@ export function inferType(
         );
 
         if (!traitDef || !("trait_def" in traitDef)) {
+          console.error(new Error().stack);
           return { err: { unbound: dictBinding.dict.trait } };
         }
 
@@ -2496,6 +2635,7 @@ export function inferType(
       );
 
       if (!traitDef || !("trait_def" in traitDef)) {
+        console.error(new Error().stack);
         return { err: { unbound: dict.trait } };
       }
 
@@ -2518,7 +2658,7 @@ export function inferType(
       // Return the type of the method implementation
       return inferType(context, methodImpl[1]);
     }
-
+    console.error("type mismatch", new Error().stack);
     return {
       err: {
         type_mismatch: {
@@ -2610,6 +2750,7 @@ export function inferType(
     if ("err" in valueType) return valueType;
 
     if (!isAssignableTo(valueType.ok, expectedType[1])) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: {
@@ -2626,42 +2767,50 @@ export function inferType(
   if ("match" in term) {
     const scrutineeType = inferType(context, term.match.scrutinee);
     if ("err" in scrutineeType) return scrutineeType;
-    const normalizedScrutineeType = normalizeType(scrutineeType.ok);
+    const normalizedScrutinee = normalizeType(scrutineeType.ok);
 
-    const patterns = term.match.cases.map(first);
-    const exhaustCheck = checkExhaustive(patterns, normalizedScrutineeType);
+    const patterns = term.match.cases.map((c) => c[0]);
+    const exhaustCheck = checkExhaustive(patterns, normalizedScrutinee);
     if ("err" in exhaustCheck) return exhaustCheck;
 
-    let resultType: Type | null = null;
+    let commonType: Type | null = null;
+    const armTypes: Type[] = []; // Track for unification
 
     for (const [pattern, body] of term.match.cases) {
-      const patternResult = checkPattern(
-        pattern,
-        normalizedScrutineeType,
-        context,
-      );
+      const patternResult = checkPattern(pattern, normalizedScrutinee, context);
       if ("err" in patternResult) return patternResult;
 
-      const extendedContext: Context = [...context, ...patternResult.ok];
+      const extendedContext = [...context, ...patternResult.ok];
 
+      // [KEY FIX: Infer arm body (e.g., Some(cb val) → Option<u> monotype)]
       const bodyType = inferType(extendedContext, body);
       if ("err" in bodyType) return bodyType;
 
-      if (resultType === null) {
-        resultType = bodyType.ok;
-      } else if (!isAssignableTo(bodyType.ok, resultType)) {
-        return {
-          err: {
-            type_mismatch: {
-              expected: resultType,
-              actual: bodyType.ok,
-            },
-          },
-        };
+      // [NEW: Fresh instantiation for each arm (prevents poly generalization)]
+      let instBodyType = instantiate(bodyType.ok); // Replace ∀ with fresh metas
+      instBodyType = normalizeType(instBodyType); // Beta-reduce if needed
+
+      armTypes.push(instBodyType);
+
+      if (commonType === null) {
+        commonType = instBodyType;
+      } else {
+        // Unify arm instances to common (monotype)
+        const worklist: Worklist = [];
+        const subst = new Map<string, Type>();
+        const unifyRes = unifyTypes(commonType, instBodyType, worklist, subst);
+        if ("err" in unifyRes) return unifyRes;
+
+        const solveRes = solveConstraints(worklist, subst);
+        if ("err" in solveRes) return solveRes;
+
+        // Update common to solved type (ensures monotype)
+        commonType = applySubstitution(solveRes.ok, commonType);
       }
     }
 
-    return { ok: resultType! };
+    // Ensure overall match is monotype (no generalization here)
+    return { ok: normalizeType(commonType!) };
   }
 
   if ("fold" in term) {
@@ -2669,6 +2818,7 @@ export function inferType(
     if ("err" in muKind) return muKind;
 
     if (!("mu" in term.fold.type)) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: { expected: term.fold.type, actual: term.fold.type },
@@ -2687,6 +2837,7 @@ export function inferType(
     if ("err" in termType) return termType;
 
     if (!isAssignableTo(termType.ok, unfoldedType)) {
+      console.error("type mismatch", new Error().stack);
       return {
         err: {
           type_mismatch: {
@@ -3164,6 +3315,208 @@ export function resolveMetaVars(type: Type): Type {
   return type;
 }
 
+// Helper to calculate the arity of a kind
+export function kindArity(kind: Kind): number {
+  if ("star" in kind) {
+    return 0;
+  }
+
+  if ("arrow" in kind) {
+    return 1 + kindArity(kind.arrow.to);
+  }
+
+  return 0;
+}
+
+// Helper to check if type has unbound metas
+export function hasUnboundMetas(type: Type): boolean {
+  if (
+    "var" in type &&
+    isMetaVar(type) &&
+    !metaVarSolutions.has(parseInt(type.var.slice(1), 10))
+  ) {
+    return true;
+  }
+  // Recurse on subterms...
+  if ("app" in type)
+    return hasUnboundMetas(type.app.func) || hasUnboundMetas(type.app.arg);
+  if ("arrow" in type)
+    return hasUnboundMetas(type.arrow.from) || hasUnboundMetas(type.arrow.to);
+  if ("tuple" in type) return type.tuple.some(hasUnboundMetas);
+  if ("record" in type)
+    return type.record.some(([, ty]) => hasUnboundMetas(ty));
+  if ("variant" in type)
+    return type.variant.some(([, ty]) => hasUnboundMetas(ty));
+  // Add for other constructors
+  return false;
+}
+
+// Helper to collect type variables from a type
+export function collectTypeVars(
+  type: Type,
+  vars = new Set<string>(),
+): string[] {
+  if ("var" in type) {
+    vars.add(type.var);
+  } else if ("app" in type) {
+    collectTypeVars(type.app.func, vars);
+    collectTypeVars(type.app.arg, vars);
+  } else if ("arrow" in type) {
+    collectTypeVars(type.arrow.from, vars);
+    collectTypeVars(type.arrow.to, vars);
+  } else if ("forall" in type) {
+    // Don't collect bound variables
+    const inner = new Set<string>();
+    collectTypeVars(type.forall.body, inner);
+    inner.delete(type.forall.var);
+    for (const v of inner) vars.add(v);
+  } else if ("record" in type) {
+    for (const [_, fieldType] of type.record) {
+      collectTypeVars(fieldType, vars);
+    }
+  } else if ("tuple" in type) {
+    for (const elem of type.tuple) {
+      collectTypeVars(elem, vars);
+    }
+  } else if ("variant" in type) {
+    for (const [_, caseType] of type.variant) {
+      collectTypeVars(caseType, vars);
+    }
+  } else if ("lam" in type) {
+    const inner = new Set<string>();
+    collectTypeVars(type.lam.body, inner);
+    inner.delete(type.lam.var);
+    for (const v of inner) vars.add(v);
+  }
+
+  return Array.from(vars);
+}
+
+export function computeStrippedKind(
+  type: Type,
+  strippableVars: string[] = [], // e.g., implParamVars like ["t"]
+  context: Context = [], // For bound checks
+): { ok: { stripped: number; kind: Kind } } | { err: TypingError } {
+  let current = type; // Raw, unreduced!
+  let strippedCount = 0;
+
+  // Collect free vars for fallback (e.g., "t" in Option<t>)
+  const freeVars = new Set(collectTypeVars(current));
+
+  console.log(`Raw stripping for: ${showType(current)}`); // Debug (raw app)
+  console.log(
+    `Strippable vars: ${strippableVars.join(", ")}, free: ${Array.from(freeVars).join(", ")}`,
+  ); // "t"
+
+  while ("app" in current) {
+    const arg = current.app.arg;
+    const func = current.app.func;
+
+    // Check if strippable: arg is var AND (in strippableVars or context or free)
+    if ("var" in arg) {
+      const varName = arg.var;
+      const isStrippable =
+        strippableVars.includes(varName) ||
+        context.some((b) => "type" in b && b.type.name === varName) ||
+        freeVars.has(varName);
+
+      if (isStrippable) {
+        // Temp context for kinds if empty
+        const tempContext =
+          context.length > 0
+            ? context
+            : [
+                { type: { name: varName, kind: { star: null } } }, // Assume * for fallback
+              ];
+
+        const argKindResult = checkKind(tempContext, arg);
+        if ("err" in argKindResult) return { err: argKindResult.err };
+
+        let funcKindResult = checkKind(tempContext, func);
+        if ("err" in funcKindResult) return { err: funcKindResult.err };
+
+        // If func is lam, its kind is arrow (don't reduce here)
+        if ("lam" in func) {
+          funcKindResult = {
+            ok: { arrow: { from: func.lam.kind, to: funcKindResult.ok } },
+          };
+        }
+
+        if (!("arrow" in funcKindResult.ok)) {
+          return { err: { not_a_type_function: func } };
+        }
+
+        if (!kindsEqual(funcKindResult.ok.arrow.from, argKindResult.ok)) {
+          return {
+            err: {
+              kind_mismatch: {
+                expected: funcKindResult.ok.arrow.from,
+                actual: argKindResult.ok,
+              },
+            },
+          };
+        }
+
+        // Strip: move to func (lam or con)
+        current = func;
+        strippedCount++;
+        console.log(
+          `Stripped "${varName}"; now raw: ${showType(current)}, count: ${strippedCount}`,
+        ); // "Stripped "t"; now raw: (lam t ...)"
+      } else {
+        console.log(`Non-strippable arg: "${varName}"`); // e.g., concrete arg
+        break;
+      }
+    } else {
+      // Non-var arg (concrete): don't strip
+      console.log(`Non-var arg: ${showType(arg)}; stop`); // Debug
+      break;
+    }
+  }
+
+  // NOW normalize the stripped (raw) type for final kind (reduces remaining if any)
+  const normalized = normalizeType(current);
+  console.log(`Normalized after strips: ${showType(normalized)}`); // Debug: lam if not reduced
+
+  const finalKindResult = checkKind(
+    context.length > 0
+      ? context
+      : [{ type: { name: "temp", kind: { star: null } } }],
+    normalized,
+  );
+  if ("err" in finalKindResult) return { err: finalKindResult.err };
+
+  console.log(
+    `Final partial kind after ${strippedCount} strips: ${showKind(finalKindResult.ok)}`,
+  ); // "* → *"
+  return { ok: { stripped: strippedCount, kind: finalKindResult.ok } };
+}
+
+export function stripApplicationsByArity(
+  type: Type,
+  arity: number,
+  context: Context,
+): Type {
+  let current = normalizeType(type);
+  for (let i = 0; i < arity; i++) {
+    if ("app" in current) {
+      // Only strip if arg is bound var (as in computeStrippedKind)
+      const arg = current.app.arg;
+      if (
+        "var" in arg &&
+        context.some((b) => "type" in b && b.type.name === arg.var)
+      ) {
+        current = current.app.func;
+      } else {
+        break; // Cannot strip further
+      }
+    } else {
+      break;
+    }
+  }
+  return current;
+}
+
 // Type Constructors:
 export const var_type = (name: string) => ({ var: name });
 export const arrow_type = (from: Type, to: Type) => ({ arrow: { from, to } });
@@ -3282,3 +3635,23 @@ export const tuple_pattern = (elements: Pattern[]): Pattern => ({
 
 export const unitType: Type = { tuple: [] };
 export const unitValue: Term = { tuple: [] };
+
+export const showContext = (context: Context) =>
+  context.map((t) => showBinding(t)).join("\n");
+
+export const showTraitDef = (t: TraitDef) => {
+  return `TraitDef (${t.name} ${t.type_param} = ${showKind(t.kind)}\n${t.methods.map((y) => `  ${y[0]} : ${showType(y[1])}`).join("\n")})`;
+};
+
+export const showBinding = (bind: Binding) => {
+  if ("term" in bind)
+    return `Term: ${bind.term.name} = ${showType(bind.term.type)}`;
+  if ("type" in bind)
+    return `Type: ${bind.type.name} = ${showKind(bind.type.kind)}`;
+  if ("trait_def" in bind)
+    return `Trait: ${bind.trait_def.name} = ${showTraitDef(bind.trait_def)}`;
+  if ("trait_impl" in bind)
+    return `Impl: ${bind.trait_impl.trait} = ${showTerm(bind.trait_impl.dict)}: ${showType(bind.trait_impl.type)}`;
+  if ("dict" in bind)
+    return `Dict: ${bind.dict.name} = Trait ${bind.dict.trait} : ${showType(bind.dict.type)}`;
+};
