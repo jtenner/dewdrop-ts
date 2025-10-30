@@ -260,9 +260,9 @@ export class ElaboratePass extends BaseVisitor {
   override visitFnTypeExpression(node: FnTypeExpression): TypeExpression {
     super.visitFnTypeExpression(node);
     const arg_tys = node.fn.args.map(
-      (a) => this.types.get(a) ?? { con: "bot" },
+      (a) => this.types.get(a) ?? { never: null },
     );
-    const ret_ty = this.types.get(node.fn.ret) ?? { con: "bot" };
+    const ret_ty = this.types.get(node.fn.ret) ?? { never: null };
     const type = arrows(arg_tys, ret_ty);
     this.types.set(node, type);
     return node;
@@ -271,7 +271,7 @@ export class ElaboratePass extends BaseVisitor {
   override visitTupleTypeExpression(node: TupleTypeExpression): TypeExpression {
     super.visitTupleTypeExpression(node);
     const tuple_types = node.tuple.map(
-      (a) => this.types.get(a) ?? { con: "bot" },
+      (a) => this.types.get(a) ?? { never: null },
     );
     this.types.set(node, {
       tuple: tuple_types,
@@ -286,7 +286,10 @@ export class ElaboratePass extends BaseVisitor {
 
     const record = node.record.map(
       (t) =>
-        [t.name.name, this.types.get(t.ty) ?? { con: "bot" }] as [string, Type],
+        [t.name.name, this.types.get(t.ty) ?? { never: null }] as [
+          string,
+          Type,
+        ],
     );
     this.types.set(node, { record });
     return node;
@@ -297,7 +300,7 @@ export class ElaboratePass extends BaseVisitor {
   ): TypeExpression {
     // only visit the root. The field is an identifier
     super.visitTypeExpression(node.select.root);
-    const rootType: Type = this.types.get(node.select.root) ?? { con: "bot" };
+    const rootType: Type = this.types.get(node.select.root) ?? { never: null };
 
     if ("record" in rootType) {
       const fieldName =
@@ -317,7 +320,7 @@ export class ElaboratePass extends BaseVisitor {
             field: fieldName,
           },
         });
-        this.types.set(node, { con: "bot" });
+        this.types.set(node, { never: null });
         return node;
       }
 
@@ -327,7 +330,7 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     this.errors.push({ not_a_record_type: node.select.root });
-    this.types.set(node, { con: "bot" });
+    this.types.set(node, { never: null });
     return node;
   }
 
@@ -335,9 +338,9 @@ export class ElaboratePass extends BaseVisitor {
     node: ApplicationTypeExpression,
   ): TypeExpression {
     super.visitApplicationTypeExpression(node);
-    const calleeType: Type = this.types.get(node.app.callee) ?? { con: "bot" };
+    const calleeType: Type = this.types.get(node.app.callee) ?? { never: null };
     const argTypes: Type[] = node.app.args.map(
-      (arg) => this.types.get(arg) ?? { con: "bot" },
+      (arg) => this.types.get(arg) ?? { never: null },
     );
     let accumulated = calleeType;
     for (const argType of argTypes) {
@@ -579,33 +582,41 @@ export class ElaboratePass extends BaseVisitor {
     this.terms.set(node, { project: { record, label: node.select[1].name } });
     return node;
   }
+
   override visitCallExpression(node: CallExpression): Expression {
-    super.visitCallExpression(node);
-    const [fn, params] = node.call;
-    const callee = this.terms.get(fn);
-    const calleeType = this.types.get(fn);
+    super.visitCallExpression(node); // Visits sub-expressions (e.g., fn and params)
 
-    if (!callee) throw new Error("Expression not generated.");
-    if (!calleeType) throw new Error("Expression generated no type.");
-
-    let term: Term | undefined =
-      params.length === 0
-        ? { tuple: [] }
-        : this.terms.get(params[params.length - 1]!);
-
-    if (!term) throw new Error("Expression not generated");
-
-    for (let i = params.length - 2; i >= 0; i--) {
-      const next = this.terms.get(params[i]!);
-      if (!next) throw new Error("Expression not generated");
-      term = { app: { callee: term, arg: next } };
+    const [fnExpr, params] = node.call;
+    const calleeTerm = this.terms.get(fnExpr);
+    if (!calleeTerm) {
+      throw new Error(
+        `Callee term not generated for ${showExpression(fnExpr)}`,
+      );
     }
 
-    term = { app: { callee, arg: term } };
+    let term: Term;
+    if (params.length === 0) {
+      // Zero args: f() → app(f, unit)
+      term = { app: { callee: calleeTerm, arg: { tuple: [] } } };
+    } else {
+      // Non-zero args: accumulate left-associative apps forward
+      term = calleeTerm;
+      for (const param of params) {
+        // Forward loop: first to last
+        const argTerm = this.terms.get(param);
+        if (!argTerm) {
+          throw new Error(
+            `Argument term not generated for ${showExpression(param)}`,
+          );
+        }
+        term = { app: { callee: term, arg: argTerm } };
+      }
+    }
 
     this.terms.set(node, term);
     return node;
   }
+
   override visitPrefixExpression(node: PrefixExpression): Expression {
     super.visitPrefixExpression(node);
     const { operand, op } = node.prefix;
@@ -694,7 +705,7 @@ export class ElaboratePass extends BaseVisitor {
       const param = node.params[i]!;
       const paramName = param.name.name;
       const paramType = (param.guard && this.types.get(param.guard)) ?? {
-        con: "bot",
+        never: null,
       };
 
       term = {

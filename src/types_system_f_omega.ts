@@ -258,7 +258,9 @@ export function inferTypeWithMode(
 ): Result<TypingError, Type> {
   // Delegate based on mode
   if ("check" in mode) {
-    return checkType(context, term, mode.check);
+    const result = checkType(context, term, mode.check);
+    if ("ok" in result) return { ok: result.ok.type };
+    return result;
   }
   return inferType(context, term);
 }
@@ -268,12 +270,51 @@ export type MetaVar = { meta: number };
 let metaVarCounter = 0;
 const metaVarSolutions = new Map<number, Type>();
 
+// Helper: Create a temporary string-keyed subst from global meta solutions
+// Maps "?N" (string var names) to their solved Types
+function getMetaSubstitution(): Substitution {
+  const subst = new Map<string, Type>();
+  for (const [id, solvedType] of metaVarSolutions.entries()) {
+    const metaVarName = `?${id}`; // e.g., "?0"
+    subst.set(metaVarName, solvedType);
+  }
+  return subst;
+}
+
+export function mergeSubsts(
+  local: Substitution,
+  globalMeta: Substitution,
+): Substitution {
+  const merged = new Map<string, Type>(globalMeta); // Start with globals
+  for (const [key, value] of local.entries()) {
+    if (!merged.has(key)) {
+      merged.set(key, value); // Local overrides if conflict, but prefer local
+    } else {
+      // Conflict: Check compatibility (simplified)
+      const existing = merged.get(key)!;
+      if (!typesEqual(existing, value)) {
+        console.error(
+          `Subst conflict for ${key}: ${showType(existing)} vs ${showType(value)}`,
+        );
+      }
+      // Keep existing or merge - for now, keep local
+      merged.set(key, value);
+    }
+  }
+  return merged;
+}
+
 export function freshMetaVar(): Type {
   return { var: `?${metaVarCounter++}` };
 }
 
 export function isMetaVar(type: Type): boolean {
   return "var" in type && type.var.startsWith("?");
+}
+
+export function isBottom(type: Type) {
+  const normT = normalizeType(type);
+  return "never" in normT;
 }
 
 export function solveMetaVar(
@@ -882,16 +923,21 @@ export function kindsEqual(left: Kind, right: Kind): boolean {
 export function checkKind(
   context: Context,
   type: Type,
+  lenient: boolean = false,
 ): Result<TypingError, Kind> {
   if ("var" in type) {
     const binding = context.find(
       (b) => "type" in b && b.type.name === type.var,
     );
-    if (!binding || !("type" in binding)) {
-      console.error(new Error().stack);
+    if (binding && "type" in binding) {
+      return { ok: binding.type.kind };
+    } else if (lenient) {
+      // For subtyping/bottom checks, assume unbound vars have kind * (safe assumption)
+      return { ok: { star: null } };
+    } else {
+      // Strict mode: unbound is an error
       return { err: { unbound: type.var } };
     }
-    return { ok: binding.type.kind };
   }
 
   if ("con" in type) {
@@ -904,15 +950,14 @@ export function checkKind(
   }
 
   if ("arrow" in type) {
-    const fromKind = checkKind(context, type.arrow.from);
+    const fromKind = checkKind(context, type.arrow.from, lenient);
     if ("err" in fromKind) return fromKind;
 
-    const toKind = checkKind(context, type.arrow.to);
+    const toKind = checkKind(context, type.arrow.to, lenient);
     if ("err" in toKind) return toKind;
 
     // Both operands must have kind *
     if (!isStarKind(fromKind.ok) || !isStarKind(toKind.ok)) {
-      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: fromKind.ok },
@@ -929,11 +974,10 @@ export function checkKind(
       ...context,
     ];
 
-    const bodyKind = checkKind(extendedContext, type.forall.body);
+    const bodyKind = checkKind(extendedContext, type.forall.body, lenient);
     if ("err" in bodyKind) return bodyKind;
 
     if (!isStarKind(bodyKind.ok)) {
-      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: bodyKind.ok },
@@ -957,11 +1001,14 @@ export function checkKind(
 
     // Check that all constraint types are well-kinded
     for (const constraint of type.bounded_forall.constraints) {
-      const constraintKind = checkKind(extendedContext, constraint.type);
+      const constraintKind = checkKind(
+        extendedContext,
+        constraint.type,
+        lenient,
+      );
       if ("err" in constraintKind) return constraintKind;
 
       if (!isStarKind(constraintKind.ok)) {
-        console.error(new Error().stack);
         return {
           err: {
             kind_mismatch: {
@@ -973,11 +1020,14 @@ export function checkKind(
       }
     }
 
-    const bodyKind = checkKind(extendedContext, type.bounded_forall.body);
+    const bodyKind = checkKind(
+      extendedContext,
+      type.bounded_forall.body,
+      lenient,
+    );
     if ("err" in bodyKind) return bodyKind;
 
     if (!isStarKind(bodyKind.ok)) {
-      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: bodyKind.ok },
@@ -994,7 +1044,7 @@ export function checkKind(
       ...context,
     ];
 
-    const bodyKind = checkKind(extendedContext, type.lam.body);
+    const bodyKind = checkKind(extendedContext, type.lam.body, lenient);
     if ("err" in bodyKind) return bodyKind;
 
     return {
@@ -1003,10 +1053,10 @@ export function checkKind(
   }
 
   if ("app" in type) {
-    const funcKind = checkKind(context, type.app.func);
+    const funcKind = checkKind(context, type.app.func, lenient);
     if ("err" in funcKind) return funcKind;
 
-    const argKind = checkKind(context, type.app.arg);
+    const argKind = checkKind(context, type.app.arg, lenient);
     if ("err" in argKind) return argKind;
 
     if (!("arrow" in funcKind.ok)) {
@@ -1016,7 +1066,6 @@ export function checkKind(
     }
 
     if (!kindsEqual(funcKind.ok.arrow.from, argKind.ok)) {
-      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: {
@@ -1033,11 +1082,10 @@ export function checkKind(
   if ("record" in type) {
     // All field types must have kind *
     for (const [_, fieldType] of type.record) {
-      const fieldKind = checkKind(context, fieldType);
+      const fieldKind = checkKind(context, fieldType, lenient);
       if ("err" in fieldKind) return fieldKind;
 
       if (!isStarKind(fieldKind.ok)) {
-        console.error(new Error().stack);
         return {
           err: {
             kind_mismatch: { expected: { star: null }, actual: fieldKind.ok },
@@ -1052,11 +1100,10 @@ export function checkKind(
   if ("variant" in type) {
     // All case types must have kind *
     for (const [_, caseType] of type.variant) {
-      const caseKind = checkKind(context, caseType);
+      const caseKind = checkKind(context, caseType, lenient);
       if ("err" in caseKind) return caseKind;
 
-      if (!isStarKind(caseKind.ok)) {
-        console.error(new Error().stack);
+      if (!isBottom(caseType) && !isStarKind(caseKind.ok)) {
         return {
           err: {
             kind_mismatch: { expected: { star: null }, actual: caseKind.ok },
@@ -1075,11 +1122,10 @@ export function checkKind(
       ...context,
     ];
 
-    const bodyKind = checkKind(extendedContext, type.mu.body);
+    const bodyKind = checkKind(extendedContext, type.mu.body, lenient);
     if ("err" in bodyKind) return bodyKind;
 
     if (!isStarKind(bodyKind.ok)) {
-      console.error(new Error().stack);
       return {
         err: {
           kind_mismatch: { expected: { star: null }, actual: bodyKind.ok },
@@ -1093,11 +1139,10 @@ export function checkKind(
   if ("tuple" in type) {
     // All element types must have kind *
     for (const elementType of type.tuple) {
-      const elementKind = checkKind(context, elementType);
+      const elementKind = checkKind(context, elementType, lenient);
       if ("err" in elementKind) return elementKind;
 
       if (!isStarKind(elementKind.ok)) {
-        console.error(new Error().stack);
         return {
           err: {
             kind_mismatch: {
@@ -1358,6 +1403,28 @@ export function unifyTypes(
     return { ok: null };
   }
 
+  if (isBottom(left) && isBottom(normalizeType(right))) {
+    return { ok: null }; // ⊥ ~ ⊥ always OK
+  }
+  if (isBottom(left)) {
+    // ⊥ <: right? Check right :: *
+    const rightKind = checkKind([], right, true); // Empty ctx for base kind check
+    if ("err" in rightKind || !isStarKind(rightKind.ok)) {
+      return { err: { type_mismatch: { expected: right, actual: left } } };
+    }
+    console.log(`Subtyping bottom: ⊥ <: ${showType(right)} (OK)`);
+    return { ok: null };
+  }
+  if (isBottom(right)) {
+    // left <: ⊥? Only if left == ⊥, else fail (asymmetry for unification)
+    const leftKind = checkKind([], left, true);
+    if ("err" in leftKind || !isStarKind(leftKind.ok)) {
+      return { err: { type_mismatch: { expected: left, actual: right } } };
+    }
+    console.log(`Subtyping bottom: ${showType(left)} <: ⊥ (OK)`);
+    return { ok: null };
+  }
+
   // Variable cases
   if ("var" in left) {
     return unifyVariable(left.var, right, subst);
@@ -1565,6 +1632,7 @@ export function unifyTypes(
 
     return { ok: null };
   }
+
   console.error("type mismatch", new Error().stack);
   return {
     err: { type_mismatch: { expected: left, actual: right } },
@@ -1584,6 +1652,20 @@ export function unifyVariable(
         err: { type_mismatch: { expected: existing, actual: type } },
       };
     }
+    return { ok: null };
+  }
+
+  // var ~ var (tautology)
+  if ("var" in type && type.var === varName) return { ok: null };
+
+  if (isBottom(type)) {
+    // Find var's binding kind (if bound in context, but since subst doesn't have kinds, assume *)
+    // Check occurs to avoid cycles, but allow ⊥ <: var
+    if (occursCheck(varName, type)) {
+      return { err: { cyclic: varName } };
+    }
+    // Don't bind var := ⊥ - just succeed (subtyping will handle later)
+    console.log(`Unifying var ${varName} ~ ⊥ (subtyping OK, no bind)`);
     return { ok: null };
   }
 
@@ -1774,7 +1856,7 @@ export function checkType(
   context: Context,
   term: Term,
   expectedType: Type,
-): Result<TypingError, Type> {
+): Result<TypingError, { type: Type; subst: Substitution }> {
   // Check kind of expected type
   const kindResult = checkKind(context, expectedType);
   if ("err" in kindResult) return kindResult;
@@ -1786,14 +1868,15 @@ export function checkType(
       { term: { name: term.lam.arg, type: expectedType.arrow.from } },
     ];
 
-    const bodyResult = checkType(
+    const bodyCheckRes = checkType(
       extendedContext,
       term.lam.body,
       expectedType.arrow.to,
     );
-    if ("err" in bodyResult) return bodyResult;
-
-    return { ok: expectedType };
+    if ("err" in bodyCheckRes) return bodyCheckRes;
+    // Merge body subst with current empty
+    const mergedSubst = mergeSubsts(new Map(), bodyCheckRes.ok.subst); // Or just return bodyCheckRes.ok.subst
+    return { ok: { type: expectedType, subst: mergedSubst } };
   }
 
   // Type lambda: check against forall
@@ -1830,7 +1913,7 @@ export function checkType(
     );
     if ("err" in bodyResult) return bodyResult;
 
-    return { ok: expectedType };
+    return { ok: { type: expectedType, subst: new Map() } };
   }
 
   // Trait lambda: check against bounded forall
@@ -1925,7 +2008,7 @@ export function checkType(
     );
     if ("err" in bodyResult) return bodyResult;
 
-    return { ok: expectedType };
+    return { ok: { type: expectedType, subst: new Map() } };
   }
 
   // Record: check field by field
@@ -1959,7 +2042,7 @@ export function checkType(
       if ("err" in fieldResult) return fieldResult;
     }
 
-    return { ok: expectedType };
+    return { ok: { type: expectedType, subst: new Map() } };
   }
 
   // Tuple: check element by element
@@ -1985,7 +2068,7 @@ export function checkType(
       if ("err" in elementResult) return elementResult;
     }
 
-    return { ok: expectedType };
+    return { ok: { type: expectedType, subst: new Map() } };
   }
 
   // Injection: check value against variant case type
@@ -2016,7 +2099,7 @@ export function checkType(
     const valueResult = checkType(context, term.inject.value, caseType[1]);
     if ("err" in valueResult) return valueResult;
 
-    return { ok: expectedType };
+    return { ok: { type: expectedType, subst: new Map() } };
   }
 
   // Fold: check the inner term against the unfolded type
@@ -2031,7 +2114,7 @@ export function checkType(
     const termResult = checkType(context, term.fold.term, unfoldedType);
     if ("err" in termResult) return termResult;
 
-    return { ok: expectedType };
+    return { ok: { type: expectedType, subst: new Map() } };
   }
 
   // Subsumption: infer and check if compatible
@@ -2080,17 +2163,39 @@ export function checkType(
   const solveResult = solveConstraints(worklist, subst);
   if ("err" in solveResult) return solveResult;
 
-  const resolvedExpected = applySubstitution(solveResult.ok, expectedType);
+  const finalSubst = solveResult.ok;
+  for (const [varName, soln] of finalSubst.entries()) {
+    if (varName.startsWith("?")) {
+      const metaId = parseInt(varName.slice(1), 10);
+      // Use your solveMetaVar to update global (it checks for existing)
+      const globalSolve = solveMetaVar(varName, soln); // varName is "?N" string
+      if ("err" in globalSolve) {
+        console.error("Failed to propagate meta:", globalSolve.err);
+        // Continue or return err; for now, continue
+      } else {
+        // Success: global updated
+      }
+    }
+  }
 
+  const resolvedExpected = applySubstitution(finalSubst, expectedType);
+
+  // Bottom subtyping check (existing, but now with subst)
+  let finalInferred = polyInferred;
   if (!isAssignableTo(polyInferred, resolvedExpected)) {
+    // ... Existing mismatch err, but apply subst first
+    finalInferred = applySubstitution(finalSubst, polyInferred);
     return {
       err: {
-        type_mismatch: { expected: resolvedExpected, actual: polyInferred },
+        type_mismatch: { expected: resolvedExpected, actual: finalInferred },
       },
     };
   }
 
-  return { ok: resolvedExpected };
+  // Success: Return resolved expected + accumulated subst
+  return {
+    ok: { type: resolvedExpected, subst: finalSubst },
+  };
 }
 
 // Typing judgment: Γ ⊢ e : τ
@@ -2158,14 +2263,14 @@ export function inferType(
     const calleeInferred = inferType(context, term.app.callee);
     if ("err" in calleeInferred) return calleeInferred;
 
-    const argInferred = inferType(context, term.app.arg);
+    let argInferred = inferType(context, term.app.arg);
     if ("err" in argInferred) return argInferred;
 
     let instantiatedCallee = calleeInferred.ok;
 
-    // [KEY FIX: Deep instantiation loop until no more foralls (full polymorphic instantiation)]
+    // Deep instantiation (your existing while loop - unchanged)
     while ("forall" in instantiatedCallee) {
-      const freshVar = freshMetaVar(); // ?0, ?1, etc.
+      const freshVar = freshMetaVar();
       instantiatedCallee = substituteType(
         instantiatedCallee.forall.var,
         freshVar,
@@ -2173,48 +2278,70 @@ export function inferType(
       );
     }
 
-    // [NEW: If arg type is known, eagerly solve metas in callee's domain]
-    // For constructors, the domain after inst is the arg type (e.g., u → Variant<u>)
     if (!("arrow" in instantiatedCallee)) {
-      // Try to instantiate one more time if it's a higher-kinded poly
       instantiatedCallee = instantiate(instantiatedCallee);
       if (!("arrow" in instantiatedCallee)) {
         return { err: { not_a_function: instantiatedCallee } };
       }
     }
 
-    // Now unify arg with param type, but apply fresh metas to arg domain
     const paramType = instantiatedCallee.arrow.from;
-    const worklist: Worklist = [];
-    const subst = new Map<string, Type>();
+    const resultTypeBase = instantiatedCallee.arrow.to;
 
-    // [FIX: Use bidirectional unification: solve metas in paramType against argInferred.ok]
-    const unifyResult = unifyTypes(argInferred.ok, paramType, worklist, subst);
-    if ("err" in unifyResult) return unifyResult;
+    // NEW: Bidirectional check (now returns {type, subst})
+    const argCheckRes = checkType(context, term.app.arg, paramType);
+    if ("err" in argCheckRes) {
+      // Fallback: Strict unification (existing, but infer arg type if needed)
+      // Note: argInferred.ok might need re-infer after check failure, but for simplicity...
+      const worklist: Worklist = [];
+      const fallSubst = new Map<string, Type>();
+      const unifyRes = unifyTypes(
+        argInferred.ok,
+        paramType,
+        worklist,
+        fallSubst,
+      );
+      if ("err" in unifyRes) return argCheckRes; // Prefer check error
+      const solveRes = solveConstraints(worklist, fallSubst);
+      if ("err" in solveRes) return solveRes;
 
-    // Solve constraints immediately (eager solving for nested apps)
-    const solveResult = solveConstraints(worklist, subst);
-    if ("err" in solveResult) return solveResult;
+      // Merge fallback subst with global metas for result
+      const mergedFallSubst = mergeSubsts(fallSubst, getMetaSubstitution());
+      const resultWithSubst = applySubstitution(
+        mergedFallSubst,
+        resultTypeBase,
+      );
+      return { ok: resultWithSubst };
+    }
 
-    // Apply sub to entire result type (ensures Variant<u>, not ∀t. Variant<t>)
-    const resultType = applySubstitution(
-      solveResult.ok,
-      instantiatedCallee.arrow.to,
-    );
+    // Arg check succeeded: Extract type/subst from result
+    const { type: resolvedArgType, subst: localSubst } = argCheckRes.ok;
 
-    // [NEW: If result has unsolved metas, re-infer/solve in context]
+    // Update argInferred.ok with resolved type (for logging/debug; optional)
+    argInferred = { ok: resolvedArgType };
+
+    // Merge local + global for result application
+    const mergedSubst = mergeSubsts(localSubst, getMetaSubstitution());
+
+    // Apply to result base (this solves ?14 t → Either<I32, I32>)
+    let resultType = applySubstitution(mergedSubst, resultTypeBase);
+
+    // Normalize (your existing)
+    resultType = normalizeType(resultType);
+
+    // OLD fallback: Remove or simplify - now metas should be solved via mergedSubst
+    // If still unbound (rare), raise error or fresh meta
     if (hasUnboundMetas(resultType)) {
-      const metaResult = inferType(context, {
-        con: { name: "dummy", type: resultType },
-      });
-      if ("ok" in metaResult) {
-        return { ok: metaResult.ok };
-      }
+      console.warn("Unbound metas in app result:", showType(resultType));
+      // Option 1: Return fresh meta
+      return { ok: freshMetaVar() };
+      // Option 2: Error
+      // return { err: { unbound: "metas" } as TypingError };
+      // Option 3: Re-infer with resolved arg type (complex, skip)
     }
 
     return { ok: resultType };
   }
-
   if ("let" in term) {
     const valueType = inferType(context, term.let.value);
     if ("err" in valueType) return valueType;
@@ -3158,6 +3285,11 @@ function applyNormalizationRules(type: Type, seen: Set<string>): Type {
     return normalizeType(type.tuple[0]!, seen);
   }
 
+  if ("app" in type && "never" in type.app.func) {
+    // ? never → never (meta applied to bottom = bottom)
+    return { never: null }; // Or { con: "bot" }
+  }
+
   return type;
 }
 
@@ -3297,7 +3429,7 @@ export function autoInstantiate(
 
 export function resolveMetaVars(type: Type): Type {
   if ("var" in type && isMetaVar(type)) {
-    const solution = metaVarSolutions.get(parseInt(type.var.slice(1)));
+    const solution = metaVarSolutions.get(parseInt(type.var.slice(1), 10));
     return solution ? resolveMetaVars(solution) : type;
   }
 

@@ -285,7 +285,13 @@ export class TypeChecker extends BaseVisitor {
       console.error(`Type error in fn ${node.name?.name || "anon"}:`);
       console.error(showTerm(term));
       console.error(showContext(this.context));
-      console.error(result.err);
+
+      if ("type_mismatch" in result.err) {
+        console.error(
+          `Expected: ${showType(result.err.type_mismatch.expected)}`,
+        );
+        console.error(`Actual: ${showType(result.err.type_mismatch.actual)}`);
+      }
       this.errors.push(result.err);
     }
     return node;
