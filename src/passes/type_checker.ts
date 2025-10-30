@@ -140,7 +140,7 @@ export class TypeChecker extends BaseVisitor {
       if ("trait_def" in binding) {
         const trait = binding.trait_def;
         for (const [methodName, _] of trait.methods) {
-          const projName = `${trait.name}.${methodName}`; // e.g., "map"
+          const projName = methodName; // e.g., "map"
           const projTerm = {
             trait_lam: {
               trait_var: `dict_${projName}`,
