@@ -1,29 +1,29 @@
-import {
-  type BuiltinDeclaration,
-  type ConstructorImport,
-  type Declaration,
-  type EnumDeclaration,
-  type Fn,
-  type ImplDeclaration,
-  type Import,
-  type LetDeclaration,
-  type Module,
-  type NameImport,
-  showFn,
-  type TraitDeclaration,
-  type TypeDeclaration,
-  type TypeExpression,
-  type TypeImport,
+import type {
+  BuiltinDeclaration,
+  ConstructorImport,
+  Declaration,
+  EnumDeclaration,
+  Fn,
+  ImplDeclaration,
+  Import,
+  LetDeclaration,
+  Module,
+  NameImport,
+  TraitDeclaration,
+  TypeExpression,
+  TypeImport,
 } from "../parser.js";
 import {
   type Binding,
   type Context,
   checkKind,
   collectTypeVars,
-  inferType,
+  freshMetaVar,
+  instantiate,
   type Kind,
   kindArity,
   kindsEqual,
+  normalizeType,
   showContext,
   showKind,
   showTerm,
@@ -53,6 +53,7 @@ export class TypeChecker extends BaseVisitor {
   private globalContext = [] as Context;
   private context = [] as Context;
   private processedTraits = new Set<string>();
+
   errors = [] as TypingError[];
   constructor(
     public termMap: TermMap,
@@ -716,13 +717,51 @@ export class TypeChecker extends BaseVisitor {
       `Method extension: ${methodContextExtension.map((b) => ("type" in b ? `${b.type.name}:*` : `self:${showType((b as TermBinding).term.type)}`)).join(", ")}`,
     ); // Debug: "t:*, u:*, self:(Option t)"
 
+    const traitTypeParamMap = new Map<string, Type>();
+
+    // For "impl Map<r, u> for Either<l, r>", the trait's <t, u> map to impl's <r, u>
+    const traitDecl = this.findTraitDeclaration(impl_decl.name.type);
+    if (traitDecl) {
+      // Map trait params to impl params (same order)
+      for (
+        let i = 0;
+        i < impl_decl.type_params.length &&
+        i < traitDecl.trait.type_params.length;
+        i++
+      ) {
+        const traitParam = traitDecl.trait.type_params[i]!.name;
+        const implParam = this.typeMap.get(impl_decl.type_params[i]!); // Changed from this.types
+        if (implParam) {
+          traitTypeParamMap.set(traitParam, implParam);
+        }
+      }
+    }
+
     const methodBindings: TermBinding[] = [];
     for (const [methodName, methodTy] of traitDef.trait_def.methods) {
-      // Substitute "Self" with the full forType in the method type
-      const instantiatedMethodTy = substituteType("Self", forType, methodTy);
+      // Substitute "Self" with forType (existing)
+      let instantiatedMethodTy = substituteType("Self", forType, methodTy);
+
+      // Substitute trait top-level params with impl params (existing)
+      for (const [traitParam, implType] of traitTypeParamMap.entries()) {
+        instantiatedMethodTy = substituteType(
+          traitParam,
+          implType,
+          instantiatedMethodTy,
+        );
+      }
+
+      // Instantiate method generics (per-method foralls like ∀t ∀u. ...) with fresh metas
+      // This aligns renamed τ0/τ1 with impl context vars (r, u) via unification during check
+      instantiatedMethodTy = instantiate(instantiatedMethodTy, freshMetaVar);
+
+      // Normalize to beta-reduce any remaining apps
+      instantiatedMethodTy = normalizeType(instantiatedMethodTy);
+
       console.log(
-        `Bound method ${methodName}: ${showType(instantiatedMethodTy)}`,
-      ); // Debug
+        `Bound method ${methodName}: ${showType(instantiatedMethodTy)}`, // Now shows (?0 → ?1) → (forType ?0) → (forType ?1)
+      );
+
       methodBindings.push({
         term: { name: methodName, type: instantiatedMethodTy },
       });
@@ -777,5 +816,16 @@ export class TypeChecker extends BaseVisitor {
 
     console.log("Impl typecheck complete");
     return node;
+  }
+
+  findTraitDeclaration(traitName: string): TraitDeclaration | null {
+    // Search scopes for the trait declaration
+    for (const [_, scope] of this.scopes) {
+      const element = lookup_type(traitName, scope);
+      if (element && "trait" in element) {
+        return element.trait;
+      }
+    }
+    return null;
   }
 }

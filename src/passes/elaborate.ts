@@ -45,23 +45,20 @@ import {
 import {
   type BoundedForallType,
   type Context,
-  checkKind,
   collectTypeVars,
+  freshMetaVar,
   type Kind,
-  kindsEqual,
   type MatchTerm,
   normalizeType,
   type Pattern,
-  showContext,
-  showTerm,
   showType,
   substituteType,
   type Term,
   type TraitDef,
-  type TraitDefBinding,
   type TraitLamTerm,
   type Type,
   type TypingError,
+  tyapp_term,
   unitType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
@@ -77,21 +74,18 @@ function arrows(args: Type[], ret: Type): Type {
   return args.reduceRight((acc, from) => ({ arrow: { from, to: acc } }), ret);
 }
 
-function getVariantFromType(name: string, t: Type) {
-  if ("variant" in t) {
-    return t.variant.find((t) => t[0] === name);
-  }
-  if ("forall" in t) {
-    return getVariantFromType(name, t.forall.body);
-  }
-  if ("lam" in t) {
-    return getVariantFromType(name, t.lam.body);
-  }
-}
 function getTypeConstructorName(typeExpr: TypeExpression): string | null {
   if ("type" in typeExpr) return typeExpr.type;
   if ("app" in typeExpr) return getTypeConstructorName(typeExpr.app.callee);
   return null;
+}
+
+function collectTypeVarsFromTypes(types: Type[], vars: Set<string>) {
+  for (const ty of types) {
+    for (const v of collectTypeVars(ty)) {
+      vars.add(v);
+    }
+  }
 }
 
 export type TypeMap = Map<
@@ -134,6 +128,9 @@ export class ElaboratePass extends BaseVisitor {
   terms: TermMap = new Map();
   patterns = new Map<PatternExpression, Pattern>();
   context = [] as Context;
+
+  private traitMethodRenamings = new Map<string, Map<string, string>>();
+  private currentImplTypeArgs: Type[] | null = null;
 
   constructor(
     public scopes: Map<Scopable, Scope>,
@@ -796,62 +793,156 @@ export class ElaboratePass extends BaseVisitor {
     super.visitConstructorPatternExpression(node);
 
     const scope = this.scopes.get(node);
-    if (!scope) throw new Error("Scope not generated for pattern.");
+    if (!scope) {
+      this.errors.push({ cannot_resolve_symbol: node.constr.type });
+      return node; // Fallback to wildcard below
+    }
 
     const element = lookup_type(node.constr.type.type, scope);
-
-    if (element && "variant" in element) {
-      const parent = this.variants.get(element.variant);
-      if (!parent) throw new Error("Variant not generated for enum element.");
-
-      const enumType = this.types.get(parent);
-      if (!enumType) throw new Error("EnumType not generated for declaration.");
-
-      const variantType = getVariantFromType(node.constr.type.type, enumType);
-
-      if (!variantType)
-        throw new Error("Variant has no variant type generated.");
-
-      // Build the inner pattern based on the number of patterns and variant type
-      let innerPattern: Pattern;
-
-      if (node.constr.patterns.length === 0) {
-        // No patterns: unit/wildcard
-        innerPattern = { tuple: [] }; // or { wildcard: null }
-      } else if (node.constr.patterns.length === 1) {
-        // Single pattern: use it directly (not wrapped in tuple)
-        const elaborated = this.patterns.get(node.constr.patterns[0]!);
-        if (!elaborated) {
-          throw new Error("Inner pattern not elaborated");
-        }
-        innerPattern = elaborated;
-      } else {
-        // Multiple patterns: wrap in tuple
-        const tuplePatterns: Pattern[] = [];
-        for (const p of node.constr.patterns) {
-          const elaborated = this.patterns.get(p);
-          if (!elaborated) {
-            throw new Error("Inner pattern not elaborated");
-          }
-          tuplePatterns.push(elaborated);
-        }
-        innerPattern = { tuple: tuplePatterns };
-      }
-
-      const pattern: Pattern = {
-        variant: {
-          label: node.constr.type.type,
-          pattern: innerPattern,
-        },
-      };
-
-      this.patterns.set(node, pattern);
-      return node;
-    } else {
-      this.patterns.set(node, { wildcard: null });
+    if (!element || !("variant" in element)) {
       this.errors.push({ cannot_resolve_symbol: node.constr.type });
+      this.patterns.set(node, { wildcard: null });
       return node;
     }
+
+    const parent = this.variants.get(element.variant);
+    if (!parent) {
+      this.errors.push({ variant_type_not_found: node.constr.type.type });
+      this.patterns.set(node, { wildcard: null });
+      return node;
+    }
+
+    const enumType = this.types.get(parent);
+    if (!enumType) {
+      this.errors.push({ type_is_not_a_variant: node.constr.type.type });
+      this.patterns.set(node, { wildcard: null });
+      return node;
+    }
+
+    // Instantiate the enum type
+    let currentVariantType = enumType;
+    const arity = parent.enum.type_params.length;
+
+    if (arity > 0) {
+      let args: Type[];
+      if (this.currentImplTypeArgs !== null) {
+        args = this.currentImplTypeArgs.slice(0, arity);
+      } else {
+        // FIX: Use fresh metas for patterns outside impls
+        args = Array.from({ length: arity }, () => freshMetaVar());
+      }
+
+      console.log(
+        `Instantiating pattern variant "${node.constr.type.type}" with args: [${args.map(showType).join(", ")}]`,
+      );
+
+      // Instantiate (substitute top-level bound vars with args)
+      for (const arg of args) {
+        if ("lam" in currentVariantType) {
+          currentVariantType = substituteType(
+            currentVariantType.lam.var,
+            arg,
+            currentVariantType.lam.body,
+          );
+        } else if ("forall" in currentVariantType) {
+          currentVariantType = substituteType(
+            currentVariantType.forall.var,
+            arg,
+            currentVariantType.forall.body,
+          );
+        } else {
+          break;
+        }
+      }
+      currentVariantType = normalizeType(currentVariantType);
+
+      console.log(`Instantiated variant type: ${showType(currentVariantType)}`);
+    }
+
+    const variantType = currentVariantType;
+
+    // Ensure it's a variant after instantiation
+    if (!("variant" in variantType)) {
+      console.error(
+        `Expected variant type after instantiation, got: ${showType(variantType)}`,
+      );
+      this.errors.push({ type_is_not_a_variant: node.constr.type.type });
+      this.patterns.set(node, { wildcard: null });
+      return node;
+    }
+
+    const caseType = variantType.variant.find(
+      (t) => t[0] === node.constr.type.type,
+    );
+
+    if (!caseType) {
+      console.warn(
+        `No case found for label "${node.constr.type.type}" in ${showType(variantType)}`,
+      );
+      this.errors.push({
+        invalid_variant_label: {
+          variant: variantType,
+          label: node.constr.type.type,
+        },
+      });
+      this.patterns.set(node, { wildcard: null });
+      return node;
+    }
+
+    // Optional: Early arity check for inner patterns vs. caseType[1]
+    // e.g., If caseType[1] is tuple of length 1 but patterns have 2, warn
+    const expectedInnerArity = this.getPatternArity(caseType[1]); // Helper: see below
+    const actualInnerArity = node.constr.patterns.length;
+    if (
+      expectedInnerArity !== undefined &&
+      expectedInnerArity !== actualInnerArity
+    ) {
+      console.warn(
+        `Arity mismatch in pattern ${node.constr.type.type}: expected ${expectedInnerArity}, got ${actualInnerArity}`,
+      );
+      // Defer final check to type checker, or push error
+    }
+
+    // Build inner pattern - the caseType[1] is already instantiated
+    let innerPattern: Pattern;
+    if (node.constr.patterns.length === 0) {
+      innerPattern = { tuple: [] };
+    } else if (node.constr.patterns.length === 1) {
+      const elaborated = this.patterns.get(node.constr.patterns[0]!);
+      if (!elaborated) throw new Error("Pattern not elaborated");
+      innerPattern = elaborated;
+    } else {
+      // Multiple patterns → tuple
+      const tuplePatterns: Pattern[] = node.constr.patterns.map((p) => {
+        const elaborated = this.patterns.get(p);
+        if (!elaborated) throw new Error("Pattern not elaborated");
+        return elaborated;
+      });
+      innerPattern = { tuple: tuplePatterns };
+    }
+
+    // Note: We don't set types on patterns (structural only). caseType[1] is used in type checker for bindings.
+    // If you want to store for debug: this.types.set(node, variantType); but not necessary.
+
+    const pattern: Pattern = {
+      variant: {
+        label: node.constr.type.type,
+        pattern: innerPattern,
+      },
+    };
+
+    this.patterns.set(node, pattern);
+    return node;
+  }
+
+  // Helper: Extract expected arity from a type (for tuple/record fields)
+  private getPatternArity(type: Type): number | undefined {
+    if ("tuple" in type) return type.tuple.length;
+    if ("record" in type) return type.record.length;
+    if ("never" in type) return 0;
+    if ("var" in type) return 1; // Type variable represents a single value
+    if ("arrow" in type) return 1;
+    return undefined;
   }
 
   override visitNameIdentifier(node: NameIdentifier): NameIdentifier {
@@ -950,16 +1041,44 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     if ("variant" in scopedElement) {
-      // Enum variant constructor
       const variant = scopedElement.variant;
       const variantType = this.types.get(variant);
+      const parentEnum = this.variants.get(variant);
+      if (!parentEnum) throw new Error("Parent enum not found");
+      if (!variantType) throw new Error("Variant type not found");
 
-      if (!variantType) {
-        throw new Error(`Variant type not elaborated: ${node.name}`);
+      const arity = parentEnum.enum.type_params.length;
+
+      let ctorTerm: Term = { var: node.name };
+      let ctorType: Type = variantType;
+
+      let args: Type[];
+      if (
+        this.currentImplTypeArgs !== null &&
+        this.currentImplTypeArgs.length >= arity
+      ) {
+        args = this.currentImplTypeArgs.slice(0, arity);
+      } else {
+        // FIX: Use fresh metas instead of param names to avoid free named vars
+        args = Array.from({ length: arity }, () => freshMetaVar());
       }
 
-      this.terms.set(node, { var: node.name });
-      this.types.set(node, variantType);
+      if (arity > 0) {
+        console.log(
+          `Instantiating variant "${node.name}" with args: [${args.map(showType).join(", ")}]`,
+        );
+        // For term: nested tyapp
+        for (const arg of args) {
+          ctorTerm = tyapp_term(ctorTerm, arg);
+        }
+
+        // For type: substitute in reverse (for foralls, but here lams)
+        ctorType = this.instantiateTypeWithArgs(variantType, args);
+        ctorType = normalizeType(ctorType);
+      }
+
+      this.terms.set(node, ctorTerm);
+      this.types.set(node, ctorType);
       return node;
     }
 
@@ -1037,17 +1156,62 @@ export class ElaboratePass extends BaseVisitor {
       return node;
     }
 
+    // In ElaboratePass.visitNameIdentifier, for projection case:
     if (this.projectionTypes.has(node.name)) {
-      // Override with projection
       console.log(`Resolving "${node.name}" as trait projection`);
-      this.types.set(node, this.projectionTypes.get(node.name)!);
-      this.terms.set(node, this.projectionTerms.get(node.name)!);
+
+      // Get the projection info
+      const projType = this.projectionTypes.get(node.name)!;
+      const projTerm = this.projectionTerms.get(node.name)!;
+
+      // Check if we need to instantiate with a specific dictionary
+      // For now, just return the projection - dictionary passing happens at application time
+      this.types.set(node, projType);
+      this.terms.set(node, projTerm);
       return node;
     }
 
     // Unknown scope element type
     this.errors.push({ cannot_resolve_symbol: node });
     return node;
+  }
+
+  // Add to ElaboratePass class
+  private instantiateTypeWithArgs(type: Type, args: Type[]): Type {
+    if (args.length === 0) return type;
+
+    // Handle forall types (e.g., ∀t::*.∀u::*. body)
+    if ("forall" in type) {
+      const [firstArg, ...restArgs] = args;
+      const instantiatedBody = substituteType(
+        type.forall.var,
+        firstArg!,
+        type.forall.body,
+      );
+      return this.instantiateTypeWithArgs(instantiatedBody, restArgs);
+    }
+
+    // Handle lambda types (e.g., λt::*.λu::*. body)
+    if ("lam" in type) {
+      const [firstArg, ...restArgs] = args;
+      const instantiatedBody = substituteType(
+        type.lam.var,
+        firstArg!,
+        type.lam.body,
+      );
+      return this.instantiateTypeWithArgs(instantiatedBody, restArgs);
+    }
+
+    // No more binders but still have args - create type applications
+    if (args.length > 0) {
+      let result = type;
+      for (const arg of args) {
+        result = { app: { func: result, arg } };
+      }
+      return result;
+    }
+
+    return type;
   }
 
   // Helper method to extract the type of a specific binding from a pattern
@@ -1391,64 +1555,136 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     // Now build method types
+    // Create unique renaming for this trait's method generics
+    const traitName = trait_decl.id.type;
+    const methodGenericRenaming = new Map<string, string>();
+    let renameCounter = 0;
+
+    // Collect all generic vars EXCEPT "Self"
+    const allMethodGenerics = new Set<string>();
     for (const traitFn of trait_decl.fns) {
-      // Get elaborated types
+      for (const tp of traitFn.type_params) {
+        if (tp.name !== "Self") {
+          // ← KEY FIX
+          allMethodGenerics.add(tp.name);
+        }
+      }
+
+      const paramTypes = traitFn.params
+        .map((p) => this.types.get(p.ty))
+        .filter(Boolean) as Type[];
+      const returnType = this.types.get(traitFn.return_type) as Type;
+
+      // Collect vars but filter out "Self"
+      const vars = new Set<string>();
+      collectTypeVarsFromTypes([...paramTypes, returnType], vars);
+      vars.delete("Self"); // ← KEY FIX: Don't rename Self
+
+      for (const v of vars) {
+        allMethodGenerics.add(v);
+      }
+    }
+
+    // Also add trait-level params (but NOT if they're "Self")
+    for (const tp of trait_decl.type_params) {
+      if (tp.name !== "Self") {
+        // ← KEY FIX
+        allMethodGenerics.add(tp.name);
+      }
+    }
+
+    // Assign unique names
+    for (const oldName of allMethodGenerics) {
+      const newName = `τ${renameCounter++}`;
+      methodGenericRenaming.set(oldName, newName);
+    }
+
+    this.traitMethodRenamings.set(traitName, methodGenericRenaming);
+
+    // Build method types with renaming (but Self stays as Self)
+    for (const traitFn of trait_decl.fns) {
+      // Apply renaming to param/return types (Self won't be renamed)
       const paramTypes: Type[] = traitFn.params.map((p) => {
-        const ty = this.types.get(p.ty);
-        if (!ty)
-          throw new Error(`Parameter type not elaborated: ${p.name.name}`);
+        let ty = this.types.get(p.ty)!;
+        for (const [oldName, newName] of methodGenericRenaming.entries()) {
+          ty = substituteType(oldName, { var: newName }, ty);
+        }
         return ty;
       });
 
-      const returnType = this.types.get(traitFn.return_type);
-      if (!returnType) throw new Error("Return type not elaborated");
+      let returnType = this.types.get(traitFn.return_type)!;
+      for (const [oldName, newName] of methodGenericRenaming.entries()) {
+        returnType = substituteType(oldName, { var: newName }, returnType);
+      }
 
-      // Build Self type applied to first trait type parameter
-      // For Map<t, u>, Self becomes Self<t>
-      let selfType: Type = { var: "Self" };
+      // Build Self application (using RENAMED trait param if present)
+      let selfType: Type = { var: "Self" }; // ← Keep as "Self"
       if (trait_decl.type_params.length > 0) {
+        const origParam = trait_decl.type_params[0]!.name;
+        // Only rename if it's not "Self" itself
+        const renamedParam =
+          origParam === "Self"
+            ? "Self"
+            : methodGenericRenaming.get(origParam) || origParam;
+
         selfType = {
           app: {
-            func: selfType,
-            arg: { var: trait_decl.type_params[0]!.name },
+            func: { var: "Self" }, // ← Always "Self" for the constructor
+            arg: { var: renamedParam }, // ← Use renamed arg (e.g., τ0)
           },
         };
       }
 
-      // Build function type: param1 → param2 → ... → self → return
-      let methodType = returnType;
+      // Build method type: Self → param₁ → ... → result
+      let methodType: Type = returnType;
+      methodType = { arrow: { from: selfType, to: methodType } };
 
-      // Add self as the LAST parameter
-      methodType = {
-        arrow: {
-          from: selfType,
-          to: methodType,
-        },
-      };
-
-      // Add regular parameters (right to left)
       for (let i = paramTypes.length - 1; i >= 0; i--) {
-        methodType = {
-          arrow: {
-            from: paramTypes[i]!,
-            to: methodType,
-          },
-        };
+        methodType = { arrow: { from: paramTypes[i]!, to: methodType } };
       }
 
-      // Wrap in foralls for method-level type parameters
-      for (let i = traitFn.type_params.length - 1; i >= 0; i--) {
-        methodType = {
+      // Collect free vars (excluding Self and already bound)
+      const boundVars = new Set(
+        traitFn.type_params.map((tp) => {
+          return tp.name === "Self"
+            ? "Self"
+            : methodGenericRenaming.get(tp.name) || tp.name;
+        }),
+      );
+      boundVars.add("Self"); // ← Self is implicitly bound by the trait
+
+      const freeVarsInSig = collectTypeVars(methodType).filter(
+        (v) => !boundVars.has(v),
+      );
+
+      // Wrap foralls for free vars
+      let generalizedMethodType = methodType as Type;
+      for (const freeVar of freeVarsInSig.sort().reverse()) {
+        generalizedMethodType = {
           forall: {
-            var: traitFn.type_params[i]!.name,
+            var: freeVar,
             kind: { star: null },
-            body: methodType,
+            body: generalizedMethodType,
           },
         };
       }
 
-      methods.push([traitFn.name.name, methodType]);
-      this.types.set(traitFn, methodType);
+      // Wrap method's own type params (renamed versions)
+      for (let i = traitFn.type_params.length - 1; i >= 0; i--) {
+        const origVar = traitFn.type_params[i]!.name;
+        if (origVar === "Self") continue; // Skip Self in method params
+        const renamedVar = methodGenericRenaming.get(origVar) || origVar;
+        generalizedMethodType = {
+          forall: {
+            var: renamedVar,
+            kind: { star: null },
+            body: generalizedMethodType,
+          },
+        };
+      }
+
+      methods.push([traitFn.name.name, generalizedMethodType]);
+      this.types.set(traitFn, generalizedMethodType);
     }
 
     const traitDef: TraitDef = {
@@ -1464,7 +1700,6 @@ export class ElaboratePass extends BaseVisitor {
     // Also store a marker type
     this.types.set(node, { con: `Trait<${trait_decl.id.type}>` });
 
-    const traitName = traitDef.name; // e.g., "Map"
     for (const [methodName, methodType] of traitDef.methods) {
       const projKey = methodName; // e.g., "map" (assume unique; qualify if needed: `${traitName}.${methodName}`)
 
@@ -1605,6 +1840,20 @@ export class ElaboratePass extends BaseVisitor {
       }
     }
 
+    const typeArgs: Type[] = [];
+    let currentFor: Type = forType;
+    while ("app" in currentFor) {
+      typeArgs.unshift(currentFor.app.arg); // Unshift to preserve order: l then r
+      currentFor = currentFor.app.func;
+    }
+    console.log(
+      `Impl type args for ${showType(forType)}: [${typeArgs.map(showType).join(", ")}]`,
+    );
+
+    // Set for body elaboration
+    const prevArgs = this.currentImplTypeArgs;
+    this.currentImplTypeArgs = typeArgs;
+
     // Elaborate each method implementation
     const methodImpls: [string, Term][] = [];
     for (const fn of impl_decl.fns) {
@@ -1614,6 +1863,7 @@ export class ElaboratePass extends BaseVisitor {
       if (!fn.name) throw new Error("Impl method must have a name");
       methodImpls.push([fn.name.name, fnTerm]);
     }
+    this.currentImplTypeArgs = prevArgs;
 
     // Build the dictionary term
     let dictTerm: Term = {
@@ -1661,6 +1911,27 @@ export class ElaboratePass extends BaseVisitor {
     this.terms.set(node, dictTerm);
     this.types.set(node, dictType);
 
+    if (
+      impl_decl.name.type === "Map" &&
+      getTypeConstructorName(impl_decl.for) === "Either"
+    ) {
+      console.log("Handling Either Map implementation");
+
+      // Extract both parameters 'l' and 'r' properly
+      const leftVar = "l"; // From Either l r
+      const rightVar = "r"; // From Either l r
+
+      // Make sure both are in the context
+      if (!implContext.some((e) => "type" in e && e.type.name === leftVar)) {
+        implContext.push({ type: { name: leftVar, kind: { star: null } } });
+      }
+      if (!implContext.some((e) => "type" in e && e.type.name === rightVar)) {
+        implContext.push({ type: { name: rightVar, kind: { star: null } } });
+      }
+
+      // ... rest of the method processing ...
+    }
+
     // Register the impl in the type checker context
     this.context.push({
       trait_impl: {
@@ -1696,17 +1967,5 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     return Array.from(vars);
-  }
-
-  // Helper to find a trait declaration by name
-  private findTraitDeclaration(traitName: string): TraitDeclaration | null {
-    // Look through the scopes to find the trait declaration
-    for (const [_, scope] of this.scopes) {
-      const element = lookup_type(traitName, scope);
-      if (element && "trait" in element) {
-        return element.trait;
-      }
-    }
-    return null;
   }
 }

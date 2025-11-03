@@ -959,7 +959,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     if ("fold" in node) return this.visitFoldTerm(node);
     if ("unfold" in node) return this.visitUnfoldTerm(node);
     if ("tuple" in node) return this.visitTupleTerm(node);
-    if ("tupleProject" in node) return this.visitTupleProjectTerm(node);
+    if ("tuple_project" in node) return this.visitTupleProjectTerm(node);
     if ("let" in node) return this.visitLetTerm(node);
     throw new Error("Unknown term");
   }
@@ -1080,9 +1080,9 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
 
   visitTupleProjectTerm(node: TupleProjectTerm): Term {
     return {
-      tupleProject: {
-        tuple: this.visitTerm(node.tupleProject.tuple),
-        index: node.tupleProject.index,
+      tuple_project: {
+        tuple: this.visitTerm(node.tuple_project.tuple),
+        index: node.tuple_project.index,
       },
     };
   }
