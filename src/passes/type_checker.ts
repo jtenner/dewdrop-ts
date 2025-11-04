@@ -36,6 +36,9 @@ import {
   type TypingError,
   typecheck,
   arrow_type,
+  app_type,
+  starKind,
+  forall_type,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import { lookup_type, type Scope, type ScopeIndex } from "./create_scopes.js";
@@ -436,7 +439,7 @@ export class TypeChecker extends BaseVisitor {
 
     // Now build methods with renaming applied
     for (const traitFn of trait_decl.fns) {
-      let paramTypes: Type[] = traitFn.params.map((p) => {
+      const paramTypes: Type[] = traitFn.params.map((p) => {
         let ty = this.typeMap.get(p.ty)!;
         for (const [oldName, newName] of methodGenericRenaming.entries()) {
           ty = substituteType(oldName, { var: newName }, ty);
@@ -456,14 +459,9 @@ export class TypeChecker extends BaseVisitor {
         const renamedParam =
           origParam === "Self"
             ? "Self"
-            : methodGenericRenaming.get(origParam) || origParam; // ✅ Use renamed version
+            : methodGenericRenaming.get(origParam) || origParam;
 
-        selfType = {
-          app: {
-            func: selfType,
-            arg: { var: renamedParam }, // ✅ Now uses 'τ0' instead of 't'
-          },
-        };
+        selfType = app_type(selfType, { var: renamedParam });
       }
 
       let methodType = arrow_type(selfType, returnType) as Type;
@@ -486,28 +484,23 @@ export class TypeChecker extends BaseVisitor {
 
       // Wrap in foralls for free variables
       let generalizedMethodType = methodType;
-      for (const freeVar of sigFreeVars.sort().reverse()) {
-        generalizedMethodType = {
-          forall: {
-            var: freeVar,
-            kind: { star: null },
-            body: generalizedMethodType,
-          },
-        };
-      }
+      for (const freeVar of sigFreeVars.sort().reverse())
+        generalizedMethodType = forall_type(
+          freeVar,
+          starKind,
+          generalizedMethodType,
+        );
 
       // Wrap in foralls for method's explicit type parameters
       for (let i = traitFn.type_params.length - 1; i >= 0; i--) {
         const origVar = traitFn.type_params[i]!.name;
         if (origVar === "Self") continue;
         const renamedVar = methodGenericRenaming.get(origVar) || origVar;
-        generalizedMethodType = {
-          forall: {
-            var: renamedVar,
-            kind: { star: null },
-            body: generalizedMethodType,
-          },
-        };
+        generalizedMethodType = forall_type(
+          renamedVar,
+          starKind,
+          generalizedMethodType,
+        );
       }
 
       methods.push([traitFn.name.name, generalizedMethodType]);
