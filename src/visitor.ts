@@ -96,7 +96,7 @@ import type {
   TupleType,
   TyAppTerm,
   TyLamTerm,
-  Type,
+  ty,
   TypeBinding,
   TypingError,
   UnfoldTerm,
@@ -783,16 +783,16 @@ export interface TypeSystemVisitor {
   visitArrowKind?(node: { arrow: { from: Kind; to: Kind } }): Kind;
 
   // Types
-  visitVarType?(node: VarType): Type;
-  visitArrowType?(node: ArrowType): Type;
-  visitForallType?(node: ForallType): Type;
-  visitAppType?(node: AppType): Type;
-  visitLamType?(node: LamType): Type;
-  visitConType?(node: ConType): Type;
-  visitRecordType?(node: RecordType): Type;
-  visitVariantType?(node: VariantType): Type;
-  visitMuType?(node: MuType): Type;
-  visitTupleType?(node: TupleType): Type;
+  visitVarType?(node: VarType): ty;
+  visitArrowType?(node: ArrowType): ty;
+  visitForallType?(node: ForallType): ty;
+  visitAppType?(node: AppType): ty;
+  visitLamType?(node: LamType): ty;
+  visitConType?(node: ConType): ty;
+  visitRecordType?(node: RecordType): ty;
+  visitVariantType?(node: VariantType): ty;
+  visitMuType?(node: MuType): ty;
+  visitTupleType?(node: TupleType): ty;
 
   // Terms
   visitVarTerm?(node: VarTerm): Term;
@@ -853,7 +853,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
   }
 
   // Types
-  visitType(node: Type): Type {
+  visitType(node: ty): ty {
     if ("var" in node) return this.visitVarType(node);
     if ("arrow" in node) return this.visitArrowType(node);
     if ("forall" in node) return this.visitForallType(node);
@@ -867,11 +867,11 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     throw new Error("Unknown type");
   }
 
-  visitVarType(node: VarType): Type {
+  visitVarType(node: VarType): ty {
     return node;
   }
 
-  visitArrowType(node: ArrowType): Type {
+  visitArrowType(node: ArrowType): ty {
     return {
       arrow: {
         from: this.visitType(node.arrow.from),
@@ -880,7 +880,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitForallType(node: ForallType): Type {
+  visitForallType(node: ForallType): ty {
     return {
       forall: {
         var: node.forall.var,
@@ -890,7 +890,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitAppType(node: AppType): Type {
+  visitAppType(node: AppType): ty {
     return {
       app: {
         func: this.visitType(node.app.func),
@@ -899,7 +899,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitLamType(node: LamType): Type {
+  visitLamType(node: LamType): ty {
     return {
       lam: {
         var: node.lam.var,
@@ -909,27 +909,27 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitConType(node: ConType): Type {
+  visitConType(node: ConType): ty {
     return node;
   }
 
-  visitRecordType(node: RecordType): Type {
+  visitRecordType(node: RecordType): ty {
     return {
       record: node.record.map(
-        ([label, type]) => [label, this.visitType(type)] as [string, Type],
+        ([label, type]) => [label, this.visitType(type)] as [string, ty],
       ),
     };
   }
 
-  visitVariantType(node: VariantType): Type {
+  visitVariantType(node: VariantType): ty {
     return {
       variant: node.variant.map(
-        ([label, type]) => [label, this.visitType(type)] as [string, Type],
+        ([label, type]) => [label, this.visitType(type)] as [string, ty],
       ),
     };
   }
 
-  visitMuType(node: MuType): Type {
+  visitMuType(node: MuType): ty {
     return {
       mu: {
         var: node.mu.var,
@@ -938,7 +938,7 @@ export class BaseTypeSystemVisitor implements TypeSystemVisitor {
     };
   }
 
-  visitTupleType(node: TupleType): Type {
+  visitTupleType(node: TupleType): ty {
     return {
       tuple: node.tuple.map((t) => this.visitType(t)),
     };

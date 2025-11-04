@@ -80,7 +80,7 @@ function getTypeConstructorName(typeExpr: TypeExpression): string | null {
   return null;
 }
 
-function collectTypeVarsFromTypes(types: Type[], vars: Set<string>) {
+export function collectTypeVarsFromTypes(types: Type[], vars: Set<string>) {
   for (const ty of types) {
     for (const v of collectTypeVars(ty)) {
       vars.add(v);
@@ -1653,13 +1653,24 @@ export class ElaboratePass extends BaseVisitor {
       );
       boundVars.add("Self"); // ← Self is implicitly bound by the trait
 
-      const freeVarsInSig = collectTypeVars(methodType).filter(
-        (v) => !boundVars.has(v),
+      // Now: Rename ALL free vars in the full methodType (including inner Self apps)
+      const renamedMethodType = this.renameFreeVarsInType(
+        methodType,
+        methodGenericRenaming,
       );
 
-      // Wrap foralls for free vars
-      let generalizedMethodType = methodType as Type;
+      // For generality foralls: Since we renamed free vars, and bound vars may need adjustment if clashing
+      // But bound (method type_params) are already in renaming map (e.g., if method has ∀t. ..., t → τ0)
+      // Wait: For method's own foralls, the var is renamed in the wrapping loop below, but body uses renamed.
+      const sigFreeVars = collectTypeVars(renamedMethodType).filter(
+        (v) => !boundVars.has(v),
+      );
+      const freeVarsInSig = sigFreeVars.sort().reverse();
+
+      // Wrap as before, but body is already renamed
+      let generalizedMethodType = renamedMethodType;
       for (const freeVar of freeVarsInSig.sort().reverse()) {
+        // freeVars now use renamed names (e.g., τ2 if added)
         generalizedMethodType = {
           forall: {
             var: freeVar,
@@ -1669,11 +1680,10 @@ export class ElaboratePass extends BaseVisitor {
         };
       }
 
-      // Wrap method's own type params (renamed versions)
       for (let i = traitFn.type_params.length - 1; i >= 0; i--) {
         const origVar = traitFn.type_params[i]!.name;
-        if (origVar === "Self") continue; // Skip Self in method params
-        const renamedVar = methodGenericRenaming.get(origVar) || origVar;
+        if (origVar === "Self") continue;
+        const renamedVar = methodGenericRenaming.get(origVar) || origVar; // Already renamed
         generalizedMethodType = {
           forall: {
             var: renamedVar,
@@ -1684,7 +1694,7 @@ export class ElaboratePass extends BaseVisitor {
       }
 
       methods.push([traitFn.name.name, generalizedMethodType]);
-      this.types.set(traitFn, generalizedMethodType);
+      this.types.set(traitFn, generalizedMethodType); // Cache renamed
     }
 
     const traitDef: TraitDef = {
@@ -1967,5 +1977,109 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     return Array.from(vars);
+  }
+
+  // Add to ElaboratePass class (type_checker.ts or elaborate.ts)
+  private renameFreeVarsInType(
+    type: Type,
+    renaming: Map<string, string>,
+  ): Type {
+    if ("var" in type) {
+      const newName = renaming.get(type.var) || type.var;
+      return { var: newName };
+    }
+
+    if ("arrow" in type) {
+      return {
+        arrow: {
+          from: this.renameFreeVarsInType(type.arrow.from, renaming),
+          to: this.renameFreeVarsInType(type.arrow.to, renaming),
+        },
+      };
+    }
+
+    if ("app" in type) {
+      return {
+        app: {
+          func: this.renameFreeVarsInType(type.app.func, renaming),
+          arg: this.renameFreeVarsInType(type.app.arg, renaming),
+        },
+      };
+    }
+
+    if ("forall" in type) {
+      // Don't rename bound var; recurse on body
+      const renamedBody = this.renameFreeVarsInType(type.forall.body, renaming);
+      // If bound var is to be renamed (if it's a method generic), but since renaming excludes bound, keep
+      return {
+        forall: {
+          var: type.forall.var, // Bound vars not in renaming
+          kind: type.forall.kind,
+          body: renamedBody,
+        },
+      };
+    }
+
+    if ("lam" in type) {
+      // Similar to forall
+      return {
+        lam: {
+          var: type.lam.var,
+          kind: type.lam.kind,
+          body: this.renameFreeVarsInType(type.lam.body, renaming),
+        },
+      };
+    }
+
+    if ("record" in type) {
+      return {
+        record: type.record.map(([label, ty]) => [
+          label,
+          this.renameFreeVarsInType(ty, renaming),
+        ]),
+      };
+    }
+
+    if ("variant" in type) {
+      return {
+        variant: type.variant.map(([label, ty]) => [
+          label,
+          this.renameFreeVarsInType(ty, renaming),
+        ]),
+      };
+    }
+
+    if ("tuple" in type) {
+      return {
+        tuple: type.tuple.map((ty) => this.renameFreeVarsInType(ty, renaming)),
+      };
+    }
+
+    // con, never, mu, bounded_forall: recurse if needed
+    if ("bounded_forall" in type) {
+      return {
+        bounded_forall: {
+          var: type.bounded_forall.var,
+          kind: type.bounded_forall.kind,
+          constraints: type.bounded_forall.constraints.map((c) => ({
+            trait: c.trait,
+            type: this.renameFreeVarsInType(c.type, renaming),
+          })),
+          body: this.renameFreeVarsInType(type.bounded_forall.body, renaming),
+        },
+      };
+    }
+
+    if ("con" in type || "never" in type) return type;
+    if ("mu" in type) {
+      return {
+        mu: {
+          var: type.mu.var,
+          body: this.renameFreeVarsInType(type.mu.body, renaming),
+        },
+      };
+    }
+
+    return type; // Fallback
   }
 }
