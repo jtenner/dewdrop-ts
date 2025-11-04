@@ -52,16 +52,13 @@ import {
   collectTypeVars,
   con_type,
   type EnumDef,
-  type EnumDefBinding,
   type FieldScheme,
   forall_type,
-  freshMetaVar,
   type Kind,
   lam_term,
   lam_type,
   type MatchTerm,
   mu_type,
-  normalizeType,
   type Pattern,
   showPattern,
   showType,
@@ -72,7 +69,6 @@ import {
   type TraitLamTerm,
   type Type,
   type TypingError,
-  tyapp_term,
   tylam_term,
   unitType,
 } from "../types_system_f_omega.js";
@@ -1194,13 +1190,15 @@ export class ElaboratePass extends BaseVisitor {
     for (const v of node.enum.variants) {
       let fieldScheme: FieldScheme;
       if ("fields" in v) {
-        // Single field or record? For simplicity, use tuple even for named (ignore names for now)
-        const fieldTypes = v.fields.fields.map((f) => this.types.get(f.ty)!); // e.g., [{var: "t"}]
-        fieldScheme = { tuple: fieldTypes };
+        const fieldTypes = v.fields.fields.map((f) => this.types.get(f.ty)!);
+        // Unwrap single fields
+        fieldScheme =
+          fieldTypes.length === 1 ? fieldTypes[0]! : { tuple: fieldTypes };
       } else {
-        // Multi-field values
         const fieldTypes = v.values.values.map((ty) => this.types.get(ty)!);
-        fieldScheme = { tuple: fieldTypes };
+        // Unwrap single fields for positional variants too
+        fieldScheme =
+          fieldTypes.length === 1 ? fieldTypes[0]! : { tuple: fieldTypes };
       }
       variants.push([
         "fields" in v ? v.fields.id.type : v.values.id.type,
@@ -1232,40 +1230,49 @@ export class ElaboratePass extends BaseVisitor {
     }
     this.types.set(node, familyType); // Overwrite? No, set family as con, instance as app (but for decl, con)
 
-    // For each variant ctor: ∀params. fieldScheme[instantiated with param vars] → nominal instance app
     for (const v of node.enum.variants) {
       const label = "fields" in v ? v.fields.id.type : v.values.id.type;
-      const fieldScheme = variants.find(([l]) => l === label)![1]; // Unbound {var: "t"} or tuple
+      const fieldScheme = variants.find(([l]) => l === label)![1];
+      const resultType = familyType;
 
-      // Result type: nominal app (already built above as familyType with params)
-      const resultType = familyType; // e.g., app(app(con "Either", {var "t"}), {var "u"})
+      // Check if nullary (unit/zero-field constructor)
+      const isNullary =
+        "tuple" in fieldScheme && fieldScheme.tuple.length === 0;
 
-      // Ctor type base: field → result (instantiate fieldScheme with nothing, as params are forall-bound)
-      let ctorType = arrow_type(fieldScheme, resultType);
+      let ctorType: Type;
+      let ctorTerm: Term;
 
-      // Wrap foralls for params (outer to inner)
-      for (let i = params.length - 1; i >= 0; i--) {
-        ctorType = forall_type(params[i]!.name, starKind, ctorType);
+      if (isNullary) {
+        // Nullary: direct inject with unit value
+        ctorType = resultType;
+        ctorTerm = {
+          inject: {
+            label,
+            value: { tuple: [] }, // Unit value
+            variant_type: resultType,
+          },
+        };
+      } else {
+        // Non-nullary: wrap in lambda as before
+        ctorType = arrow_type(fieldScheme, resultType);
+        ctorTerm = {
+          inject: {
+            label,
+            value: { var: "$fields" },
+            variant_type: resultType,
+          },
+        };
+        ctorTerm = lam_term("$fields", fieldScheme, ctorTerm);
       }
 
-      // Build ctor term: tylam params ... lam $fields: field . inject(label, $fields var/tuple, resultType app)
-      let ctorTerm: Term = {
-        inject: {
-          label,
-          value: { var: "$fields" }, // Simple var for single; proj/tuple for multi (extend if needed)
-          variant_type: resultType, // Nominal app
-        },
-      };
-      ctorTerm = lam_term("$fields", fieldScheme, ctorTerm); // One lam for simplicity; loop for multi
-
+      // Wrap foralls (unchanged)
       for (let i = params.length - 1; i >= 0; i--) {
+        ctorType = forall_type(params[i]!.name, starKind, ctorType);
         ctorTerm = tylam_term(params[i]!.name, starKind, ctorTerm);
       }
 
       this.types.set(v, ctorType);
       this.terms.set(v, ctorTerm);
-
-      console.log(`Elaborated ctor ${label}: ${showType(ctorType)}`); // ∀t u. t → app(app(Either, t), u)
     }
 
     return node;

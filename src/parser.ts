@@ -2194,7 +2194,6 @@ const take_impl_declaration = async (
       fns: fns.ok,
     },
   };
-  console.log(showDeclaration(impl), JSON.stringify(impl, null, 2));
   return [next_token, ok(impl)];
 };
 
@@ -2717,7 +2716,6 @@ export function showTypeExpression(te: TypeExpression): string {
   if ("tuple" in te) {
     return `(${te.tuple.map(showTypeExpression).join(", ")})`;
   }
-  console.error(te);
   throw new Error("Something is wrong");
 }
 

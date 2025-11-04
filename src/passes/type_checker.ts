@@ -6,6 +6,7 @@ import type {
   Fn,
   ImplDeclaration,
   Import,
+  ImportDeclaration,
   LetDeclaration,
   Module,
   NameImport,
@@ -40,6 +41,9 @@ import {
   type TypingError,
   typecheck,
   typesEqual,
+  type EnumDef,
+  type FieldScheme,
+  arrow_kind,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import { lookup_type, type Scope, type ScopeIndex } from "./create_scopes.js";
@@ -173,6 +177,10 @@ export class TypeChecker extends BaseVisitor {
     return projections;
   }
 
+  override visitImportDeclaration(node: ImportDeclaration): Declaration {
+    return node;
+  }
+
   override visitTypeImport(node: TypeImport): Import {
     const scope = this.scopes.get(node.type.name);
     if (!scope) throw new Error("Scope not generated for import");
@@ -292,15 +300,19 @@ export class TypeChecker extends BaseVisitor {
         `Inferred type for ${node.name?.name || "anon fn"}: ${showType(result.ok)}`,
       );
     } else {
-      console.error(`Type error in fn ${node.name?.name || "anon"}:`);
-      console.error(showTerm(term));
-      console.error(showContext(this.context));
-
+      console.error(
+        `Type error in fn ${node.name?.name || "anon"}:`,
+        result.err,
+      );
+      console.error("Term:", showTerm(term));
+      console.error("Context:", showContext(this.context));
       if ("type_mismatch" in result.err) {
         console.error(
           `Expected: ${showType(result.err.type_mismatch.expected)}`,
         );
         console.error(`Actual: ${showType(result.err.type_mismatch.actual)}`);
+      } else if ("not_a_variant" in result.err) {
+        console.error(`Not a variant: ${showType(result.err.not_a_variant)}`);
       }
       this.errors.push(result.err);
     }
@@ -310,37 +322,67 @@ export class TypeChecker extends BaseVisitor {
   override visitEnumDeclaration(node: EnumDeclaration): Declaration {
     const enum_decl = node.enum;
 
-    // Build the correct kind: * → * → ... → *
-    let enumKind: Kind = { star: null };
+    // Build the correct kind: * → * → ... → * (unchanged)
+    let enumKind: Kind = starKind;
     for (let i = enum_decl.type_params.length - 1; i >= 0; i--) {
-      enumKind = {
-        arrow: {
-          from: { star: null },
-          to: enumKind,
-        },
-      };
+      enumKind = arrow_kind(starKind, enumKind);
     }
 
-    // Add enum type to context with the correct kind
+    // Add enum type to context with the correct kind (unchanged)
     this.context.push({
       type: { name: enum_decl.id.type, kind: enumKind },
     });
 
-    // Add each variant constructor to the context
-    for (const variant of enum_decl.variants) {
-      // Get the elaborated type for this variant constructor
-      const variant_type = this.typeMap.get(variant);
+    // NEW: Build and push EnumDef binding (for nominal pattern/inject checks)
+    const params = enum_decl.type_params.map((p) => p.name); // ["t", "u"]
+    const variants: [string, FieldScheme][] = [];
 
+    for (const variant of enum_decl.variants) {
+      let fieldScheme: FieldScheme; // Unbound type(s) with param vars
+      if ("fields" in variant) {
+        // Single or named fields (treat as tuple for simplicity)
+        const fieldTypes = variant.fields.fields.map(
+          (f) => this.typeMap.get(f.ty)!,
+        ); // e.g., [{var: "t"}]
+        fieldScheme =
+          fieldTypes.length === 1 ? fieldTypes[0]! : { tuple: fieldTypes };
+      } else {
+        // Multi-value fields
+        const fieldTypes = variant.values.values.map(
+          (ty) => this.typeMap.get(ty)!,
+        );
+        fieldScheme =
+          fieldTypes.length === 1 ? fieldTypes[0]! : { tuple: fieldTypes };
+      }
+      const label =
+        "fields" in variant ? variant.fields.id.type : variant.values.id.type;
+      variants.push([label, fieldScheme]);
+    }
+
+    const enumDef: EnumDef = {
+      enum: {
+        name: enum_decl.id.type,
+        kind: enumKind,
+        params,
+        variants,
+      },
+    };
+    this.context.push({ enum: enumDef }); // Push to global (this.context in phase 1)
+
+    console.log(
+      `Pushed EnumDef for ${enum_decl.id.type}: ${params.length} params, ${variants.length} variants`,
+    );
+
+    // Add variant constructors as terms (unchanged, but ensure types are poly)
+    for (const variant of enum_decl.variants) {
+      const variant_type = this.typeMap.get(variant); // Poly ctor type, e.g., ∀t. t → Option<t>
       if (!variant_type) {
         console.warn("No type found for variant:", variant);
         continue;
       }
 
-      // Get the variant constructor name
       const variant_name =
         "fields" in variant ? variant.fields.id.type : variant.values.id.type;
-
-      // Just register the constructor - DON'T type-check it
       this.context.push({
         term: { name: variant_name, type: variant_type },
       });
@@ -621,7 +663,6 @@ export class TypeChecker extends BaseVisitor {
   }
 
   override visitImplDeclaration(node: ImplDeclaration): Declaration {
-    console.log("visiting impl declaration");
     const impl_decl = node.impl;
 
     // Get the trait definition
@@ -755,26 +796,28 @@ export class TypeChecker extends BaseVisitor {
     }
 
     // Build methodContextExtension (deltas from implContext + self bind)
+    const globalBindings = new Set(
+      this.globalContext.map((b) => bindingKey(b)),
+    );
     const methodContextExtension: Binding[] = [];
-    const globalBindings = new Set(this.context.map((b) => bindingKey(b))); // Use key to avoid JSON.stringify issues
     for (const entry of implContext) {
       if (!globalBindings.has(bindingKey(entry))) {
-        methodContextExtension.push(entry); // e.g., t:*, u:*, l:*
+        methodContextExtension.push(entry); // Deltas: t:*, l:*, etc.
       }
     }
 
-    // Add self term binding (type = full forType, e.g., Option<t>)
+    // Add self term binding
     methodContextExtension.push({
-      term: {
-        name: "self",
-        type: forType, // e.g., { app: { func: { con: "Option" }, arg: { var: "t" } } }
-      },
+      term: { name: "self", type: forType },
     });
 
-    console.log(
-      `Method extension: ${methodContextExtension.map((b) => ("type" in b ? `${b.type.name}:*` : `self:${showType((b as TermBinding).term.type)}`)).join(", ")}`,
-    ); // Debug: "t:*, u:*, self:(Option t)"
+    const fullMethodContext: Context = [
+      ...this.globalContext,
+      ...methodContextExtension,
+    ];
 
+    // Also add methodBindings to full context
+    const methodBindings: TermBinding[] = [];
     const traitTypeParamMap = new Map<string, Type>();
 
     // For "impl Map<r, u> for Either<l, r>", the trait's <t, u> map to impl's <r, u>
@@ -795,7 +838,6 @@ export class TypeChecker extends BaseVisitor {
       }
     }
 
-    const methodBindings: TermBinding[] = [];
     for (const [methodName, methodTy] of traitDef.trait_def.methods) {
       // Substitute "Self" with forType (existing)
       let instantiatedMethodTy = substituteType("Self", forType, methodTy);
@@ -828,16 +870,25 @@ export class TypeChecker extends BaseVisitor {
       });
     }
 
+    for (const mb of methodBindings) {
+      fullMethodContext.push(mb);
+    }
+
     // Build full method context: type vars + self + all method bindings
     const fullMethodContextExtension: Binding[] =
       methodContextExtension.concat(methodBindings);
 
     this.enterImplContext();
-    // Type-check methods with full context (now includes "map" binding, self, etc.)
     for (const fn of impl_decl.fns) {
-      this.withExtendedContext(fullMethodContextExtension, () => {
-        this.visitFn(fn); // Now resolves self, map, etc.
-      });
+      // Use withExtendedContext on deltas only? No—push fullMethodContext minus global? Wait.
+      // Simpler: Temporarily set this.context = fullMethodContext during visitFn, restore after.
+      const originalContext = this.context.slice();
+      this.context = fullMethodContext;
+      try {
+        this.visitFn(fn); // Now has enums, self, map, etc.
+      } finally {
+        this.context = originalContext;
+      }
       if (this.errors.length > 0) {
         const lastError = this.errors[this.errors.length - 1];
         console.error("Errors after method:", lastError);

@@ -1,9 +1,6 @@
 // ./src/types_system_f_omega.ts
 import { err, ok, type Result } from "./util.js";
 
-// utility function
-const first = <T, U>(tuple: [T, U]) => tuple[0];
-
 // Trait definition - defines required methods
 export type TraitDef = {
   name: string;
@@ -1076,15 +1073,41 @@ export function checkTraitConstraints(
   return ok(dicts);
 }
 
-// Check if patterns are exhaustive (simplified version)
+function extractPatternLabels(pattern: Pattern): Set<string> {
+  const labels = new Set<string>();
+  if ("var" in pattern || "wildcard" in pattern || "con" in pattern) {
+    return labels; // Covers all, no specific label
+  }
+  if ("variant" in pattern) {
+    labels.add(pattern.variant.label);
+    // Recurse on inner for nested
+    for (const innerLabel of extractPatternLabels(pattern.variant.pattern)) {
+      labels.add(innerLabel);
+    }
+  } else if ("record" in pattern) {
+    for (const [, subPat] of pattern.record) {
+      for (const l of extractPatternLabels(subPat)) labels.add(l);
+    }
+  } else if ("tuple" in pattern) {
+    for (const subPat of pattern.tuple) {
+      for (const l of extractPatternLabels(subPat)) labels.add(l);
+    }
+  }
+  return labels;
+}
+
+// Updated checkExhaustive
 export function checkExhaustive(
   patterns: Pattern[],
   type: Type,
   ctx: Context,
 ): Result<TypingError, null> {
   const normType = normalizeType(type);
+  console.log(
+    `Checking exhaustive for ${showType(normType)} with ${patterns.length} patterns`,
+  );
 
-  // NEW: Nominal case
+  // Nominal check
   if ("app" in normType && "con" in normType.app.func) {
     const conName = normType.app.func.con;
     const spineArgs = getSpineArgs(normType);
@@ -1093,9 +1116,13 @@ export function checkExhaustive(
       (b) => "enum" in b && b.enum.enum.name === conName,
     );
     if (!enumBinding || !("enum" in enumBinding)) {
-      return err({ not_a_variant: type }); // Or missing_enum_def
+      console.error(`No enum for ${conName} in exhaustive ctx`);
+      return err({ not_a_variant: type }); // Triggered if no binding
     }
     const def = enumBinding.enum;
+    console.log(
+      `Found enum ${conName}: ${def.enum.params.length} params, variants: ${def.enum.variants.map(([l]) => l).join(", ")}`,
+    );
 
     if (spineArgs.length !== def.enum.params.length) {
       return err({
@@ -1103,44 +1130,47 @@ export function checkExhaustive(
       });
     }
 
-    // Get all labels
     const allLabels = new Set(def.enum.variants.map(([l]) => l));
     const coveredLabels = new Set<string>();
 
     for (const pattern of patterns) {
-      if ("wildcard" in pattern || "var" in pattern) return ok(null); // Wild/var covers all
-      if ("variant" in pattern) {
-        // Assuming VariantPattern {label, pattern}
-        coveredLabels.add(pattern.variant.label);
+      if ("wildcard" in pattern || "var" in pattern) {
+        console.log("Wildcard/var covers all");
+        return ok(null);
       }
-      // Recurse for nested con patterns if needed (extend for enum-of-enum, rare)
-    }
-
-    for (const label of allLabels) {
-      if (!coveredLabels.has(label)) {
-        return err({ missing_case: { label } });
+      const patLabels = extractPatternLabels(pattern);
+      for (const label of patLabels) {
+        coveredLabels.add(label);
       }
     }
 
+    const missing = [...allLabels].filter((l) => !coveredLabels.has(l)).sort();
+    if (missing.length > 0) {
+      console.error(`Missing cases: ${missing.join(", ")}`);
+      return err({ missing_case: { label: missing[0]! } }); // Report first
+    }
+
+    console.log("Exhaustive: All labels covered");
     return ok(null);
   }
 
-  // FALLBACK: Legacy structural
+  // Structural fallback (unchanged, with log)
   if ("variant" in normType) {
-    // Existing logic...
-    const variantLabels = new Set(normType.variant.map(first));
+    console.log("Using structural exhaustive");
+    const variantLabels = new Set(normType.variant.map(([l]) => l));
     const coveredLabels = new Set<string>();
     for (const pattern of patterns) {
       if ("wildcard" in pattern || "var" in pattern) return ok(null);
       if ("variant" in pattern) coveredLabels.add(pattern.variant.label);
     }
-    for (const label of variantLabels) {
-      if (!coveredLabels.has(label)) return err({ missing_case: { label } });
-    }
+    const missing = [...variantLabels].filter((l) => !coveredLabels.has(l));
+    if (missing.length > 0)
+      return err({ missing_case: { label: missing[0]! } });
     return ok(null);
   }
 
-  // For other types (e.g., never, tuples), always exhaustive
+  // Non-variant types (e.g., primitives, arrows): Always exhaustive (no cases needed)
+  console.log("Non-variant type: Exhaustive by default");
   return ok(null);
 }
 
@@ -1157,20 +1187,46 @@ export function checkPattern(
   if ("wildcard" in pattern) return { ok: [] };
 
   if ("variant" in pattern) {
-    // Elaborated as VariantPattern (even for enums)
     const normType = normalizeType(type);
+    console.log(
+      `Checking variant pattern ${pattern.variant.label} on ${showType(normType)}`,
+    );
 
-    // NEW: Nominal enum case
-    if ("app" in normType && "con" in normType.app.func) {
-      const conName = normType.app.func.con;
-      const spineArgs = getSpineArgs(normType);
+    // Structural
+    if ("variant" in normType) {
+      console.log("Using structural variant match");
+      const caseType = normType.variant.find(
+        ([t]) => t === pattern.variant.label,
+      );
+      if (!caseType)
+        return err({
+          invalid_variant_label: {
+            variant: normType,
+            label: pattern.variant.label,
+          },
+        });
+      return checkPattern(pattern.variant.pattern, caseType[1], ctx);
+    }
+
+    // Nominal
+    if ("app" in normType || "con" in normType) {
+      const head = "con" in normType ? normType : getSpineHead(normType);
+      if (!("con" in head)) {
+        console.error("Pattern is variant but head is not a constructor");
+        return err({ not_a_variant: type });
+      }
+
+      const conName = head.con;
+      const spineArgs = "con" in normType ? [] : getSpineArgs(normType);
 
       const enumBinding = ctx.find(
         (b) => "enum" in b && b.enum.enum.name === conName,
       );
       if (!enumBinding || !("enum" in enumBinding)) {
+        console.error(`No enum binding for ${conName} in pattern ctx`);
         return err({ not_a_variant: type });
       }
+
       const def = enumBinding.enum;
 
       if (spineArgs.length !== def.enum.params.length) {
@@ -1185,8 +1241,7 @@ export function checkPattern(
         return err({ invalid_variant_label: { variant: type, label } });
       }
 
-      // Instantiate field scheme with spine args
-      let fieldType = variantEntry[1]; // Unbound {var: "t"}
+      let fieldType = variantEntry[1];
       for (let i = 0; i < def.enum.params.length; i++) {
         fieldType = substituteType(
           def.enum.params[i]!,
@@ -1196,36 +1251,24 @@ export function checkPattern(
       }
       fieldType = normalizeType(fieldType);
 
-      // Recurse on subpattern with fieldType (e.g., var "x" binds to fieldType)
+      console.log(`Pattern ${label} field: ${showType(fieldType)}`);
+
       return checkPattern(pattern.variant.pattern, fieldType, ctx);
     }
 
-    // FALLBACK: Structural variant
-    if ("variant" in normType) {
-      // Existing logic for checkVariantPattern...
-      const caseType = normType.variant.find(
-        (t) => t[0] === pattern.variant.label,
-      );
-      if (!caseType)
-        return err({
-          invalid_variant_label: {
-            variant: normType,
-            label: pattern.variant.label,
-          },
-        });
-      return checkPattern(pattern.variant.pattern, caseType[1], ctx);
-    }
-
+    console.error(
+      "Pattern is variant but type is neither variant nor nominal enum",
+    );
     return err({ not_a_variant: type });
   }
 
-  // Existing con/record/tuple cases...
-
+  // Existing cases (con, record, tuple, etc.)
   if ("con" in pattern) return checkConPattern(pattern, type, ctx);
   if ("record" in pattern) return checkRecordPattern(pattern, type, ctx);
   if ("tuple" in pattern) return checkTuplePattern(pattern, type, ctx);
 
-  return ok([]); // Fallback
+  // Fallback: No bindings
+  return ok([]);
 }
 
 function checkTuplePattern(
@@ -1233,10 +1276,10 @@ function checkTuplePattern(
   type: Type,
   context: Context,
 ) {
-  if (!("tuple" in type)) return { err: { not_a_tuple: type } };
+  if (!("tuple" in type) && !isBottom(type))
+    return { err: { not_a_tuple: type } }; // Allow ⊥
 
-  if (pattern.tuple.length !== type.tuple.length) {
-    console.error("type mismatch", new Error().stack);
+  if ("tuple" in type && pattern.tuple.length !== type.tuple.length) {
     return err({
       type_mismatch: {
         expected: type,
@@ -1246,14 +1289,16 @@ function checkTuplePattern(
   }
 
   const bindings: Context = [];
+  // For zero-arity (unit): empty tuple binds nothing
+  const effectiveElements = "tuple" in type ? type.tuple : [];
   for (let i = 0; i < pattern.tuple.length; i++) {
     const subPattern = pattern.tuple[i]!;
-    const elementType = type.tuple[i]!;
+    const elementType =
+      i < effectiveElements.length ? effectiveElements[i]! : unitType;
     const subResult = checkPattern(subPattern, elementType, context);
     if ("err" in subResult) return subResult;
     bindings.push(...subResult.ok);
   }
-
   return ok(bindings);
 }
 
@@ -1274,57 +1319,105 @@ function checkVariantPattern(
 }
 
 function checkConPattern(pattern: ConPattern, type: Type, _context: Context) {
-  // Constant pattern must match type exactly
   if (!isAssignableTo(pattern.con.type, type)) {
-    console.error("type mismatch", new Error().stack);
     return err({ type_mismatch: { expected: type, actual: pattern.con.type } });
   }
   return ok([]);
 }
 
+// Helper (add if not already present)
+const first = <T, U>(tuple: [T, U]) => tuple[0];
+
+// Updated checkRecordPattern
 function checkRecordPattern(
   pattern: RecordPattern,
   type: Type,
   context: Context,
-) {
-  if (!("record" in type)) return err({ not_a_record: type });
+): Result<TypingError, Context> {
+  // Handle bottom type: ⊥ matches any record pattern (unreachable code paths, etc.)
+  if (isBottom(type)) {
+    // Extract bindings from subpatterns (but types are arbitrary since ⊥ <: anything)
+    const bindings: Context = [];
+    for (const [label, subPattern] of pattern.record) {
+      // For bottom, bind subpattern vars to a fresh meta or unit (safe)
+      const subResult = checkPattern(subPattern, unitType, context); // Or freshMetaVar()
+      if ("err" in subResult) return subResult;
+      // Augment bindings with label (optional, for record projection later)
+      subResult.ok.forEach((b) => {
+        if ("term" in b) b.term.name = `${label}_${b.term.name}`; // Namespace if needed
+      });
+      bindings.push(...subResult.ok);
+    }
+    return ok(bindings);
+  }
 
-  const bindings: Context = [];
-  const patternLabels = pattern.record.map(first).sort();
-  const typeLabels = type.record.map(first).sort();
+  if (!("record" in type)) {
+    return err({ not_a_record: type });
+  }
 
-  // Check that pattern labels match type labels
-  if (patternLabels.length !== typeLabels.length) {
-    console.error("type mismatch", new Error().stack);
+  const patternRecord = pattern.record; // [string, Pattern][]
+  const typeRecord = type.record; // [string, Type][]
+
+  if (patternRecord.length !== typeRecord.length) {
+    console.error(
+      `Record arity mismatch: pattern has ${patternRecord.length} fields, type has ${typeRecord.length}`,
+    );
     return err({
       type_mismatch: {
         expected: type,
         actual: {
-          record: pattern.record.map(([l, _]) => [l, unitType]),
+          record: patternRecord.map(([l]) => [l, unitType]), // Infer missing types as unit
         } as RecordType,
       },
     });
   }
 
-  for (let i = 0; i < patternLabels.length; i++)
-    if (patternLabels[i] !== typeLabels[i])
-      return err({ missing_field: { record: type, label: patternLabels[i]! } });
+  // Extract and sort labels for order-independent matching
+  const typeLabels = typeRecord.map(first).sort(); // strings, e.g., ["x", "y"]
+  const patternLabels = patternRecord.map(([label]) => label).sort(); // strings, e.g., ["y", "x"]
 
-  // Check each field pattern
-  for (const [label, subPattern] of pattern.record) {
-    const fieldType = type.record.find((t) => t[0] === label);
-    if (!fieldType) {
-      return {
-        err: { missing_field: { record: type, label } },
-      };
+  // Check that the sets of labels match exactly
+  for (let i = 0; i < typeLabels.length; i++) {
+    if (typeLabels[i] !== patternLabels[i]) {
+      console.error(
+        `Label mismatch: expected ${typeLabels[i]}, got ${patternLabels[i]}`,
+      );
+      return err({
+        missing_field: {
+          record: type,
+          label: typeLabels[i]!, // The missing/expected label
+        },
+      });
+    }
+  }
+
+  // All labels match: Now check each field's subpattern against the field's type
+  const bindings: Context = [];
+  for (const [label, subPattern] of patternRecord) {
+    const fieldEntry = typeRecord.find(([l]) => l === label);
+    if (!fieldEntry) {
+      // This shouldn't happen after label check, but safety
+      console.error(`Field not found: ${label} (logic error)`);
+      return err({ missing_field: { record: type, label } });
     }
 
-    const subResult = checkPattern(subPattern, fieldType[1], context);
-    if ("err" in subResult) return subResult;
+    const fieldType = fieldEntry[1];
+    const subResult = checkPattern(subPattern, fieldType, context);
+    if ("err" in subResult) {
+      console.error(
+        `Subpattern check failed for field ${label}:`,
+        subResult.err,
+      );
+      return subResult;
+    }
 
+    // Collect bindings (e.g., vars from subPattern bound to fieldType slices)
     bindings.push(...subResult.ok);
   }
 
+  console.log(
+    `Record pattern matched: ${patternLabels.join(", ")} against ${typeLabels.join(", ")}`,
+  );
   return ok(bindings);
 }
 
@@ -1520,16 +1613,51 @@ export const kindsEqual = (left: Kind, right: Kind): boolean =>
     kindsEqual(left.arrow.from, right.arrow.from) &&
     kindsEqual(left.arrow.to, right.arrow.to));
 
-// Kinding judgment: Γ ⊢ τ :: κ
+// Add this global set near the top of types_system_f_omega.ts (after imports)
+const primitiveTypes = new Set<string>([
+  "Never",
+  "I32",
+  "I64",
+  "F32",
+  "F64",
+  "Bool",
+  "String", // Add your primitives
+  // "Void" if it's a primitive unit, etc.
+]);
+
+// Updated checkKind function
 export function checkKind(
   context: Context,
   type: Type,
   lenient: boolean = false,
 ): Result<TypingError, Kind> {
   if ("var" in type) return checkVarKind(context, type, lenient);
-  if ("con" in type)
-    // Base types have kind *
-    return { ok: starKind };
+
+  if ("con" in type) {
+    // NEW: Lookup kind in context (like vars) for user-defined type constructors (e.g., Option :: * → *)
+    const binding = context.find(
+      (b) => "type" in b && b.type.name === type.con,
+    );
+    if (binding && "type" in binding) {
+      console.log(
+        `Lookup kind for ${type.con}: ${showKind(binding.type.kind)}`,
+      );
+      return { ok: binding.type.kind };
+    }
+
+    // Fallback: Primitives default to *
+    if (primitiveTypes.has(type.con)) {
+      return { ok: starKind };
+    }
+
+    // Unbound con: Error if strict, else assume * for lenient (e.g., forward refs in subtyping)
+    if (lenient) {
+      return { ok: starKind };
+    } else {
+      return { err: { unbound: type.con } };
+    }
+  }
+
   if ("never" in type) return { ok: starKind };
 
   if ("arrow" in type) return checkArrowKind(context, type, lenient);
@@ -3071,26 +3199,34 @@ function inferMatchType(ctx: Context, term: MatchTerm) {
 
   const patterns = term.match.cases.map((c) => c[0]);
   const exhaustCheck = checkExhaustive(patterns, normalizedScrutinee, ctx);
-  if ("err" in exhaustCheck) return exhaustCheck;
+  if ("err" in exhaustCheck) {
+    console.log(
+      `Exhaustive check failed for ${showType(normalizedScrutinee)}:`,
+      exhaustCheck.err,
+    );
+    return exhaustCheck;
+  }
+  console.log(`Exhaustive OK for ${showType(normalizedScrutinee)}`);
 
   let commonType: Type | null = null;
-  const armTypes: Type[] = []; // Track for unification
 
   for (const [pat, bod] of term.match.cases) {
-    const patternResult = checkPattern(pat, normalizedScrutinee, ctx);
-    if ("err" in patternResult) return patternResult;
+    const patternResult = checkPattern(pat, normalizedScrutinee, ctx); // Now handles nominal
+    if ("err" in patternResult) {
+      console.log(
+        `Pattern check failed for ${showPattern(pat)} on ${showType(normalizedScrutinee)}:`,
+        patternResult.err,
+      );
+      return patternResult;
+    }
 
     const extendedCtx = [...ctx, ...patternResult.ok];
 
-    // [KEY FIX: Infer arm body (e.g., Some(cb val) → Option<u> monotype)]
     const bodyType = inferType(extendedCtx, bod);
     if ("err" in bodyType) return bodyType;
 
-    // [NEW: Fresh instantiation for each arm (prevents poly generalization)]
-    let instBodyType = instantiate(bodyType.ok); // Replace ∀ with fresh metas
-    instBodyType = normalizeType(instBodyType); // Beta-reduce if needed
-
-    armTypes.push(instBodyType);
+    let instBodyType = instantiate(bodyType.ok);
+    instBodyType = normalizeType(instBodyType);
 
     if (commonType === null) {
       commonType = instBodyType;
@@ -3148,86 +3284,212 @@ function inferMatchType(ctx: Context, term: MatchTerm) {
   return { ok: normalizeType(commonType!) };
 }
 
-function inferInjectType(ctx: Context, term: InjectTerm) {
-  const variantType = normalizeType(term.inject.variant_type);
+function inferInjectType(
+  ctx: Context,
+  term: InjectTerm,
+): Result<TypingError, Type> {
+  const variantType = normalizeType(term.inject.variant_type); // e.g., app({con: "Option"}, {var: "t"})
 
-  // NEW: Nominal check - if app with con head
-  if ("app" in variantType && "con" in variantType.app.func) {
-    const conName = variantType.app.func.con;
-    const spineArgs = getSpineArgs(variantType); // e.g., [{var: "l"}, {var: "r"}]
+  console.log(
+    `Inferring injection: ${term.inject.label}(${showTerm(term.inject.value)}) as ${showType(variantType)}`,
+  );
 
-    // Lookup enum def
-    const enumBinding = ctx.find(
-      (b) => "enum" in b && b.enum.enum.name === conName,
-    );
-    if (!enumBinding || !("enum" in enumBinding)) {
-      return err({ not_a_variant: variantType });
-    }
-    const def = enumBinding.enum;
-
-    // Check arity matches (num spine args == num params)
-    if (spineArgs.length !== def.enum.params.length) {
-      return err({
-        kind_mismatch: { expected: def.enum.kind, actual: { star: null } },
-      });
-    }
-
-    const label = term.inject.label;
-    const variantEntry = def.enum.variants.find(([l]) => l === label);
-    if (!variantEntry) {
-      return err({ invalid_variant_label: { variant: variantType, label } });
-    }
-
-    // Instantiate field scheme with spine args
-    let expectedFieldType = variantEntry[1]; // e.g., {var: "t"} or tuple
-    for (let i = 0; i < def.enum.params.length; i++) {
-      expectedFieldType = substituteType(
-        def.enum.params[i]!,
-        spineArgs[i]!,
-        expectedFieldType,
+  // Case 1: Nominal enum (app with con head, e.g., Option<t>, Either<l, r>)
+  if ("app" in variantType || "con" in variantType) {
+    const head = "con" in variantType ? variantType : getSpineHead(variantType);
+    if ("con" in head) {
+      const conName = head.con;
+      const spineArgs = "con" in variantType ? [] : getSpineArgs(variantType);
+      // Lookup enum definition in context
+      const enumBinding = ctx.find(
+        (b) => "enum" in b && b.enum.enum.name === conName,
       );
+      if (!enumBinding || !("enum" in enumBinding)) {
+        console.error(`No enum definition for ${conName}`);
+        return err({ not_a_variant: variantType });
+      }
+      const def = enumBinding.enum; // {name: "Option", params: ["t"], variants: [["Some", {var: "t"}]]}
+
+      // Check arity: Spine args must match param count
+      if (spineArgs.length !== def.enum.params.length) {
+        console.error(
+          `Arity mismatch for ${conName}: expected ${def.enum.params.length}, got ${spineArgs.length}`,
+        );
+        return err({
+          kind_mismatch: { expected: def.enum.kind, actual: starKind },
+        });
+      }
+
+      const label = term.inject.label; // "Some" or "Left"
+      const variantEntry = def.enum.variants.find(([l]) => l === label); // Lookup by label
+      if (!variantEntry) {
+        console.error(`Invalid label ${label} for enum ${conName}`);
+        return err({
+          invalid_variant_label: { variant: variantType, label },
+        });
+      }
+
+      // Instantiate the field scheme with spine args
+      // Field scheme is unbound (e.g., {var: "t"} or {tuple: [{var: "t1"}, {var: "t2"}]} for multi-field)
+      let expectedFieldType: Type = variantEntry[1]; // Unbound scheme
+      for (let i = 0; i < def.enum.params.length; i++) {
+        const paramName = def.enum.params[i]!; // "t" or "l"/"r"
+        const concreteArg = spineArgs[i]!; // {var: "t"} or {var: "l"}
+        expectedFieldType = substituteType(
+          paramName,
+          concreteArg,
+          expectedFieldType,
+        );
+      }
+      expectedFieldType = normalizeType(expectedFieldType); // Beta-reduce if needed
+
+      console.log(
+        `Instantiated field for ${label}: ${showType(expectedFieldType)}`,
+      );
+
+      // Check the injected value against the field type
+      // Handles single value, unit (zero fields), or tuple (multi-fields)
+      const valueCheck = checkInjectValue(
+        term.inject.value,
+        expectedFieldType,
+        ctx,
+      );
+      if ("err" in valueCheck) {
+        console.error(`Value check failed for ${label}:`, valueCheck.err);
+        return valueCheck;
+      }
+
+      // Success: Return the full nominal variant type
+      console.log(
+        `Injection ${label} succeeded: value ${showType(valueCheck.ok.valueType)} <: ${showType(expectedFieldType)}`,
+      );
+      return ok(variantType);
     }
-    expectedFieldType = normalizeType(expectedFieldType);
-
-    // Check value against field type
-    const valueRes = checkType(ctx, term.inject.value, expectedFieldType);
-    if ("err" in valueRes) return valueRes;
-
-    // Return nominal variant type
-    return ok(variantType);
   }
 
-  // FALLBACK: Legacy structural variant (if any remaining)
+  // Case 2: Structural variant (legacy/fallback, e.g., {variant: [["Some", {var: "t"}]]})
   if ("variant" in variantType) {
-    // Existing logic...
-    const caseType = variantType.variant.find(
-      (t) => t[0] === term.inject.label,
+    const caseEntry = variantType.variant.find(
+      ([l]) => l === term.inject.label,
     );
-    if (!caseType)
+    if (!caseEntry) {
+      console.error(`Invalid structural label ${term.inject.label}`);
       return err({
         invalid_variant_label: {
           variant: variantType,
           label: term.inject.label,
         },
       });
-    const valueRes = checkType(ctx, term.inject.value, caseType[1]);
-    if ("err" in valueRes) return valueRes;
+    }
+
+    const expectedFieldType = caseEntry[1]; // e.g., {var: "t"}
+    const valueCheck = checkInjectValue(
+      term.inject.value,
+      expectedFieldType,
+      ctx,
+    );
+    if ("err" in valueCheck) return valueCheck;
+
+    console.log(`Structural injection ${term.inject.label} succeeded`);
     return ok(variantType);
   }
 
+  // Neither nominal nor structural: Fail
+  console.error(`Inject into non-variant type: ${showType(variantType)}`);
   return err({ not_a_variant: variantType });
 }
 
+// NEW Helper: Check injected value against field type (handles unit, single, tuple/multi-field)
+function checkInjectValue(
+  value: Term,
+  expectedFieldType: Type,
+  ctx: Context,
+): Result<TypingError, { valueType: Type }> {
+  if (isBottom(expectedFieldType)) {
+    // Bottom field: Always OK (unreachable variant)
+    return ok({ valueType: neverType });
+  }
+
+  // Case: Zero fields (unit variant, e.g., None)
+  if ("tuple" in expectedFieldType && expectedFieldType.tuple.length === 0) {
+    // Value should be unit {} or wildcard-ish
+    if (!("tuple" in value) || value.tuple.length !== 0) {
+      const inferred = inferType(ctx, value);
+      return err({
+        type_mismatch: {
+          expected: expectedFieldType,
+          actual: "ok" in inferred ? inferred.ok : unitType,
+        },
+      });
+    }
+    return ok({ valueType: unitType });
+  }
+
+  // Case: Single field (most common, e.g., Some(val) where field = {var: "t"})
+  if (!("tuple" in expectedFieldType)) {
+    // Treat single as non-tuple
+    const valueType = inferType(ctx, value);
+    if ("err" in valueType) return valueType;
+
+    const checkRes = checkType(ctx, value, expectedFieldType);
+    if ("err" in checkRes) return checkRes;
+
+    return ok({ valueType: checkRes.ok.type });
+  }
+
+  // Case: Multi-field (tuple field, e.g., {fields: [ {ty: "t1"}, {ty: "t2"} ] } → {tuple: [{var: "t1"}, {var: "t2"}]}
+  if (!("tuple" in value)) {
+    // Value is not tuple, but expected is: Mismatch
+    return err({
+      type_mismatch: { expected: expectedFieldType, actual: { tuple: [] } },
+    });
+  }
+
+  if (value.tuple.length !== expectedFieldType.tuple.length) {
+    return err({
+      type_mismatch: {
+        expected: expectedFieldType,
+        actual: { tuple: value.tuple.map(() => freshMetaVar()) },
+      },
+    });
+  }
+
+  let valueType: Type = { tuple: [] };
+  for (let i = 0; i < value.tuple.length; i++) {
+    const valueElem = value.tuple[i]!;
+    const expectedElemType = expectedFieldType.tuple[i]!;
+
+    const elemType = inferType(ctx, valueElem);
+    if ("err" in elemType) return elemType;
+
+    const checkRes = checkType(ctx, valueElem, expectedElemType);
+    if ("err" in checkRes) return checkRes;
+
+    valueType.tuple.push(checkRes.ok.type); // Collect for overall tuple type
+  }
+
+  return ok({ valueType });
+}
+
 // Helper to extract spine args (left-assoc nested apps)
+// Replace existing getSpineArgs function
 export function getSpineArgs(ty: Type): Type[] {
   const args: Type[] = [];
   let current = ty;
-  while ("app" in current && "con" in current.app.func) {
-    // Only for con apps
+  while ("app" in current) {
     args.unshift(current.app.arg);
     current = current.app.func;
   }
   return args;
+}
+
+// Add new helper to get the spine head (the constructor)
+export function getSpineHead(ty: Type): Type {
+  let current = ty;
+  while ("app" in current) {
+    current = current.app.func;
+  }
+  return current;
 }
 
 function inferProjectType(ctx: Context, term: ProjectTerm) {
@@ -4025,9 +4287,7 @@ export function processConstraint(
     const type = applySubstitution(subst, constraint.has_kind.ty);
     const kindResult = checkKind(constraint.has_kind.context, type);
 
-    if ("err" in kindResult) {
-      return kindResult;
-    }
+    if ("err" in kindResult) return kindResult;
 
     worklist.push({
       kind_eq: { left: kindResult.ok, right: constraint.has_kind.kind },

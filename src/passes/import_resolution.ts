@@ -1,7 +1,6 @@
 import * as path from "node:path";
 
 import type {
-  BuiltinDeclaration,
   ConstructorImport,
   Declaration,
   FnImport,
@@ -14,7 +13,6 @@ import type {
   NameImport,
   TableImport,
   TraitImport,
-  TypeIdentifier,
   TypeImport,
 } from "../parser.js";
 import { BaseVisitor } from "../visitor.js";
