@@ -25,3 +25,6 @@ export const to_file_entry = (
 export type Result<TErr, TOk> = { ok: TOk } | { err: TErr };
 
 export type Builtin = {};
+
+export const ok = <T>(val: T) => ({ ok: val });
+export const err = <T>(val: T) => ({ err: val });

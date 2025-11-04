@@ -21,12 +21,12 @@ fn expect<t_err, t_ok>(n: Result<t_err, t_ok>) {
   }
 }
 
-trait Map<t, u> {
-  fn map(cb: (t) => u): Self<u>
+trait Map<t> {
+  fn map<u>(cb: (t) => u): Self<u>
 }
 
-impl Map<t, u> for Option<t> {
-  fn map(cb: (t) => u): Option<u> {
+impl Map<t> for Option<t> {
+  fn map<u>(cb: (t) => u): Option<u> {
       match self {
          Some(val) => Some(cb(val)),
          None => None

@@ -14,10 +14,13 @@ import type {
   TypeImport,
 } from "../parser.js";
 import {
+  app_type,
+  arrow_type,
   type Binding,
   type Context,
   checkKind,
   collectTypeVars,
+  forall_type,
   freshMetaVar,
   instantiate,
   type Kind,
@@ -28,6 +31,7 @@ import {
   showKind,
   showTerm,
   showType,
+  starKind,
   substituteType,
   type Term,
   type TermBinding,
@@ -35,10 +39,7 @@ import {
   type Type,
   type TypingError,
   typecheck,
-  arrow_type,
-  app_type,
-  starKind,
-  forall_type,
+  typesEqual,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import { lookup_type, type Scope, type ScopeIndex } from "./create_scopes.js";
@@ -865,14 +866,26 @@ export class TypeChecker extends BaseVisitor {
       showType(dictResult.ok),
     );
 
-    // Register impl in global context
-    this.context.push({
+    const implBinding = {
       trait_impl: {
         trait: impl_decl.name.type,
         type: forType,
         dict: dictTerm,
       },
-    });
+    };
+
+    // Register impl in global context
+    this.context.push(implBinding);
+    if (
+      !this.globalContext.some(
+        (b) =>
+          "trait_impl" in b &&
+          b.trait_impl.trait === impl_decl.name.type &&
+          typesEqual(b.trait_impl.type, forType),
+      )
+    ) {
+      this.globalContext.push(implBinding);
+    }
 
     console.log("Impl typecheck complete");
     return node;

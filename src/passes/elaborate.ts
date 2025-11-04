@@ -35,6 +35,7 @@ import {
   type SelectTypeExpression,
   type SelfExpression,
   showExpression,
+  showPatternExpression,
   type TraitDeclaration,
   type TraitFn,
   type TupleExpression,
@@ -43,15 +44,28 @@ import {
   type TypeExpression,
 } from "../parser.js";
 import {
+  app_type,
+  arrow_kind,
+  arrow_type,
   type BoundedForallType,
   type Context,
   collectTypeVars,
+  con_type,
+  type EnumDef,
+  type EnumDefBinding,
+  type FieldScheme,
+  forall_type,
   freshMetaVar,
   type Kind,
+  lam_term,
+  lam_type,
   type MatchTerm,
+  mu_type,
   normalizeType,
   type Pattern,
+  showPattern,
   showType,
+  starKind,
   substituteType,
   type Term,
   type TraitDef,
@@ -59,6 +73,7 @@ import {
   type Type,
   type TypingError,
   tyapp_term,
+  tylam_term,
   unitType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
@@ -86,6 +101,14 @@ export function collectTypeVarsFromTypes(types: Type[], vars: Set<string>) {
       vars.add(v);
     }
   }
+}
+
+function computeEnumKind(params: NameIdentifier[]): Kind {
+  let kind: Kind = starKind;
+  for (let i = params.length - 1; i >= 0; i--) {
+    kind = arrow_kind(starKind, kind);
+  }
+  return kind;
 }
 
 export type TypeMap = Map<
@@ -130,7 +153,6 @@ export class ElaboratePass extends BaseVisitor {
   context = [] as Context;
 
   private traitMethodRenamings = new Map<string, Map<string, string>>();
-  private currentImplTypeArgs: Type[] | null = null;
 
   constructor(
     public scopes: Map<Scopable, Scope>,
@@ -724,7 +746,7 @@ export class ElaboratePass extends BaseVisitor {
     for (let i = node.type_params.length - 1; i >= 0; i--) {
       const typeParam = node.type_params[i]!;
       const name = typeParam.name;
-      const kind = { star: null }; // default kind
+      const kind = starKind; // default kind
       term = {
         tylam: {
           var: name,
@@ -795,7 +817,8 @@ export class ElaboratePass extends BaseVisitor {
     const scope = this.scopes.get(node);
     if (!scope) {
       this.errors.push({ cannot_resolve_symbol: node.constr.type });
-      return node; // Fallback to wildcard below
+      this.patterns.set(node, { wildcard: null });
+      return node;
     }
 
     const element = lookup_type(node.constr.type.type, scope);
@@ -812,137 +835,43 @@ export class ElaboratePass extends BaseVisitor {
       return node;
     }
 
-    const enumType = this.types.get(parent);
-    if (!enumType) {
-      this.errors.push({ type_is_not_a_variant: node.constr.type.type });
-      this.patterns.set(node, { wildcard: null });
-      return node;
-    }
-
-    // Instantiate the enum type
-    let currentVariantType = enumType;
-    const arity = parent.enum.type_params.length;
-
-    if (arity > 0) {
-      let args: Type[];
-      if (this.currentImplTypeArgs !== null) {
-        args = this.currentImplTypeArgs.slice(0, arity);
-      } else {
-        // FIX: Use fresh metas for patterns outside impls
-        args = Array.from({ length: arity }, () => freshMetaVar());
-      }
-
-      console.log(
-        `Instantiating pattern variant "${node.constr.type.type}" with args: [${args.map(showType).join(", ")}]`,
-      );
-
-      // Instantiate (substitute top-level bound vars with args)
-      for (const arg of args) {
-        if ("lam" in currentVariantType) {
-          currentVariantType = substituteType(
-            currentVariantType.lam.var,
-            arg,
-            currentVariantType.lam.body,
-          );
-        } else if ("forall" in currentVariantType) {
-          currentVariantType = substituteType(
-            currentVariantType.forall.var,
-            arg,
-            currentVariantType.forall.body,
-          );
-        } else {
-          break;
-        }
-      }
-      currentVariantType = normalizeType(currentVariantType);
-
-      console.log(`Instantiated variant type: ${showType(currentVariantType)}`);
-    }
-
-    const variantType = currentVariantType;
-
-    // Ensure it's a variant after instantiation
-    if (!("variant" in variantType)) {
-      console.error(
-        `Expected variant type after instantiation, got: ${showType(variantType)}`,
-      );
-      this.errors.push({ type_is_not_a_variant: node.constr.type.type });
-      this.patterns.set(node, { wildcard: null });
-      return node;
-    }
-
-    const caseType = variantType.variant.find(
-      (t) => t[0] === node.constr.type.type,
-    );
-
-    if (!caseType) {
-      console.warn(
-        `No case found for label "${node.constr.type.type}" in ${showType(variantType)}`,
-      );
-      this.errors.push({
-        invalid_variant_label: {
-          variant: variantType,
-          label: node.constr.type.type,
-        },
-      });
-      this.patterns.set(node, { wildcard: null });
-      return node;
-    }
-
-    // Optional: Early arity check for inner patterns vs. caseType[1]
-    // e.g., If caseType[1] is tuple of length 1 but patterns have 2, warn
-    const expectedInnerArity = this.getPatternArity(caseType[1]); // Helper: see below
-    const actualInnerArity = node.constr.patterns.length;
-    if (
-      expectedInnerArity !== undefined &&
-      expectedInnerArity !== actualInnerArity
-    ) {
-      console.warn(
-        `Arity mismatch in pattern ${node.constr.type.type}: expected ${expectedInnerArity}, got ${actualInnerArity}`,
-      );
-      // Defer final check to type checker, or push error
-    }
-
-    // Build inner pattern - the caseType[1] is already instantiated
+    // Build inner pattern structurally (no type instantiation or enum reference needed)
+    // - For 0 patterns (unit variant like None): Use wildcard or empty tuple (binds nothing)
+    // - For 1 pattern: Direct subpattern
+    // - For >1: Tuple of subpatterns
     let innerPattern: Pattern;
-    if (node.constr.patterns.length === 0) {
-      innerPattern = { tuple: [] };
-    } else if (node.constr.patterns.length === 1) {
-      const elaborated = this.patterns.get(node.constr.patterns[0]!);
-      if (!elaborated) throw new Error("Pattern not elaborated");
-      innerPattern = elaborated;
-    } else {
-      // Multiple patterns → tuple
-      const tuplePatterns: Pattern[] = node.constr.patterns.map((p) => {
-        const elaborated = this.patterns.get(p);
-        if (!elaborated) throw new Error("Pattern not elaborated");
-        return elaborated;
-      });
-      innerPattern = { tuple: tuplePatterns };
-    }
+    const subPatterns = node.constr.patterns.map((p) => {
+      const elaborated = this.patterns.get(p);
+      if (!elaborated)
+        throw new Error(
+          `Subpattern not elaborated: ${showPatternExpression(p)}`,
+        );
+      return elaborated;
+    });
 
-    // Note: We don't set types on patterns (structural only). caseType[1] is used in type checker for bindings.
-    // If you want to store for debug: this.types.set(node, variantType); but not necessary.
+    if (subPatterns.length === 0) {
+      innerPattern = { wildcard: null }; // Or { tuple: [] } for explicit unit (both work)
+    } else if (subPatterns.length === 1) {
+      innerPattern = subPatterns[0]!;
+    } else {
+      innerPattern = { tuple: subPatterns };
+    }
 
     const pattern: Pattern = {
       variant: {
-        label: node.constr.type.type,
+        label: node.constr.type.type, // e.g., "Left"
         pattern: innerPattern,
       },
     };
 
     this.patterns.set(node, pattern);
-    return node;
-  }
 
-  // Helper: Extract expected arity from a type (for tuple/record fields)
-  private getPatternArity(type: Type): number | undefined {
-    if ("tuple" in type) return type.tuple.length;
-    if ("record" in type) return type.record.length;
-    if ("never" in type) return 0;
-    if ("var" in type) return 1; // Type variable represents a single value
-    if ("arrow" in type) return 1;
-    return undefined;
+    // Optional debugging (remove in production)
+    console.log(
+      `Elaborated structural pattern for "${node.constr.type.type}": label="${node.constr.type.type}", inner=${showPattern(pattern)}`,
+    );
+
+    return node;
   }
 
   override visitNameIdentifier(node: NameIdentifier): NameIdentifier {
@@ -1042,43 +971,26 @@ export class ElaboratePass extends BaseVisitor {
 
     if ("variant" in scopedElement) {
       const variant = scopedElement.variant;
-      const variantType = this.types.get(variant);
       const parentEnum = this.variants.get(variant);
       if (!parentEnum) throw new Error("Parent enum not found");
-      if (!variantType) throw new Error("Variant type not found");
 
-      const arity = parentEnum.enum.type_params.length;
+      // Get the FULL polymorphic constructor type (e.g., ∀t u. t → Either<t,u>)
+      // This is already set in visitEnumDeclaration as the wrapped arrow/forall
+      const ctorPolyType = this.types.get(variant);
+      if (!ctorPolyType) throw new Error("Variant constructor type not found");
 
-      let ctorTerm: Term = { var: node.name };
-      let ctorType: Type = variantType;
+      // Term: Plain variable reference (no tyapp_terms or pre-instantiation)
+      // Type checker will instantiate via inferAppType when applied (e.g., Left(21))
+      this.terms.set(node, { var: node.name });
 
-      let args: Type[];
-      if (
-        this.currentImplTypeArgs !== null &&
-        this.currentImplTypeArgs.length >= arity
-      ) {
-        args = this.currentImplTypeArgs.slice(0, arity);
-      } else {
-        // FIX: Use fresh metas instead of param names to avoid free named vars
-        args = Array.from({ length: arity }, () => freshMetaVar());
-      }
+      // Type: Full polymorphic type (no partial apps or metas)
+      this.types.set(node, ctorPolyType);
 
-      if (arity > 0) {
-        console.log(
-          `Instantiating variant "${node.name}" with args: [${args.map(showType).join(", ")}]`,
-        );
-        // For term: nested tyapp
-        for (const arg of args) {
-          ctorTerm = tyapp_term(ctorTerm, arg);
-        }
+      // Optional log for debugging
+      console.log(
+        `Elaborated constructor ${node.name} as plain poly var: type=${showType(ctorPolyType)}`,
+      );
 
-        // For type: substitute in reverse (for foralls, but here lams)
-        ctorType = this.instantiateTypeWithArgs(variantType, args);
-        ctorType = normalizeType(ctorType);
-      }
-
-      this.terms.set(node, ctorTerm);
-      this.types.set(node, ctorType);
       return node;
     }
 
@@ -1272,157 +1184,90 @@ export class ElaboratePass extends BaseVisitor {
 
   override visitEnumDeclaration(node: EnumDeclaration): Declaration {
     super.visitEnumDeclaration(node);
-    const variant = [] as [string, Type][];
-    let enumType: Type = { variant };
-    const variantType = enumType;
 
-    let enumKind: Kind = { star: null };
-    for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
-      enumKind = {
-        arrow: {
-          from: { star: null },
-          to: enumKind,
+    const enumId = node.enum.id.type;
+    const params = node.enum.type_params; // e.g., ["t", "u"]
+    const kind = computeEnumKind(params);
+
+    // Build variants as FieldScheme (unbound param vars)
+    const variants: [string, FieldScheme][] = [];
+    for (const v of node.enum.variants) {
+      let fieldScheme: FieldScheme;
+      if ("fields" in v) {
+        // Single field or record? For simplicity, use tuple even for named (ignore names for now)
+        const fieldTypes = v.fields.fields.map((f) => this.types.get(f.ty)!); // e.g., [{var: "t"}]
+        fieldScheme = { tuple: fieldTypes };
+      } else {
+        // Multi-field values
+        const fieldTypes = v.values.values.map((ty) => this.types.get(ty)!);
+        fieldScheme = { tuple: fieldTypes };
+      }
+      variants.push([
+        "fields" in v ? v.fields.id.type : v.values.id.type,
+        fieldScheme,
+      ]);
+    }
+
+    // NEW: Push EnumDef to context
+    const enumDef: EnumDef = {
+      enum: {
+        name: enumId,
+        kind,
+        params: params.map((p) => p.name), // ["t", "u"]
+        variants,
+      },
+    };
+    this.context.push({ enum: enumDef });
+
+    // Bind the family type { con: "Either" } with kind * → * → *
+    this.context.push({ type: { name: enumId, kind } });
+    this.types.set(node, con_type(enumId));
+
+    // Build nominal instance type constructor (nested app: app(app(con, param1), param2))
+    let familyType = con_type(enumId) as Type;
+    for (const param of params) {
+      // param is NameIdentifier, type is {var: param.name}
+      const paramType = { var: param.name };
+      familyType = app_type(familyType, paramType); // Left-assoc: app(app(con, t), u)
+    }
+    this.types.set(node, familyType); // Overwrite? No, set family as con, instance as app (but for decl, con)
+
+    // For each variant ctor: ∀params. fieldScheme[instantiated with param vars] → nominal instance app
+    for (const v of node.enum.variants) {
+      const label = "fields" in v ? v.fields.id.type : v.values.id.type;
+      const fieldScheme = variants.find(([l]) => l === label)![1]; // Unbound {var: "t"} or tuple
+
+      // Result type: nominal app (already built above as familyType with params)
+      const resultType = familyType; // e.g., app(app(con "Either", {var "t"}), {var "u"})
+
+      // Ctor type base: field → result (instantiate fieldScheme with nothing, as params are forall-bound)
+      let ctorType = arrow_type(fieldScheme, resultType);
+
+      // Wrap foralls for params (outer to inner)
+      for (let i = params.length - 1; i >= 0; i--) {
+        ctorType = forall_type(params[i]!.name, starKind, ctorType);
+      }
+
+      // Build ctor term: tylam params ... lam $fields: field . inject(label, $fields var/tuple, resultType app)
+      let ctorTerm: Term = {
+        inject: {
+          label,
+          value: { var: "$fields" }, // Simple var for single; proj/tuple for multi (extend if needed)
+          variant_type: resultType, // Nominal app
         },
       };
-    }
-    this.context.push({
-      type: { name: node.enum.id.type, kind: enumKind },
-    });
+      ctorTerm = lam_term("$fields", fieldScheme, ctorTerm); // One lam for simplicity; loop for multi
 
-    for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
-      enumType = {
-        lam: {
-          var: node.enum.type_params[i]!.name,
-          body: enumType,
-          kind: { star: null },
-        },
-      } as Type;
-    }
-
-    for (const v of node.enum.variants) {
-      if ("fields" in v) {
-        const record = [] as [string, Type][];
-        const recordType = { record };
-        const fields = v.fields.fields;
-        for (const {
-          name: { name },
-          ty,
-        } of fields) {
-          const fieldType = this.types.get(ty);
-          if (!fieldType)
-            throw new Error("Type not generated for enum variant parameter.");
-          record.push([name, fieldType]);
-        }
-
-        variant.push([v.fields.id.type, recordType]);
-
-        let body: Term = {
-          lam: {
-            arg: "$value",
-            type: recordType, // ✅ Changed from type-level lambda
-            body: {
-              inject: {
-                label: v.fields.id.type,
-                value: { var: "$value" },
-                variant_type: variantType,
-              },
-            },
-          },
-        };
-
-        for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
-          body = {
-            tylam: {
-              body: body,
-              kind: { star: null },
-              var: node.enum.type_params[i]!.name,
-            },
-          };
-        }
-        this.terms.set(v, body);
-
-        let ctorType: Type = {
-          arrow: {
-            from: recordType,
-            to: variantType,
-          },
-        };
-        for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
-          ctorType = {
-            forall: {
-              body: ctorType,
-              kind: { star: null },
-              var: node.enum.type_params[i]!.name,
-            },
-          };
-        }
-        this.types.set(v, ctorType);
-      } else {
-        const termTypes = [] as Type[];
-        const tupleType = { tuple: termTypes };
-        for (const ty of v.values.values) {
-          const fieldType = this.types.get(ty);
-          if (!fieldType)
-            throw new Error("Type not generated for enum variant parameter.");
-          termTypes.push(fieldType);
-        }
-        variant.push([v.values.id.type, tupleType]);
-
-        let term: Term = {
-          inject: {
-            variant_type: variantType,
-            label: v.values.id.type,
-            value: {
-              tuple: termTypes.map((_, i) => ({ var: `$value${i}` })),
-            },
-          },
-        };
-
-        for (let i = termTypes.length - 1; i >= 0; i--) {
-          term = {
-            lam: {
-              arg: `$value${i}`,
-              body: term,
-              type: termTypes[i]!,
-            },
-          };
-        }
-
-        for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
-          term = {
-            tylam: {
-              body: term,
-              kind: { star: null },
-              var: node.enum.type_params[i]!.name,
-            },
-          };
-        }
-        this.terms.set(v, term);
-
-        let ctorType = variantType as Type;
-
-        for (let i = termTypes.length - 1; i >= 0; i--) {
-          ctorType = {
-            arrow: {
-              from: termTypes[i]!,
-              to: ctorType,
-            },
-          };
-        }
-        for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
-          ctorType = {
-            forall: {
-              body: ctorType,
-              kind: { star: null },
-              var: node.enum.type_params[i]!.name,
-            },
-          };
-        }
-        this.types.set(v, ctorType);
+      for (let i = params.length - 1; i >= 0; i--) {
+        ctorTerm = tylam_term(params[i]!.name, starKind, ctorTerm);
       }
+
+      this.types.set(v, ctorType);
+      this.terms.set(v, ctorTerm);
+
+      console.log(`Elaborated ctor ${label}: ${showType(ctorType)}`); // ∀t u. t → app(app(Either, t), u)
     }
 
-    this.types.set(node, enumType);
     return node;
   }
 
@@ -1469,12 +1314,10 @@ export class ElaboratePass extends BaseVisitor {
     if (this.mode === "type") {
       if ("enum" in item) {
         const enumDecl = item.enum;
-        const enumType = this.types.get(enumDecl);
-        if (!enumType) {
-          console.log(enumDecl);
-          throw new Error("Enum type not elaborated.");
-        }
-        this.types.set(node, enumType);
+
+        // Just use the constructor name
+        this.types.set(node, con_type(enumDecl.enum.id.type));
+        return node;
       } else if (
         "star_import" in item ||
         "trait" in item ||
@@ -1510,14 +1353,12 @@ export class ElaboratePass extends BaseVisitor {
 
     // First, visit all type expressions to populate the type map
     for (const traitFn of trait_decl.fns) {
-      for (const param of traitFn.params) {
-        this.visitTypeExpression(param.ty);
-      }
+      for (const param of traitFn.params) this.visitTypeExpression(param.ty);
       this.visitTypeExpression(traitFn.return_type);
     }
 
     // Now, analyze how Self is used to determine its kind
-    let selfKind: Kind = { star: null }; // Default to * if Self isn't used
+    let selfKind = starKind; // Default to * if Self isn't used
 
     // Look at all Self applications in method signatures
     for (const traitFn of trait_decl.fns) {
@@ -1525,15 +1366,9 @@ export class ElaboratePass extends BaseVisitor {
       const returnSelfInfo = this.analyzeSelfUsage(traitFn.return_type);
       if (returnSelfInfo.isUsed) {
         // Update kind based on the arity
-        selfKind = { star: null };
-        for (let i = 0; i < returnSelfInfo.arity; i++) {
-          selfKind = {
-            arrow: {
-              from: { star: null },
-              to: selfKind,
-            },
-          };
-        }
+        selfKind = starKind;
+        for (let i = 0; i < returnSelfInfo.arity; i++)
+          selfKind = arrow_kind(starKind, selfKind);
       }
 
       // Check parameter types
@@ -1541,15 +1376,9 @@ export class ElaboratePass extends BaseVisitor {
         const paramSelfInfo = this.analyzeSelfUsage(param.ty);
         if (paramSelfInfo.isUsed) {
           // Update kind based on the arity
-          selfKind = { star: null };
-          for (let i = 0; i < paramSelfInfo.arity; i++) {
-            selfKind = {
-              arrow: {
-                from: { star: null },
-                to: selfKind,
-              },
-            };
-          }
+          selfKind = starKind;
+          for (let i = 0; i < paramSelfInfo.arity; i++)
+            selfKind = arrow_kind(starKind, selfKind);
         }
       }
     }
@@ -1564,10 +1393,7 @@ export class ElaboratePass extends BaseVisitor {
     const allMethodGenerics = new Set<string>();
     for (const traitFn of trait_decl.fns) {
       for (const tp of traitFn.type_params) {
-        if (tp.name !== "Self") {
-          // ← KEY FIX
-          allMethodGenerics.add(tp.name);
-        }
+        if (tp.name !== "Self") allMethodGenerics.add(tp.name);
       }
 
       const paramTypes = traitFn.params
@@ -1586,12 +1412,8 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     // Also add trait-level params (but NOT if they're "Self")
-    for (const tp of trait_decl.type_params) {
-      if (tp.name !== "Self") {
-        // ← KEY FIX
-        allMethodGenerics.add(tp.name);
-      }
-    }
+    for (const tp of trait_decl.type_params)
+      if (tp.name !== "Self") allMethodGenerics.add(tp.name);
 
     // Assign unique names
     for (const oldName of allMethodGenerics) {
@@ -1674,7 +1496,7 @@ export class ElaboratePass extends BaseVisitor {
         generalizedMethodType = {
           forall: {
             var: freeVar,
-            kind: { star: null },
+            kind: starKind,
             body: generalizedMethodType,
           },
         };
@@ -1687,7 +1509,7 @@ export class ElaboratePass extends BaseVisitor {
         generalizedMethodType = {
           forall: {
             var: renamedVar,
-            kind: { star: null },
+            kind: starKind,
             body: generalizedMethodType,
           },
         };
@@ -1803,6 +1625,24 @@ export class ElaboratePass extends BaseVisitor {
     const forType = this.types.get(impl_decl.for);
     if (!forType) throw new Error("Impl 'for' type not elaborated");
 
+    console.log("Raw forType structure:", JSON.stringify(forType, null, 2));
+    console.log(
+      "impl type_params:",
+      impl_decl.type_params.map((tp) =>
+        "name" in tp ? tp.name : "type" in tp ? tp.type : "??",
+      ),
+    );
+    console.log(
+      "Are any type_param nodes same as for args?",
+      impl_decl.type_params.some((tp) => {
+        // Check if tp appears in impl_decl.for
+        if ("app" in impl_decl.for) {
+          return impl_decl.for.app.args.includes(tp);
+        }
+        return false;
+      }),
+    );
+
     // Get the trait definition
     const traitDef = this.context.find(
       (b) => "trait_def" in b && b.trait_def.name === impl_decl.name.type,
@@ -1825,7 +1665,7 @@ export class ElaboratePass extends BaseVisitor {
         const v = paramTy.var;
         implParamVars.push(v);
         if (!implContext.some((e) => "type" in e && e.type.name === v)) {
-          implContext.push({ type: { name: v, kind: { star: null } } });
+          implContext.push({ type: { name: v, kind: starKind } });
         }
       }
       // For concrete, elaborate but don't add as var
@@ -1844,25 +1684,11 @@ export class ElaboratePass extends BaseVisitor {
         implContext.push({
           type: {
             name: typeVar,
-            kind: { star: null },
+            kind: starKind,
           },
         });
       }
     }
-
-    const typeArgs: Type[] = [];
-    let currentFor: Type = forType;
-    while ("app" in currentFor) {
-      typeArgs.unshift(currentFor.app.arg); // Unshift to preserve order: l then r
-      currentFor = currentFor.app.func;
-    }
-    console.log(
-      `Impl type args for ${showType(forType)}: [${typeArgs.map(showType).join(", ")}]`,
-    );
-
-    // Set for body elaboration
-    const prevArgs = this.currentImplTypeArgs;
-    this.currentImplTypeArgs = typeArgs;
 
     // Elaborate each method implementation
     const methodImpls: [string, Term][] = [];
@@ -1873,7 +1699,6 @@ export class ElaboratePass extends BaseVisitor {
       if (!fn.name) throw new Error("Impl method must have a name");
       methodImpls.push([fn.name.name, fnTerm]);
     }
-    this.currentImplTypeArgs = prevArgs;
 
     // Build the dictionary term
     let dictTerm: Term = {
@@ -1893,7 +1718,7 @@ export class ElaboratePass extends BaseVisitor {
       dictTerm = {
         tylam: {
           var: skolems[i]!,
-          kind: { star: null },
+          kind: starKind,
           body: dictTerm,
         },
       };
@@ -1912,7 +1737,7 @@ export class ElaboratePass extends BaseVisitor {
       dictType = {
         forall: {
           var: skolems[i]!,
-          kind: { star: null },
+          kind: starKind,
           body: dictType,
         },
       };
@@ -1933,10 +1758,10 @@ export class ElaboratePass extends BaseVisitor {
 
       // Make sure both are in the context
       if (!implContext.some((e) => "type" in e && e.type.name === leftVar)) {
-        implContext.push({ type: { name: leftVar, kind: { star: null } } });
+        implContext.push({ type: { name: leftVar, kind: starKind } });
       }
       if (!implContext.some((e) => "type" in e && e.type.name === rightVar)) {
-        implContext.push({ type: { name: rightVar, kind: { star: null } } });
+        implContext.push({ type: { name: rightVar, kind: starKind } });
       }
 
       // ... rest of the method processing ...
@@ -1998,46 +1823,35 @@ export class ElaboratePass extends BaseVisitor {
       };
     }
 
-    if ("app" in type) {
-      return {
-        app: {
-          func: this.renameFreeVarsInType(type.app.func, renaming),
-          arg: this.renameFreeVarsInType(type.app.arg, renaming),
-        },
-      };
-    }
+    if ("app" in type)
+      return app_type(
+        this.renameFreeVarsInType(type.app.func, renaming),
+        this.renameFreeVarsInType(type.app.arg, renaming),
+      );
 
-    if ("forall" in type) {
+    if ("forall" in type)
       // Don't rename bound var; recurse on body
-      const renamedBody = this.renameFreeVarsInType(type.forall.body, renaming);
       // If bound var is to be renamed (if it's a method generic), but since renaming excludes bound, keep
-      return {
-        forall: {
-          var: type.forall.var, // Bound vars not in renaming
-          kind: type.forall.kind,
-          body: renamedBody,
-        },
-      };
-    }
+      return forall_type(
+        type.forall.var, // Bound vars not in renaming
+        type.forall.kind,
+        this.renameFreeVarsInType(type.forall.body, renaming),
+      );
 
-    if ("lam" in type) {
+    if ("lam" in type)
       // Similar to forall
-      return {
-        lam: {
-          var: type.lam.var,
-          kind: type.lam.kind,
-          body: this.renameFreeVarsInType(type.lam.body, renaming),
-        },
-      };
-    }
+      return lam_type(
+        type.lam.var,
+        type.lam.kind,
+        this.renameFreeVarsInType(type.lam.body, renaming),
+      );
 
     if ("record" in type) {
-      return {
-        record: type.record.map(([label, ty]) => [
-          label,
-          this.renameFreeVarsInType(ty, renaming),
-        ]),
-      };
+      const record = type.record.map(([label, ty]) => [
+        label,
+        this.renameFreeVarsInType(ty, renaming),
+      ]) as [string, Type][];
+      return { record };
     }
 
     if ("variant" in type) {
@@ -2070,15 +1884,11 @@ export class ElaboratePass extends BaseVisitor {
       };
     }
 
-    if ("con" in type || "never" in type) return type;
-    if ("mu" in type) {
-      return {
-        mu: {
-          var: type.mu.var,
-          body: this.renameFreeVarsInType(type.mu.body, renaming),
-        },
-      };
-    }
+    if ("mu" in type)
+      return mu_type(
+        type.mu.var,
+        this.renameFreeVarsInType(type.mu.body, renaming),
+      );
 
     return type; // Fallback
   }

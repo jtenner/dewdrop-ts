@@ -3,8 +3,8 @@ pub enum Either<t, u> {
   Right(u)
 }
 
-impl Map<r, u> for Either<l, r> {
-  fn map(cb: (r) => u): Either<l, u> {
+impl Map<r> for Either<l, r> {
+  fn map<u>(cb: (r) => u): Either<l, u> {
     match self {
       Left(val) => Left(val),
       Right(val) => Right(cb(val))

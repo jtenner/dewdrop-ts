@@ -332,8 +332,6 @@ const next = async (tokens: TokenIter, skip_whitespace = true) => {
   }
 };
 
-type DeclarationResult = [Token | null, Declaration | null];
-
 const operators = new Set(Array.from("!%^&*-=+/<>:.?~|"));
 
 const is_operator = (token: Token): token is { symbol: string } => {
@@ -2188,18 +2186,16 @@ const take_impl_declaration = async (
 
   [next_token, fns] = await take_many(next_token, tokens, take_fn, "}");
   if ("err" in fns) return [next_token, fns];
-
-  return [
-    next_token,
-    ok({
-      impl: {
-        for: impl_for.ok,
-        name: name.ok,
-        type_params: type_params.ok,
-        fns: fns.ok,
-      },
-    }),
-  ];
+  const impl = {
+    impl: {
+      for: impl_for.ok,
+      name: name.ok,
+      type_params: type_params.ok,
+      fns: fns.ok,
+    },
+  };
+  console.log(showDeclaration(impl), JSON.stringify(impl, null, 2));
+  return [next_token, ok(impl)];
 };
 
 const take_trait_declaration = async (
