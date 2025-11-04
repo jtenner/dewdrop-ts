@@ -3818,25 +3818,20 @@ function inferVarType(ctx: Context, term: VarTerm) {
 }
 
 // Helper to collect unbound meta variables from a type
-export function collectUnboundMetas(
-  type: Type,
-  metas = new Set<string>(),
-): string[] {
-  if ("var" in type && type.var.startsWith("?")) {
-    if (!metaVarSolutions.has(parseInt(type.var.slice(1), 10)))
-      metas.add(type.var);
-  } else if ("app" in type) {
-    collectUnboundMetas(type.app.func, metas);
-    collectUnboundMetas(type.app.arg, metas);
-  } else if ("arrow" in type) {
-    collectUnboundMetas(type.arrow.from, metas);
-    collectUnboundMetas(type.arrow.to, metas);
-  } else if ("tuple" in type)
-    for (const t of type.tuple) collectUnboundMetas(t, metas);
-  else if ("record" in type)
-    for (const [, t] of type.record) collectUnboundMetas(t, metas);
-  else if ("variant" in type)
-    for (const [, t] of type.variant) collectUnboundMetas(t, metas);
+export function getUnboundMetas(ty: Type, metas = new Set<string>()): string[] {
+  if ("var" in ty && ty.var.startsWith("?")) {
+    if (!metaVarSolutions.has(parseInt(ty.var.slice(1), 10))) metas.add(ty.var);
+  } else if ("app" in ty) {
+    getUnboundMetas(ty.app.func, metas);
+    getUnboundMetas(ty.app.arg, metas);
+  } else if ("arrow" in ty) {
+    getUnboundMetas(ty.arrow.from, metas);
+    getUnboundMetas(ty.arrow.to, metas);
+  } else if ("tuple" in ty) for (const t of ty.tuple) getUnboundMetas(t, metas);
+  else if ("record" in ty)
+    for (const [, t] of ty.record) getUnboundMetas(t, metas);
+  else if ("variant" in ty)
+    for (const [, t] of ty.variant) getUnboundMetas(t, metas);
 
   return Array.from(metas);
 }
@@ -3847,9 +3842,7 @@ export function solveConstraints(
   subst: Substitution = new Map(),
 ): Result<TypingError, Substitution> {
   while (worklist.length > 0) {
-    const constraint = worklist.shift()!;
-
-    const result = processConstraint(constraint, worklist, subst);
+    const result = processConstraint(worklist.shift()!, worklist, subst);
     if ("err" in result) return result;
   }
 
@@ -3862,12 +3855,9 @@ export function processConstraint(
   subst: Substitution,
 ): Result<TypingError, null> {
   if ("type_eq" in constraint) {
-    const left = applySubstitution(subst, constraint.type_eq.left);
-    const right = applySubstitution(subst, constraint.type_eq.right);
-
     return unifyTypes(
-      normalizeType(left),
-      normalizeType(right),
+      normalizeType(applySubstitution(subst, constraint.type_eq.left)),
+      normalizeType(applySubstitution(subst, constraint.type_eq.right)),
       worklist,
       subst,
     );
@@ -3932,70 +3922,64 @@ export function typecheckWithConstraints(
   return { ok: resultType };
 }
 
-export const normalizeType = (type: Type, seen = new Set<string>()) =>
+export const normalizeType = (ty: Type, seen = new Set<string>()) =>
   // Normalize and apply specific normalization rules
-  applyNormalizationRules(normalizeSubtypes(type, seen), seen);
+  applyNormalizationRules(normalizeSubtypes(ty, seen), seen);
 
-function normalizeSubtypes(type: Type, seen: Set<string>): Type {
-  if ("arrow" in type)
+function normalizeSubtypes(ty: Type, seen: Set<string>): Type {
+  if ("arrow" in ty)
     return arrow_type(
-      normalizeType(type.arrow.from, seen),
-      normalizeType(type.arrow.to, seen),
+      normalizeType(ty.arrow.from, seen),
+      normalizeType(ty.arrow.to, seen),
     );
 
-  if ("forall" in type)
+  if ("forall" in ty)
     return forall_type(
-      type.forall.var,
-      type.forall.kind,
-      normalizeType(type.forall.body, seen),
+      ty.forall.var,
+      ty.forall.kind,
+      normalizeType(ty.forall.body, seen),
     );
 
-  if ("bounded_forall" in type)
+  if ("bounded_forall" in ty)
     return bounded_forall_type(
-      type.bounded_forall.var,
-      type.bounded_forall.kind,
-      type.bounded_forall.constraints.map((c) => ({
+      ty.bounded_forall.var,
+      ty.bounded_forall.kind,
+      ty.bounded_forall.constraints.map((c) => ({
         trait: c.trait,
         type: normalizeType(c.type, seen),
       })),
-      normalizeType(type.bounded_forall.body, seen),
+      normalizeType(ty.bounded_forall.body, seen),
     );
 
-  if ("app" in type)
+  if ("app" in ty)
     return app_type(
-      normalizeType(type.app.func, seen),
-      normalizeType(type.app.arg, seen),
+      normalizeType(ty.app.func, seen),
+      normalizeType(ty.app.arg, seen),
     );
 
-  if ("lam" in type)
-    return lam_type(
-      type.lam.var,
-      type.lam.kind,
-      normalizeType(type.lam.body, seen),
-    );
+  if ("lam" in ty)
+    return lam_type(ty.lam.var, ty.lam.kind, normalizeType(ty.lam.body, seen));
 
-  if ("record" in type)
-    return record_type(
-      type.record.map(([l, f]) => [l, normalizeType(f, seen)]),
-    );
+  if ("record" in ty)
+    return record_type(ty.record.map(([l, f]) => [l, normalizeType(f, seen)]));
 
-  if ("variant" in type)
+  if ("variant" in ty)
     return variant_type(
-      type.variant.map(([l, c]) => [l, normalizeType(c, seen)]),
+      ty.variant.map(([l, c]) => [l, normalizeType(c, seen)]),
     );
 
-  if ("mu" in type)
-    return seen.has(type.mu.var)
-      ? type
+  if ("mu" in ty)
+    return seen.has(ty.mu.var)
+      ? ty
       : mu_type(
-          type.mu.var,
-          normalizeType(type.mu.body, new Set([type.mu.var, ...seen])),
+          ty.mu.var,
+          normalizeType(ty.mu.body, new Set([ty.mu.var, ...seen])),
         );
 
-  if ("tuple" in type)
-    return tuple_type(type.tuple.map((t) => normalizeType(t, seen)));
+  if ("tuple" in ty)
+    return tuple_type(ty.tuple.map((t) => normalizeType(t, seen)));
 
-  return type;
+  return ty;
 }
 
 function applyNormalizationRules(type: Type, seen: Set<string>): Type {
@@ -4012,7 +3996,7 @@ function applyNormalizationRules(type: Type, seen: Set<string>): Type {
   // Rule 2: Simplify trivial forall types
   if (
     "forall" in type &&
-    !typeVariablesInType(type.forall.body, new Set([type.forall.var]))
+    !tyvarsInType(type.forall.body, new Set([type.forall.var]))
   )
     // If the forall variable doesn't appear in the body, we can drop it
     return normalizeType(type.forall.body, seen);
@@ -4022,10 +4006,7 @@ function applyNormalizationRules(type: Type, seen: Set<string>): Type {
 
   if (
     "bounded_forall" in type &&
-    !typeVariablesInType(
-      type.bounded_forall.body,
-      new Set([type.bounded_forall.var]),
-    )
+    !tyvarsInType(type.bounded_forall.body, new Set([type.bounded_forall.var]))
   )
     return normalizeType(type.bounded_forall.body, seen);
 
@@ -4040,52 +4021,39 @@ function applyNormalizationRules(type: Type, seen: Set<string>): Type {
   return type;
 }
 
-function typeVariablesInType(ty: Type, vars: Set<string>): boolean {
+function tyvarsInType(ty: Type, vars: Set<string>): boolean {
   if ("var" in ty) {
     return vars.has(ty.var);
   }
 
   if ("arrow" in ty)
-    return (
-      typeVariablesInType(ty.arrow.from, vars) ||
-      typeVariablesInType(ty.arrow.to, vars)
-    );
+    return tyvarsInType(ty.arrow.from, vars) || tyvarsInType(ty.arrow.to, vars);
 
   if ("forall" in ty)
-    return typeVariablesInType(
-      ty.forall.body,
-      new Set([ty.forall.var, ...vars]),
-    );
+    return tyvarsInType(ty.forall.body, new Set([ty.forall.var, ...vars]));
 
   if ("app" in ty)
-    return (
-      typeVariablesInType(ty.app.func, vars) ||
-      typeVariablesInType(ty.app.arg, vars)
-    );
+    return tyvarsInType(ty.app.func, vars) || tyvarsInType(ty.app.arg, vars);
 
   if ("lam" in ty)
-    return typeVariablesInType(ty.lam.body, new Set([ty.lam.var, ...vars]));
+    return tyvarsInType(ty.lam.body, new Set([ty.lam.var, ...vars]));
 
   if ("record" in ty)
-    return ty.record.some(([_, fieldType]) =>
-      typeVariablesInType(fieldType, vars),
-    );
+    return ty.record.some(([_, fieldType]) => tyvarsInType(fieldType, vars));
 
   if ("variant" in ty)
-    return ty.variant.some(([_, caseType]) =>
-      typeVariablesInType(caseType, vars),
-    );
+    return ty.variant.some(([_, caseType]) => tyvarsInType(caseType, vars));
 
   if ("mu" in ty)
-    return typeVariablesInType(ty.mu.body, new Set([ty.mu.var, ...vars]));
+    return tyvarsInType(ty.mu.body, new Set([ty.mu.var, ...vars]));
 
-  if ("tuple" in ty) return ty.tuple.some((t) => typeVariablesInType(t, vars));
+  if ("tuple" in ty) return ty.tuple.some((t) => tyvarsInType(t, vars));
 
   return false;
 }
 
 export function instantiateWithTraits(
-  context: Context,
+  ctx: Context,
   ty: Type,
 ): Result<TypingError, { type: Type; dicts: Term[] }> {
   return { ok: { type: ty, dicts: [] } };
@@ -4093,40 +4061,32 @@ export function instantiateWithTraits(
 
 // When you encounter a polymorphic value in application position:
 export function autoInstantiate(
-  context: Context,
+  ctx: Context,
   term: Term,
 ): Result<TypingError, { term: Term; type: Type }> {
-  const termType = inferType(context, term);
+  const termType = inferType(ctx, term);
   if ("err" in termType) return termType;
 
-  let currentTerm = term;
-  let currentType = termType.ok;
+  let accTerm = term;
+  let accType = termType.ok;
 
   // Auto-apply type arguments
-  while ("forall" in currentType) {
+  while ("forall" in accType) {
     const freshVar = freshMetaVar();
-    currentTerm = tyapp_term(currentTerm, freshVar);
-    currentType = substituteType(
-      currentType.forall.var,
-      freshVar,
-      currentType.forall.body,
-    );
+    accTerm = tyapp_term(accTerm, freshVar);
+    accType = substituteType(accType.forall.var, freshVar, accType.forall.body);
   }
 
   // Auto-apply trait dictionaries
-  while ("bounded_forall" in currentType) {
-    const instantiateResult = instantiateWithTraits(context, currentType);
-    if ("err" in instantiateResult) return instantiateResult;
+  while ("bounded_forall" in accType) {
+    const instantiateRes = instantiateWithTraits(ctx, accType);
+    if ("err" in instantiateRes) return instantiateRes;
 
-    currentTerm = trait_app_term(
-      currentTerm,
-      freshMetaVar(),
-      instantiateResult.ok.dicts,
-    );
-    currentType = instantiateResult.ok.type;
+    accTerm = trait_app_term(accTerm, freshMetaVar(), instantiateRes.ok.dicts);
+    accType = instantiateRes.ok.type;
   }
 
-  return { ok: { term: currentTerm, type: currentType } };
+  return { ok: { term: accTerm, type: accType } };
 }
 
 export function resolveMetaVars(ty: Type): Type {
@@ -4136,15 +4096,11 @@ export function resolveMetaVars(ty: Type): Type {
   }
 
   if ("arrow" in ty) {
-    return {
-      arrow: {
-        from: resolveMetaVars(ty.arrow.from),
-        to: resolveMetaVars(ty.arrow.to),
-      },
-    };
+    return arrow_type(
+      resolveMetaVars(ty.arrow.from),
+      resolveMetaVars(ty.arrow.to),
+    );
   }
-
-  // ... handle other type constructors similarly
 
   return ty;
 }

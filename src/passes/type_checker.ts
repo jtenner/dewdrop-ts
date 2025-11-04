@@ -35,10 +35,15 @@ import {
   type Type,
   type TypingError,
   typecheck,
+  arrow_type,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import { lookup_type, type Scope, type ScopeIndex } from "./create_scopes.js";
-import type { TermMap, TypeMap } from "./elaborate.js";
+import {
+  collectTypeVarsFromTypes,
+  type TermMap,
+  type TypeMap,
+} from "./elaborate.js";
 
 function bindingKey(bind: Binding): string {
   if ("type" in bind) return `type:${bind.type.name}`;
@@ -399,55 +404,114 @@ export class TypeChecker extends BaseVisitor {
     // Build method types (similar to elaboration but for checking)
     const methods: [string, Type][] = [];
 
+    // Create renaming map (same logic as ElaboratePass)
+    const methodGenericRenaming = new Map<string, string>();
+    let renameCounter = 0;
+
+    const allMethodGenerics = new Set<string>();
     for (const traitFn of trait_decl.fns) {
-      const paramTypes: Type[] = traitFn.params.map((p) => {
-        const ty = this.typeMap.get(p.ty);
-        if (!ty) throw new Error("Parameter type not found");
+      for (const tp of traitFn.type_params) {
+        if (tp.name !== "Self") allMethodGenerics.add(tp.name);
+      }
+
+      const paramTypes = traitFn.params
+        .map((p) => this.typeMap.get(p.ty))
+        .filter(Boolean) as Type[];
+      const returnType = this.typeMap.get(traitFn.return_type) as Type;
+
+      const vars = new Set<string>();
+      collectTypeVarsFromTypes([...paramTypes, returnType], vars);
+      vars.delete("Self");
+
+      for (const v of vars) allMethodGenerics.add(v);
+    }
+
+    for (const tp of trait_decl.type_params) {
+      if (tp.name !== "Self") allMethodGenerics.add(tp.name);
+    }
+
+    for (const oldName of allMethodGenerics) {
+      methodGenericRenaming.set(oldName, `τ${renameCounter++}`);
+    }
+
+    // Now build methods with renaming applied
+    for (const traitFn of trait_decl.fns) {
+      let paramTypes: Type[] = traitFn.params.map((p) => {
+        let ty = this.typeMap.get(p.ty)!;
+        for (const [oldName, newName] of methodGenericRenaming.entries()) {
+          ty = substituteType(oldName, { var: newName }, ty);
+        }
         return ty;
       });
 
-      const returnType = this.typeMap.get(traitFn.return_type);
+      let returnType = this.typeMap.get(traitFn.return_type)!;
+      for (const [oldName, newName] of methodGenericRenaming.entries()) {
+        returnType = substituteType(oldName, { var: newName }, returnType);
+      }
       if (!returnType) throw new Error("Return type not found");
 
       let selfType: Type = { var: "Self" };
       if (trait_decl.type_params.length > 0) {
+        const origParam = trait_decl.type_params[0]!.name;
+        const renamedParam =
+          origParam === "Self"
+            ? "Self"
+            : methodGenericRenaming.get(origParam) || origParam; // ✅ Use renamed version
+
         selfType = {
           app: {
             func: selfType,
-            arg: { var: trait_decl.type_params[0]!.name },
+            arg: { var: renamedParam }, // ✅ Now uses 'τ0' instead of 't'
           },
         };
       }
 
-      let methodType = returnType;
+      let methodType = arrow_type(selfType, returnType) as Type;
 
-      methodType = {
-        arrow: {
-          from: selfType,
-          to: methodType,
-        },
-      };
+      for (let i = paramTypes.length - 1; i >= 0; i--)
+        methodType = arrow_type(paramTypes[i]!, methodType);
 
-      for (let i = paramTypes.length - 1; i >= 0; i--) {
-        methodType = {
-          arrow: {
-            from: paramTypes[i]!,
-            to: methodType,
-          },
-        };
-      }
+      const boundVars = new Set(
+        traitFn.type_params.map((tp) => {
+          return tp.name === "Self"
+            ? "Self"
+            : methodGenericRenaming.get(tp.name) || tp.name;
+        }),
+      );
+      boundVars.add("Self"); // Self is bound by the trait
 
-      for (let i = traitFn.type_params.length - 1; i >= 0; i--) {
-        methodType = {
+      const sigFreeVars = collectTypeVars(methodType).filter(
+        (v) => !boundVars.has(v),
+      );
+
+      // Wrap in foralls for free variables
+      let generalizedMethodType = methodType;
+      for (const freeVar of sigFreeVars.sort().reverse()) {
+        generalizedMethodType = {
           forall: {
-            var: traitFn.type_params[i]!.name,
+            var: freeVar,
             kind: { star: null },
-            body: methodType,
+            body: generalizedMethodType,
           },
         };
       }
 
-      methods.push([traitFn.name.name, methodType]);
+      // Wrap in foralls for method's explicit type parameters
+      for (let i = traitFn.type_params.length - 1; i >= 0; i--) {
+        const origVar = traitFn.type_params[i]!.name;
+        if (origVar === "Self") continue;
+        const renamedVar = methodGenericRenaming.get(origVar) || origVar;
+        generalizedMethodType = {
+          forall: {
+            var: renamedVar,
+            kind: { star: null },
+            body: generalizedMethodType,
+          },
+        };
+      }
+
+      methods.push([traitFn.name.name, generalizedMethodType]);
+      this.typeMap.set(traitFn, generalizedMethodType);
     }
 
     const traitDef: TraitDef = {
@@ -741,6 +805,9 @@ export class TypeChecker extends BaseVisitor {
     for (const [methodName, methodTy] of traitDef.trait_def.methods) {
       // Substitute "Self" with forType (existing)
       let instantiatedMethodTy = substituteType("Self", forType, methodTy);
+
+      // Beta-reduce lambda applications
+      instantiatedMethodTy = normalizeType(instantiatedMethodTy);
 
       // Substitute trait top-level params with impl params (existing)
       for (const [traitParam, implType] of traitTypeParamMap.entries()) {
