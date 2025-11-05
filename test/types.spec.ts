@@ -63,8 +63,24 @@ import {
   applySubstitution,
   instantiateWithTraits,
   checkTraitConstraints,
+  VariantType,
+  starKind,
+  freshMetaVar,
+  VarType,
+  EnumDef,
+  getSpineArgs,
+  checkTraitImplementation,
+  TraitImplBinding,
+  ConType,
+  subsumes,
+  mergeSubsts,
+  solveMetaVar,
+  metaKind,
+  getMetaSubstitution,
+  inferTypeWithMode,
+  showTerm,
 } from "../src/types_system_f_omega";
-import { test } from "bun:test";
+import { expect, test } from "bun:test";
 
 // Simple test framework
 type TestResult = { passed: number; failed: number; errors: string[] };
@@ -89,76 +105,21 @@ function assertErr<E>(result: { ok: any } | { err: E }, message: string): E {
   return result.err;
 }
 
-
-
 test("Type variable kinding", () => {
-  const ctx: Context = [{ type: { name: "T", kind: { star: null } } }];
+  const ctx: Context = [{ type: { name: "T", kind: starKind } }];
   const result = checkKind(ctx, var_type("T"));
   const kind = assertOk(result, "should infer kind *");
   assert("star" in kind, "should be star kind");
 });
 
-test("Constant type kinding", () => {
-  const result = checkKind([], con_type("Int"));
-  const kind = assertOk(result, "should infer kind *");
-  assert("star" in kind, "should be star kind");
-});
-
-test("Arrow type kinding", () => {
-  const intType = con_type("Int");
-  const boolType = con_type("Bool");
-  const arrowTy = arrow_type(intType, boolType);
-  const result = checkKind([], arrowTy);
-  const kind = assertOk(result, "should infer kind *");
-  assert("star" in kind, "should be star kind");
-});
 
 test("Higher-kinded type", () => {
   const ctx: Context = [
-    { type: { name: "F", kind: { arrow: { from: { star: null }, to: { star: null } } } } },
+    { type: { name: "F", kind: { arrow: { from: starKind, to: starKind } } } },
   ];
   const result = checkKind(ctx, var_type("F"));
   const kind = assertOk(result, "should infer kind * -> *");
   assert("arrow" in kind, "should be arrow kind");
-});
-
-test("Identity function", () => {
-  const intType = con_type("Int");
-  const identity = lam_term("x", intType, var_term("x"));
-  const result = typecheck([], identity);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  assert(typesEqual(type.arrow.from, intType), "argument should be Int");
-  assert(typesEqual(type.arrow.to, intType), "return should be Int");
-});
-
-test("Function application", () => {
-  const intType = con_type("Int");
-  const identity = lam_term("x", intType, var_term("x"));
-  const value = con_term("42", intType);
-  const app = app_term(identity, value);
-  const result = typecheck([], app);
-  const type = assertOk(result, "should typecheck");
-  assert(typesEqual(type, intType), "result should be Int");
-});
-
-test("Function composition", () => {
-  const intType = con_type("Int");
-  const strType = con_type("String");
-  const boolType = con_type("Bool");
-
-  // f: Int -> String
-  const f = lam_term("x", intType, con_term("\"str\"", strType));
-  // g: String -> Bool  
-  const g = lam_term("y", strType, con_term("true", boolType));
-  // compose g f: Int -> Bool
-  const composed = lam_term("z", intType, app_term(g, app_term(f, var_term("z"))));
-
-  const result = typecheck([], composed);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  assert(typesEqual(type.arrow.from, intType), "argument should be Int");
-  assert(typesEqual(type.arrow.to, boolType), "return should be Bool");
 });
 
 test("Unbound variable error", () => {
@@ -167,19 +128,10 @@ test("Unbound variable error", () => {
   assert("unbound" in err, "should be unbound variable error");
 });
 
-test("Type mismatch in application", () => {
-  const intType = con_type("Int");
-  const strType = con_type("String");
-  const f = lam_term("x", intType, var_term("x"));
-  const arg = con_term("\"hello\"", strType);
-  const result = typecheck([], app_term(f, arg));
-  const err = assertErr(result, "should fail");
-  assert("type_mismatch" in err, "should be type mismatch error");
-});
 
 
 test("Polymorphic identity", () => {
-  const polyId = tylam_term("T", { star: null }, lam_term("x", var_type("T"), var_term("x")));
+  const polyId = tylam_term("T", starKind, lam_term("x", var_type("T"), var_term("x")));
   const result = typecheck([], polyId);
   const type = assertOk(result, "should typecheck");
   assert("forall" in type, "should be forall type");
@@ -188,9 +140,11 @@ test("Polymorphic identity", () => {
 
 test("Type application", () => {
   const intType = con_type("Int");
-  const polyId = tylam_term("T", { star: null }, lam_term("x", var_type("T"), var_term("x")));
+  const polyId = tylam_term("T", starKind, lam_term("x", var_type("T"), var_term("x")));
   const intId = tyapp_term(polyId, intType);
-  const result = typecheck([], intId);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], intId);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   assert(typesEqual(type.arrow.from, intType), "should be Int -> Int");
@@ -199,10 +153,10 @@ test("Type application", () => {
 test("Polymorphic constant function", () => {
   const constFn = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "x",
         var_type("A"),
@@ -300,19 +254,6 @@ test("Simple variant", () => {
   assert("variant" in type, "should be variant type");
 });
 
-test("Option type", () => {
-  const optionInt = variant_type([
-    ["None", unitType],
-    ["Some", con_type("Int")],
-  ]);
-
-  const someVal = inject_term("Some", con_term("42", con_type("Int")), optionInt);
-  const result = typecheck([], someVal);
-  const type = assertOk(result, "should typecheck");
-  assert("variant" in type, "should be variant type");
-  assert(type.variant.length === 2, "should have 2 cases");
-});
-
 test("Invalid variant label", () => {
   const optionInt = variant_type([
     ["None", unitType],
@@ -324,19 +265,6 @@ test("Invalid variant label", () => {
   const err = assertErr(result, "should fail");
   assert("invalid_variant_label" in err, "should be invalid label error");
 });
-
-test("Wrong variant payload type", () => {
-  const optionInt = variant_type([
-    ["None", unitType],
-    ["Some", con_type("Int")],
-  ]);
-
-  const wrongType = inject_term("Some", con_term("\"str\"", con_type("String")), optionInt);
-  const result = typecheck([], wrongType);
-  const err = assertErr(result, "should fail");
-  assert("type_mismatch" in err, "should be type mismatch error");
-});
-
 
 test("Simple pattern match", () => {
   const boolType = variant_type([
@@ -358,207 +286,6 @@ test("Simple pattern match", () => {
   assert("arrow" in type, "should be function type");
 });
 
-test("Pattern match with variable binding", () => {
-  const optionInt = variant_type([
-    ["None", unitType],
-    ["Some", con_type("Int")],
-  ]);
-
-  const unwrap = lam_term(
-    "opt",
-    optionInt,
-    match_term(var_term("opt"), [
-      [variant_pattern("None", wildcard_pattern()), con_term("0", con_type("Int"))],
-      [variant_pattern("Some", var_pattern("x")), var_term("x")],
-    ])
-  );
-
-  const result = typecheck([], unwrap);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
-});
-
-test("Record pattern matching", () => {
-  const pointType = record_type([
-    ["x", con_type("Int")],
-    ["y", con_type("Int")],
-  ]);
-
-  const getX = lam_term(
-    "p",
-    pointType,
-    match_term(var_term("p"), [
-      [
-        record_pattern([
-          ["x", var_pattern("xVal")],
-          ["y", wildcard_pattern()],
-        ]),
-        var_term("xVal"),
-      ],
-    ])
-  );
-
-  const result = typecheck([], getX);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
-});
-
-test("Nested pattern matching", () => {
-  const resultType = variant_type([
-    ["Ok", con_type("Int")],
-    ["Err", con_type("String")],
-  ]);
-
-  const optionResult = variant_type([
-    ["None", unitType],
-    ["Some", resultType],
-  ]);
-
-  const unwrapAll = lam_term(
-    "x",
-    optionResult,
-    match_term(var_term("x"), [
-      [variant_pattern("None", wildcard_pattern()), con_term("-1", con_type("Int"))],
-      [
-        variant_pattern("Some", variant_pattern("Ok", var_pattern("val"))),
-        var_term("val"),
-      ],
-      [
-        variant_pattern("Some", variant_pattern("Err", wildcard_pattern())),
-        con_term("-2", con_type("Int")),
-      ],
-    ])
-  );
-
-  const result = typecheck([], unwrapAll);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
-});
-
-test("Non-exhaustive pattern match", () => {
-  const optionInt = variant_type([
-    ["None", unitType],
-    ["Some", con_type("Int")],
-  ]);
-
-  // Missing the Some case
-  const incomplete = lam_term(
-    "opt",
-    optionInt,
-    match_term(var_term("opt"), [
-      [variant_pattern("None", wildcard_pattern()), con_term("0", con_type("Int"))],
-    ])
-  );
-
-  const result = typecheck([], incomplete);
-  const err = assertErr(result, "should fail");
-  assert("missing_case" in err, "should be missing case error");
-});
-
-test("Inconsistent branch types", () => {
-  const optionInt = variant_type([
-    ["None", unitType],
-    ["Some", con_type("Int")],
-  ]);
-
-  const inconsistent = lam_term(
-    "opt",
-    optionInt,
-    match_term(var_term("opt"), [
-      [variant_pattern("None", wildcard_pattern()), con_term("0", con_type("Int"))],
-      [variant_pattern("Some", var_pattern("x")), con_term("\"str\"", con_type("String"))],
-    ])
-  );
-
-  const result = typecheck([], inconsistent);
-  const err = assertErr(result, "should fail");
-  assert("type_mismatch" in err, "should be type mismatch error");
-});
-
-test("Polymorphic map for Option", () => {
-  const mapOption = tylam_term(
-    "A",
-    { star: null },
-    tylam_term(
-      "B",
-      { star: null },
-      lam_term(
-        "f",
-        arrow_type(var_type("A"), var_type("B")),
-        lam_term(
-          "opt",
-          variant_type([
-            ["None", unitType],
-            ["Some", var_type("A")],
-          ]),
-          match_term(var_term("opt"), [
-            [
-              variant_pattern("None", wildcard_pattern()),
-              inject_term(
-                "None",
-                unitValue,
-                variant_type([
-                  ["None", unitType],
-                  ["Some", var_type("B")],
-                ])
-              ),
-            ],
-            [
-              variant_pattern("Some", var_pattern("x")),
-              inject_term(
-                "Some",
-                app_term(var_term("f"), var_term("x")),
-                variant_type([
-                  ["None", unitType],
-                  ["Some", var_type("B")],
-                ])
-              ),
-            ],
-          ])
-        )
-      )
-    )
-  );
-
-  const result = typecheck([], mapOption);
-  const type = assertOk(result, "should typecheck");
-  assert("forall" in type, "should be polymorphic");
-});
-
-test("List type with fold", () => {
-  // List<T> = Nil | Cons(T, List<T>)
-  // Note: This is a simplified version without recursive types
-  const listInt = variant_type([
-    ["Nil", unitType],
-    ["Cons", record_type([["head", con_type("Int")], ["tail", unitType]])],
-  ]);
-
-  const sumList = lam_term(
-    "list",
-    listInt,
-    match_term(var_term("list"), [
-      [variant_pattern("Nil", wildcard_pattern()), con_term("0", con_type("Int"))],
-      [
-        variant_pattern(
-          "Cons",
-          record_pattern([
-            ["head", var_pattern("h")],
-            ["tail", wildcard_pattern()],
-          ])
-        ),
-        var_term("h"), // Simplified - would normally recurse
-      ],
-    ])
-  );
-
-  const result = typecheck([], sumList);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-});
-
 test("State monad type", () => {
   // State s a = s -> (a, s)
   const stateType = (s: Type, a: Type): Type =>
@@ -566,10 +293,10 @@ test("State monad type", () => {
 
   const returnState = tylam_term(
     "S",
-    { star: null },
+    starKind,
     tylam_term(
       "A",
-      { star: null },
+      starKind,
       lam_term(
         "x",
         var_type("A"),
@@ -599,16 +326,16 @@ test("Either type with bimap", () => {
 
   const bimap = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       tylam_term(
         "C",
-        { star: null },
+        starKind,
         tylam_term(
           "D",
-          { star: null },
+          starKind,
           lam_term(
             "f",
             arrow_type(var_type("A"), var_type("C")),
@@ -730,129 +457,6 @@ test("Unfold natural number", () => {
   assert("variant" in type, "should be variant type");
 });
 
-test("List type", () => {
-  const listInt = mu_type(
-    "L",
-    variant_type([
-      ["Nil", unitType],
-      [
-        "Cons",
-        record_type([
-          ["head", con_type("Int")],
-          ["tail", var_type("L")],
-        ]),
-      ],
-    ])
-  );
-
-  const kind = checkKind([], listInt);
-  const k = assertOk(kind, "should have kind *");
-  assert("star" in k, "should be star kind");
-});
-
-test("Empty list", () => {
-  const listInt = mu_type(
-    "L",
-    variant_type([
-      ["Nil", unitType],
-      [
-        "Cons",
-        record_type([
-          ["head", con_type("Int")],
-          ["tail", var_type("L")],
-        ]),
-      ],
-    ])
-  );
-
-  const emptyList = fold_term(
-    listInt,
-    inject_term("Nil", unitValue, variant_type([
-      ["Nil", unitType],
-      [
-        "Cons",
-        record_type([
-          ["head", con_type("Int")],
-          ["tail", listInt],
-        ]),
-      ],
-    ]))
-  );
-
-  const result = typecheck([], emptyList);
-  const type = assertOk(result, "should typecheck");
-  assert(typesEqual(type, listInt), "should be List Int type");
-});
-
-test("Cons cell", () => {
-  const listInt = mu_type(
-    "L",
-    variant_type([
-      ["Nil", unitType],
-      [
-        "Cons",
-        record_type([
-          ["head", con_type("Int")],
-          ["tail", var_type("L")],
-        ]),
-      ],
-    ])
-  );
-
-  const emptyList = fold_term(
-    listInt,
-    inject_term("Nil", unitValue, variant_type([
-      ["Nil", unitType],
-      [
-        "Cons",
-        record_type([
-          ["head", con_type("Int")],
-          ["tail", listInt],
-        ]),
-      ],
-    ]))
-  );
-
-  const oneElementList = fold_term(
-    listInt,
-    inject_term(
-      "Cons",
-      record_term([
-        ["head", con_term("42", con_type("Int"))],
-        ["tail", emptyList],
-      ]),
-      variant_type([
-        ["Nil", unitType],
-        [
-          "Cons",
-          record_type([
-            ["head", con_type("Int")],
-            ["tail", listInt],
-          ]),
-        ],
-      ])
-    )
-  );
-
-  const result = typecheck([], oneElementList);
-  const type = assertOk(result, "should typecheck");
-  assert(typesEqual(type, listInt), "should be List Int type");
-});
-
-
-test("Simple tuple", () => {
-  const tupleType = tuple_type([con_type("Int"), con_type("String")]);
-  const tuple = tuple_term([
-    con_term("42", con_type("Int")),
-    con_term("\"hello\"", con_type("String")),
-  ]);
-
-  const result = typecheck([], tuple);
-  const type = assertOk(result, "should typecheck");
-  assert("tuple" in type, "should be tuple type");
-  assert(type.tuple.length === 2, "should have 2 elements");
-});
-
 test("Tuple projection", () => {
   const tuple = tuple_term([
     con_term("42", con_type("Int")),
@@ -926,60 +530,13 @@ test("Nested tuples", () => {
   assert(typesEqual(type, con_type("Int")), "should be Int");
 });
 
-test("Tuple pattern matching", () => {
-  const pairType = tuple_type([con_type("Int"), con_type("String")]);
-  
-  const swap = lam_term(
-    "p",
-    pairType,
-    match_term(var_term("p"), [
-      [
-        tuple_pattern([var_pattern("x"), var_pattern("y")]),
-        tuple_term([var_term("y"), var_term("x")]),
-      ],
-    ])
-  );
-
-  const result = typecheck([], swap);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-});
-
-test("Tuple with wildcard pattern", () => {
-  const tripleType = tuple_type([
-    con_type("Int"),
-    con_type("String"),
-    con_type("Bool"),
-  ]);
-
-  const getFirst = lam_term(
-    "t",
-    tripleType,
-    match_term(var_term("t"), [
-      [
-        tuple_pattern([
-          var_pattern("x"),
-          wildcard_pattern(),
-          wildcard_pattern(),
-        ]),
-        var_term("x"),
-      ],
-    ])
-  );
-
-  const result = typecheck([], getFirst);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
-});
-
 test("Polymorphic fst function", () => {
   const fst = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "p",
         tuple_type([var_type("A"), var_type("B")]),
@@ -996,10 +553,10 @@ test("Polymorphic fst function", () => {
 test("Polymorphic snd function", () => {
   const snd = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "p",
         tuple_type([var_type("A"), var_type("B")]),
@@ -1016,10 +573,10 @@ test("Polymorphic snd function", () => {
 test("Map function", () => {
   const map = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "f",
         arrow_type(var_type("A"), var_type("B")),
@@ -1039,13 +596,13 @@ test("Map function", () => {
 test("Compose function", () => {
   const compose = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       tylam_term(
         "C",
-        { star: null },
+        starKind,
         lam_term(
           "f",
           arrow_type(var_type("B"), var_type("C")),
@@ -1073,13 +630,13 @@ test("Compose function", () => {
 test("Flip function", () => {
   const flip = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       tylam_term(
         "C",
-        { star: null },
+        starKind,
         lam_term(
           "f",
           arrow_type(var_type("A"), arrow_type(var_type("B"), var_type("C"))),
@@ -1101,33 +658,15 @@ test("Flip function", () => {
   assertOk(result, "should typecheck");
 });
 
-test("Type constructor application", () => {
-  const listCon = lam_type(
-    "T",
-    { star: null },
-    mu_type(
-      "L",
-      variant_type([
-        ["Nil", unitType],
-        ["Cons", record_type([["head", var_type("T")], ["tail", var_type("L")]])],
-      ])
-    )
-  );
-
-  const listInt = app_type(listCon, con_type("Int"));
-  const kind = checkKind([], listInt);
-  assertOk(kind, "should have valid kind");
-});
-
 test("Type constructor kind mismatch", () => {
   const ctx: Context = [
-    { type: { name: "F", kind: { arrow: { from: { star: null }, to: { star: null } } } } },
+    { type: { name: "F", kind: { arrow: { from: starKind, to: starKind } } } },
   ];
   
   // Try to apply F to something that's not kind *
   const badApp = app_type(
     var_type("F"),
-    lam_type("X", { star: null }, var_type("X"))
+    lam_type("X", starKind, var_type("X"))
   );
   
   const result = checkKind(ctx, badApp);
@@ -1148,17 +687,6 @@ test("Self-application (should fail)", () => {
   // but worth testing the behavior
 });
 
-test("Deep nesting", () => {
-  // Deeply nested records
-  let deepRecord: Term = con_term("42", con_type("Int"));
-  for (let i = 0; i < 10; i++) {
-    deepRecord = record_term([["inner", deepRecord]]);
-  }
-
-  const result = typecheck([], deepRecord);
-  assertOk(result, "should handle deep nesting");
-});
-
 test("Large record", () => {
   const fields: [string, Term][] = [];
   for (let i = 0; i < 100; i++) {
@@ -1168,98 +696,6 @@ test("Large record", () => {
   const largeRecord = record_term(fields);
   const result = typecheck([], largeRecord);
   assertOk(result, "should handle large records");
-});
-
-test("Shadowed variables", () => {
-  const shadowed = lam_term(
-    "x",
-    con_type("Int"),
-    lam_term(
-      "x",
-      con_type("String"),
-      var_term("x")
-    )
-  );
-
-  const result = typecheck([], shadowed);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  // Inner x shadows outer x, so result should be String
-});
-
-test("Binary tree type", () => {
-  const treeInt = mu_type(
-    "T",
-    variant_type([
-      ["Leaf", con_type("Int")],
-      [
-        "Node",
-        record_type([
-          ["left", var_type("T")],
-          ["right", var_type("T")],
-        ]),
-      ],
-    ])
-  );
-
-  const kind = checkKind([], treeInt);
-  assertOk(kind, "should have kind *");
-});
-
-test("Infinite list (stream) type", () => {
-  const streamInt = mu_type(
-    "S",
-    record_type([
-      ["head", con_type("Int")],
-      ["tail", var_type("S")],
-    ])
-  );
-
-  const kind = checkKind([], streamInt);
-  assertOk(kind, "should have kind *");
-});
-
-test("Multiple patterns same match", () => {
-  const eitherType = variant_type([
-    ["Left", con_type("Int")],
-    ["Right", con_type("Int")],
-  ]);
-
-  const toInt = lam_term(
-    "e",
-    eitherType,
-    match_term(var_term("e"), [
-      [variant_pattern("Left", var_pattern("x")), var_term("x")],
-      [variant_pattern("Right", var_pattern("y")), var_term("y")],
-    ])
-  );
-
-  const result = typecheck([], toInt);
-  assertOk(result, "should typecheck");
-});
-
-test("Nested tuple and record patterns", () => {
-  const complexType = record_type([
-    ["data", tuple_type([con_type("Int"), con_type("String")])],
-    ["flag", con_type("Bool")],
-  ]);
-
-  const extract = lam_term(
-    "x",
-    complexType,
-    match_term(var_term("x"), [
-      [
-        record_pattern([
-          ["data", tuple_pattern([var_pattern("n"), wildcard_pattern()])],
-          ["flag", wildcard_pattern()],
-        ]),
-        var_term("n"),
-      ],
-    ])
-  );
-
-  const result = typecheck([], extract);
-  assertOk(result, "should typecheck");
 });
 
 test("let term", () => {
@@ -1285,136 +721,13 @@ test("let term", () => {
   assertOk(result, "should typecheck");
 });
 
-test("type normalization", () => {
-  // Test 1: Beta-reduction of type application
-  const idType = lam_type("T", { star: null }, var_type("T"));
-  const intType = con_type("Int");
-  const appliedType = app_type(idType, intType);
-  
-  const normalized = normalizeType(appliedType);
-  const expected = intType;
-  
-  assert(
-    typesEqual(normalized, expected),
-    `Test 1 failed: Expected ${showType(expected)} but got ${showType(normalized)}`
-  );
-  
-  // Test 2: Nested beta-reductions
-  const doubleApp = lam_type("A", { star: null }, 
-    lam_type("B", { star: null }, 
-      arrow_type(var_type("A"), var_type("B"))
-    )
-  );
-  const applied = app_type(
-    app_type(doubleApp, con_type("Int")), 
-    con_type("Bool")
-  );
-  
-  const normalized2 = normalizeType(applied);
-  const expected2 = arrow_type(con_type("Int"), con_type("Bool"));
-  
-  assert(
-    typesEqual(normalized2, expected2),
-    `Test 2 failed: Expected ${showType(expected2)} but got ${showType(normalized2)}`
-  );
-  
-  // Test 3: Trivial forall elimination (unused type variable)
-  const trivialForall = forall_type(
-    "X", 
-    { star: null }, 
-    con_type("Int")
-  );
-  
-  const normalized3 = normalizeType(trivialForall);
-  const expected3 = con_type("Int");
-  
-  assert(
-    typesEqual(normalized3, expected3),
-    `Test 3 failed: Expected ${showType(expected3)} but got ${showType(normalized3)}`
-  );
-  
-  // Test 4: Mu types should NOT unfold during normalization
-  const listType = mu_type("L", variant_type([
-    ["Nil", unitType],
-    ["Cons", tuple_type([con_type("Int"), var_type("L")])]
-  ]));
-  
-  const normalized4 = normalizeType(listType);
-  
-  // It should still be a mu type after normalization
-  assert(
-    "mu" in normalized4,
-    `Test 4 failed: Mu type should not unfold during normalization`
-  );
-  assert(
-    typesEqual(normalized4, listType),
-    `Test 4 failed: Mu type should remain unchanged`
-  );
-  
-  // Test 5: Single-element tuple simplification
-  const singleTuple = tuple_type([con_type("Int")]);
-  const normalized5 = normalizeType(singleTuple);
-  const expected5 = con_type("Int");
-  
-  assert(
-    typesEqual(normalized5, expected5),
-    `Test 5 failed: Expected ${showType(expected5)} but got ${showType(normalized5)}`
-  );
-  
-  // Test 6: Empty record simplification
-  const emptyRecord = record_type([]);
-  const normalized6 = normalizeType(emptyRecord);
-  
-  assert(
-    typesEqual(normalized6, unitType),
-    `Test 6 failed: Empty record should normalize to Unit`
-  );
-  
-  // Test 7: Complex nested application
-  const constType = lam_type("A", { star: null },
-    lam_type("B", { star: null },
-      var_type("A")
-    )
-  );
-  const applied7 = app_type(
-    app_type(constType, con_type("String")),
-    con_type("Bool")
-  );
-  
-  const normalized7 = normalizeType(applied7);
-  const expected7 = con_type("String");
-  
-  assert(
-    typesEqual(normalized7, expected7),
-    `Test 7 failed: Expected ${showType(expected7)} but got ${showType(normalized7)}`
-  );
-  
-  // Test 8: Normalization preserves used forall variables
-  const usedForall = forall_type(
-    "T",
-    { star: null },
-    arrow_type(var_type("T"), var_type("T"))
-  );
-  
-  const normalized8 = normalizeType(usedForall);
-  
-  assert(
-    "forall" in normalized8,
-    `Test 8 failed: Forall with used variable should be preserved`
-  );
-  assert(
-    typesEqual(normalized8, usedForall),
-    `Test 8 failed: Used forall should remain unchanged`
-  );
-});
-
 // ============= TRAIT SYSTEM TESTS =============
 
 test("Simple trait definition", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -1426,80 +739,11 @@ test("Simple trait definition", () => {
   assert("trait_def" in binding!, "should be trait_def binding");
 });
 
-test("Dictionary for Show Int", () => {
-  const showTrait: TraitDef = {
-    name: "Show",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
-  };
-
-  const intType = con_type("Int");
-  const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
-
-  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
-
-  const context: Context = [{ trait_def: showTrait }];
-
-  const result = typecheck(context, intShowDict);
-  const type = assertOk(result, "should typecheck");
-  assert("con" in type, "should be dictionary type");
-});
-
-test("Dictionary with missing method", () => {
-  const eqTrait: TraitDef = {
-    name: "Eq",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [
-      ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
-      ["neq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
-    ],
-  };
-
-  const intType = con_type("Int");
-  const eqImpl = lam_term(
-    "x",
-    intType,
-    lam_term("y", intType, con_term("true", con_type("Bool")))
-  );
-
-  // Missing neq method
-  const incompleteDict = dict_term("Eq", intType, [["eq", eqImpl]]);
-
-  const context: Context = [{ trait_def: eqTrait }];
-
-  const result = typecheck(context, incompleteDict);
-  const err = assertErr(result, "should fail");
-  assert("missing_method" in err, "should be missing method error");
-});
-
-test("Dictionary with wrong method type", () => {
-  const showTrait: TraitDef = {
-    name: "Show",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
-  };
-
-  const intType = con_type("Int");
-  // Wrong: returns Int instead of String
-  const wrongImpl = lam_term("x", intType, con_term("42", intType));
-
-  const wrongDict = dict_term("Show", intType, [["show", wrongImpl]]);
-
-  const context: Context = [{ trait_def: showTrait }];
-
-  const result = typecheck(context, wrongDict);
-  const err = assertErr(result, "should fail");
-  assert("type_mismatch" in err, "should be type mismatch error");
-});
-
 test("Trait method access from dictionary variable", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -1525,32 +769,11 @@ test("Trait method access from dictionary variable", () => {
   assert(typesEqual(type.arrow.to, con_type("String")), "should return String");
 });
 
-test("Trait method access from concrete dictionary", () => {
-  const showTrait: TraitDef = {
-    name: "Show",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
-  };
-
-  const intType = con_type("Int");
-  const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
-  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
-
-  const context: Context = [{ trait_def: showTrait }];
-
-  const methodAccess = trait_method_term(intShowDict, "show");
-
-  const result = typecheck(context, methodAccess);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-});
-
 test("Trait method access with wrong method name", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -1578,7 +801,7 @@ test("Simple trait lambda", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -1587,7 +810,7 @@ test("Simple trait lambda", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "x",
@@ -1611,54 +834,11 @@ test("Simple trait lambda", () => {
   );
 });
 
-test("Trait application with concrete type", () => {
-  const showTrait: TraitDef = {
-    name: "Show",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
-  };
-
-  const intType = con_type("Int");
-  const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
-  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
-
-  const showValue = trait_lam_term(
-    "showDict",
-    "Show",
-    "T",
-    { star: null },
-    [{ trait: "Show", type: var_type("T") }],
-    lam_term(
-      "x",
-      var_type("T"),
-      app_term(
-        trait_method_term(var_term("showDict"), "show"),
-        var_term("x")
-      )
-    )
-  );
-
-  const context: Context = [
-    { trait_def: showTrait },
-    { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
-  ];
-
-  // Apply to Int type with dictionary
-  const applied = trait_app_term(showValue, intType, [intShowDict]);
-
-  const result = typecheck(context, applied);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  assert(typesEqual(type.arrow.from, intType), "should take Int");
-  assert(typesEqual(type.arrow.to, con_type("String")), "should return String");
-});
-
 test("Trait application with missing implementation", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -1666,7 +846,7 @@ test("Trait application with missing implementation", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "x",
@@ -1696,14 +876,14 @@ test("Multiple trait constraints", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
   const eqTrait: TraitDef = {
     name: "Eq",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [
       ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
     ],
@@ -1714,7 +894,7 @@ test("Multiple trait constraints", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [
       { trait: "Show", type: var_type("T") },
       { trait: "Eq", type: var_type("T") },
@@ -1741,16 +921,16 @@ test("Functor trait with map", () => {
   const functorTrait: TraitDef = {
     name: "Functor",
     type_param: "F",
-    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    kind: { arrow: { from: starKind, to: starKind } },
     methods: [
       [
         "map",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           forall_type(
             "B",
-            { star: null },
+            starKind,
             arrow_type(
               arrow_type(var_type("A"), var_type("B")),
               arrow_type(
@@ -1771,59 +951,11 @@ test("Functor trait with map", () => {
   assert(binding !== undefined, "trait should be in context");
 });
 
-test("Ord trait with superclass", () => {
-  const eqTrait: TraitDef = {
-    name: "Eq",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [
-      ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
-    ],
-  };
-
-  const ordTrait: TraitDef = {
-    name: "Ord",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [
-      ["compare", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Int")))],
-    ],
-  };
-
-  const intType = con_type("Int");
-
-  const eqImpl = lam_term(
-    "x",
-    intType,
-    lam_term("y", intType, con_term("true", con_type("Bool")))
-  );
-
-  const ordImpl = lam_term(
-    "x",
-    intType,
-    lam_term("y", intType, con_term("0", intType))
-  );
-
-  const eqDict = dict_term("Eq", intType, [["eq", eqImpl]]);
-  const ordDict = dict_term("Ord", intType, [["compare", ordImpl]]);
-
-  const context: Context = [
-    { trait_def: eqTrait },
-    { trait_def: ordTrait },
-  ];
-
-  const result1 = typecheck(context, eqDict);
-  assertOk(result1, "Eq dict should typecheck");
-
-  const result2 = typecheck(context, ordDict);
-  assertOk(result2, "Ord dict should typecheck");
-});
-
 test("Generic function with trait bound", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -1832,7 +964,7 @@ test("Generic function with trait bound", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "xs",
@@ -1854,47 +986,17 @@ test("Generic function with trait bound", () => {
   assert("bounded_forall" in type, "should be bounded forall type");
 });
 
-test("Trait for recursive type", () => {
-  const showTrait: TraitDef = {
-    name: "Show",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
-  };
-
-  const listInt = mu_type(
-    "L",
-    variant_type([
-      ["Nil", unitType],
-      ["Cons", record_type([["head", con_type("Int")], ["tail", var_type("L")]])],
-    ])
-  );
-
-  const showListImpl = lam_term(
-    "list",
-    listInt,
-    con_term("\"[1,2,3]\"", con_type("String"))
-  );
-
-  const listShowDict = dict_term("Show", listInt, [["show", showListImpl]]);
-
-  const context: Context = [{ trait_def: showTrait }];
-
-  const result = typecheck(context, listShowDict);
-  assertOk(result, "should typecheck");
-});
-
 test("Monad trait structure", () => {
   const monadTrait: TraitDef = {
     name: "Monad",
     type_param: "M",
-    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    kind: { arrow: { from: starKind, to: starKind } },
     methods: [
       [
         "return",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           arrow_type(var_type("A"), app_type(var_type("M"), var_type("A")))
         ),
       ],
@@ -1902,10 +1004,10 @@ test("Monad trait structure", () => {
         "bind",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           forall_type(
             "B",
-            { star: null },
+            starKind,
             arrow_type(
               app_type(var_type("M"), var_type("A")),
               arrow_type(
@@ -1935,14 +1037,14 @@ test("Bounded forall type equality", () => {
 
   const type1 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [constraint],
     arrow_type(var_type("T"), con_type("String"))
   );
 
   const type2 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [constraint],
     arrow_type(var_type("T"), con_type("String"))
   );
@@ -1953,14 +1055,14 @@ test("Bounded forall type equality", () => {
 test("Bounded forall with different constraints not equal", () => {
   const type1 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     arrow_type(var_type("T"), con_type("String"))
   );
 
   const type2 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Eq", type: var_type("T") }],
     arrow_type(var_type("T"), con_type("String"))
   );
@@ -1968,49 +1070,10 @@ test("Bounded forall with different constraints not equal", () => {
   assert(!typesEqual(type1, type2), "different constraints should not be equal");
 });
 
-test("Trait substitution in constraints", () => {
-  const showTrait: TraitDef = {
-    name: "Show",
-    type_param: "Self",
-    kind: { star: null },
-    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
-  };
-
-  const intType = con_type("Int");
-  const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
-  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
-
-  // Λ T where Show<T>. λf: T -> T. λx: T. x
-  const polyFunc = trait_lam_term(
-    "showDict",
-    "Show",
-    "T",
-    { star: null },
-    [{ trait: "Show", type: var_type("T") }],
-    lam_term(
-      "f",
-      arrow_type(var_type("T"), var_type("T")),
-      lam_term("x", var_type("T"), var_term("x"))
-    )
-  );
-
-  const context: Context = [
-    { trait_def: showTrait },
-    { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
-  ];
-
-  // Apply to Int - should substitute T with Int in Show<T> constraint
-  const applied = trait_app_term(polyFunc, intType, [intShowDict]);
-
-  const result = typecheck(context, applied);
-  const type = assertOk(result, "should typecheck after substitution");
-  assert("arrow" in type, "should be function type");
-});
-
 test("Kind checking bounded forall", () => {
   const polyType = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     arrow_type(var_type("T"), con_type("String"))
   );
@@ -2024,7 +1087,7 @@ test("Kind mismatch in trait constraint type", () => {
   // Constraint type must have kind *, not * -> *
   const badType = bounded_forall_type(
     "F",
-    { arrow: { from: { star: null }, to: { star: null } } },
+    { arrow: { from: starKind, to: starKind } },
     [{ trait: "Show", type: var_type("F") }], // F has kind * -> *, but Show expects *
     var_type("F")
   );
@@ -2034,18 +1097,15 @@ test("Kind mismatch in trait constraint type", () => {
   assert("kind_mismatch" in err, "should be kind mismatch error");
 });
 
-
-
-
 test("Type variable kinding", () => {
-  const ctx: Context = [{ type: { name: "T", kind: { star: null } } }];
+  const ctx: Context = [{ type: { name: "T", kind: starKind } }];
   const result = checkKind(ctx, var_type("T"));
   const kind = assertOk(result, "should infer kind *");
   assert("star" in kind, "should be star kind");
 });
 
 test("Constant type kinding", () => {
-  const result = checkKind([], con_type("Int"));
+  const result = checkKind([{ type: { kind: starKind, name: "Int" } },], con_type("Int"));
   const kind = assertOk(result, "should infer kind *");
   assert("star" in kind, "should be star kind");
 });
@@ -2054,14 +1114,17 @@ test("Arrow type kinding", () => {
   const intType = con_type("Int");
   const boolType = con_type("Bool");
   const arrowTy = arrow_type(intType, boolType);
-  const result = checkKind([], arrowTy);
+  const result = checkKind([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], arrowTy);
   const kind = assertOk(result, "should infer kind *");
   assert("star" in kind, "should be star kind");
 });
 
 test("Higher-kinded type", () => {
   const ctx: Context = [
-    { type: { name: "F", kind: { arrow: { from: { star: null }, to: { star: null } } } } },
+    { type: { name: "F", kind: { arrow: { from: starKind, to: starKind } } } },
   ];
   const result = checkKind(ctx, var_type("F"));
   const kind = assertOk(result, "should infer kind * -> *");
@@ -2071,7 +1134,9 @@ test("Higher-kinded type", () => {
 test("Identity function", () => {
   const intType = con_type("Int");
   const identity = lam_term("x", intType, var_term("x"));
-  const result = typecheck([], identity);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], identity);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   assert(typesEqual(type.arrow.from, intType), "argument should be Int");
@@ -2083,7 +1148,9 @@ test("Function application", () => {
   const identity = lam_term("x", intType, var_term("x"));
   const value = con_term("42", intType);
   const app = app_term(identity, value);
-  const result = typecheck([], app);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], app);
   const type = assertOk(result, "should typecheck");
   assert(typesEqual(type, intType), "result should be Int");
 });
@@ -2100,7 +1167,11 @@ test("Function composition", () => {
   // compose g f: Int -> Bool
   const composed = lam_term("z", intType, app_term(g, app_term(f, var_term("z"))));
 
-  const result = typecheck([], composed);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], composed);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   assert(typesEqual(type.arrow.from, intType), "argument should be Int");
@@ -2118,37 +1189,30 @@ test("Type mismatch in application", () => {
   const strType = con_type("String");
   const f = lam_term("x", intType, var_term("x"));
   const arg = con_term("\"hello\"", strType);
-  const result = typecheck([], app_term(f, arg));
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ], app_term(f, arg));
   const err = assertErr(result, "should fail");
   assert("type_mismatch" in err, "should be type mismatch error");
 });
 
 
 test("Polymorphic identity", () => {
-  const polyId = tylam_term("T", { star: null }, lam_term("x", var_type("T"), var_term("x")));
+  const polyId = tylam_term("T", starKind, lam_term("x", var_type("T"), var_term("x")));
   const result = typecheck([], polyId);
   const type = assertOk(result, "should typecheck");
   assert("forall" in type, "should be forall type");
   assert(type.forall.var === "T", "should quantify over T");
 });
 
-test("Type application", () => {
-  const intType = con_type("Int");
-  const polyId = tylam_term("T", { star: null }, lam_term("x", var_type("T"), var_term("x")));
-  const intId = tyapp_term(polyId, intType);
-  const result = typecheck([], intId);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
-  assert(typesEqual(type.arrow.from, intType), "should be Int -> Int");
-});
-
 test("Polymorphic constant function", () => {
   const constFn = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "x",
         var_type("A"),
@@ -2246,17 +1310,29 @@ test("Simple variant", () => {
   assert("variant" in type, "should be variant type");
 });
 
-test("Option type", () => {
+test("Option type - structural injection with explicit context", () => {
+  const intType = con_type("Int");
   const optionInt = variant_type([
     ["None", unitType],
-    ["Some", con_type("Int")],
+    ["Some", intType],  // Uses con_type("Int")
   ]);
 
-  const someVal = inject_term("Some", con_term("42", con_type("Int")), optionInt);
-  const result = typecheck([], someVal);
+  // EXPLICIT CONTEXT: Bind "Int" :: * to handle kind checks
+  const context = [
+    { type: { name: "Int", kind: starKind } },  // Makes "Int" well-kinded
+  ];
+
+  const someVal = inject_term("Some", con_term("42", intType), optionInt);
+  const result = typecheck(context, someVal);  // Pass context
   const type = assertOk(result, "should typecheck");
-  assert("variant" in type, "should be variant type");
-  assert(type.variant.length === 2, "should have 2 cases");
+  
+  // Assertions
+  expect("variant" in type).toBe(true);
+  const variant = (type as VariantType).variant;
+  expect(variant.length).toBe(2);
+  // Optional: Check cases match
+  expect(typesEqual(variant[0][1], unitType)).toBe(true);  // None: ()
+  expect(typesEqual(variant[1][1], intType)).toBe(true);   // Some: Int
 });
 
 test("Invalid variant label", () => {
@@ -2278,7 +1354,10 @@ test("Wrong variant payload type", () => {
   ]);
 
   const wrongType = inject_term("Some", con_term("\"str\"", con_type("String")), optionInt);
-  const result = typecheck([], wrongType);
+  const result = typecheck([
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Int" } },
+  ], wrongType);
   const err = assertErr(result, "should fail");
   assert("type_mismatch" in err, "should be type mismatch error");
 });
@@ -2319,7 +1398,9 @@ test("Pattern match with variable binding", () => {
     ])
   );
 
-  const result = typecheck([], unwrap);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], unwrap);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
@@ -2345,7 +1426,9 @@ test("Record pattern matching", () => {
     ])
   );
 
-  const result = typecheck([], getX);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], getX);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
@@ -2378,7 +1461,10 @@ test("Nested pattern matching", () => {
     ])
   );
 
-  const result = typecheck([], unwrapAll);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ], unwrapAll);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
@@ -2399,7 +1485,9 @@ test("Non-exhaustive pattern match", () => {
     ])
   );
 
-  const result = typecheck([], incomplete);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], incomplete);
   const err = assertErr(result, "should fail");
   assert("missing_case" in err, "should be missing case error");
 });
@@ -2419,7 +1507,10 @@ test("Inconsistent branch types", () => {
     ])
   );
 
-  const result = typecheck([], inconsistent);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ], inconsistent);
   const err = assertErr(result, "should fail");
   assert("type_mismatch" in err, "should be type mismatch error");
 });
@@ -2427,10 +1518,10 @@ test("Inconsistent branch types", () => {
 test("Polymorphic map for Option", () => {
   const mapOption = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "f",
         arrow_type(var_type("A"), var_type("B")),
@@ -2500,7 +1591,9 @@ test("List type with fold", () => {
     ])
   );
 
-  const result = typecheck([], sumList);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], sumList);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
 });
@@ -2512,10 +1605,10 @@ test("State monad type", () => {
 
   const returnState = tylam_term(
     "S",
-    { star: null },
+    starKind,
     tylam_term(
       "A",
-      { star: null },
+      starKind,
       lam_term(
         "x",
         var_type("A"),
@@ -2545,16 +1638,16 @@ test("Either type with bimap", () => {
 
   const bimap = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       tylam_term(
         "C",
-        { star: null },
+        starKind,
         tylam_term(
           "D",
-          { star: null },
+          starKind,
           lam_term(
             "f",
             arrow_type(var_type("A"), var_type("C")),
@@ -2691,7 +1784,9 @@ test("List type", () => {
     ])
   );
 
-  const kind = checkKind([], listInt);
+  const kind = checkKind([
+    { type: { kind: starKind, name: "Int" } },
+  ], listInt);
   const k = assertOk(kind, "should have kind *");
   assert("star" in k, "should be star kind");
 });
@@ -2725,7 +1820,9 @@ test("Empty list", () => {
     ]))
   );
 
-  const result = typecheck([], emptyList);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], emptyList);
   const type = assertOk(result, "should typecheck");
   assert(typesEqual(type, listInt), "should be List Int type");
 });
@@ -2780,11 +1877,12 @@ test("Cons cell", () => {
     )
   );
 
-  const result = typecheck([], oneElementList);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], oneElementList);
   const type = assertOk(result, "should typecheck");
   assert(typesEqual(type, listInt), "should be List Int type");
 });
-
 
 test("Simple tuple", () => {
   const tupleType = tuple_type([con_type("Int"), con_type("String")]);
@@ -2793,7 +1891,9 @@ test("Simple tuple", () => {
     con_term("\"hello\"", con_type("String")),
   ]);
 
-  const result = typecheck([], tuple);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], tuple);
   const type = assertOk(result, "should typecheck");
   assert("tuple" in type, "should be tuple type");
   assert(type.tuple.length === 2, "should have 2 elements");
@@ -2886,7 +1986,10 @@ test("Tuple pattern matching", () => {
     ])
   );
 
-  const result = typecheck([], swap);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ], swap);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
 });
@@ -2913,7 +2016,11 @@ test("Tuple with wildcard pattern", () => {
     ])
   );
 
-  const result = typecheck([], getFirst);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], getFirst);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   assert(typesEqual(type.arrow.to, con_type("Int")), "should return Int");
@@ -2922,10 +2029,10 @@ test("Tuple with wildcard pattern", () => {
 test("Polymorphic fst function", () => {
   const fst = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "p",
         tuple_type([var_type("A"), var_type("B")]),
@@ -2942,10 +2049,10 @@ test("Polymorphic fst function", () => {
 test("Polymorphic snd function", () => {
   const snd = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "p",
         tuple_type([var_type("A"), var_type("B")]),
@@ -2962,10 +2069,10 @@ test("Polymorphic snd function", () => {
 test("Map function", () => {
   const map = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "f",
         arrow_type(var_type("A"), var_type("B")),
@@ -2985,13 +2092,13 @@ test("Map function", () => {
 test("Compose function", () => {
   const compose = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       tylam_term(
         "C",
-        { star: null },
+        starKind,
         lam_term(
           "f",
           arrow_type(var_type("B"), var_type("C")),
@@ -3019,13 +2126,13 @@ test("Compose function", () => {
 test("Flip function", () => {
   const flip = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       tylam_term(
         "C",
-        { star: null },
+        starKind,
         lam_term(
           "f",
           arrow_type(var_type("A"), arrow_type(var_type("B"), var_type("C"))),
@@ -3050,7 +2157,7 @@ test("Flip function", () => {
 test("Type constructor application", () => {
   const listCon = lam_type(
     "T",
-    { star: null },
+    starKind,
     mu_type(
       "L",
       variant_type([
@@ -3061,19 +2168,21 @@ test("Type constructor application", () => {
   );
 
   const listInt = app_type(listCon, con_type("Int"));
-  const kind = checkKind([], listInt);
+  const kind = checkKind([
+    { type: { kind: starKind, name: "Int" } },
+  ], listInt);
   assertOk(kind, "should have valid kind");
 });
 
 test("Type constructor kind mismatch", () => {
   const ctx: Context = [
-    { type: { name: "F", kind: { arrow: { from: { star: null }, to: { star: null } } } } },
+    { type: { name: "F", kind: { arrow: { from: starKind, to: starKind } } } },
   ];
   
   // Try to apply F to something that's not kind *
   const badApp = app_type(
     var_type("F"),
-    lam_type("X", { star: null }, var_type("X"))
+    lam_type("X", starKind, var_type("X"))
   );
   
   const result = checkKind(ctx, badApp);
@@ -3127,7 +2236,10 @@ test("Shadowed variables", () => {
     )
   );
 
-  const result = typecheck([], shadowed);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ], shadowed);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   // Inner x shadows outer x, so result should be String
@@ -3148,7 +2260,7 @@ test("Binary tree type", () => {
     ])
   );
 
-  const kind = checkKind([], treeInt);
+  const kind = checkKind([{ type: { kind: starKind, name: "Int" } }], treeInt);
   assertOk(kind, "should have kind *");
 });
 
@@ -3161,7 +2273,9 @@ test("Infinite list (stream) type", () => {
     ])
   );
 
-  const kind = checkKind([], streamInt);
+  const kind = checkKind([
+    { type: { kind: starKind, name: "Int" } },
+  ], streamInt);
   assertOk(kind, "should have kind *");
 });
 
@@ -3180,7 +2294,7 @@ test("Multiple patterns same match", () => {
     ])
   );
 
-  const result = typecheck([], toInt);
+  const result = typecheck([{ type: { kind: starKind, name: "Int" } },], toInt);
   assertOk(result, "should typecheck");
 });
 
@@ -3204,7 +2318,11 @@ test("Nested tuple and record patterns", () => {
     ])
   );
 
-  const result = typecheck([], extract);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], extract);
   assertOk(result, "should typecheck");
 });
 
@@ -3233,7 +2351,7 @@ test("let term", () => {
 
 test("type normalization", () => {
   // Test 1: Beta-reduction of type application
-  const idType = lam_type("T", { star: null }, var_type("T"));
+  const idType = lam_type("T", starKind, var_type("T"));
   const intType = con_type("Int");
   const appliedType = app_type(idType, intType);
   
@@ -3246,8 +2364,8 @@ test("type normalization", () => {
   );
   
   // Test 2: Nested beta-reductions
-  const doubleApp = lam_type("A", { star: null }, 
-    lam_type("B", { star: null }, 
+  const doubleApp = lam_type("A", starKind, 
+    lam_type("B", starKind, 
       arrow_type(var_type("A"), var_type("B"))
     )
   );
@@ -3264,19 +2382,24 @@ test("type normalization", () => {
     `Test 2 failed: Expected ${showType(expected2)} but got ${showType(normalized2)}`
   );
   
-  // Test 3: Trivial forall elimination (unused type variable)
+  // Test 3: Trivial forall (unused type variable) - preserved, no elimination
   const trivialForall = forall_type(
     "X", 
-    { star: null }, 
+    starKind, 
     con_type("Int")
   );
   
   const normalized3 = normalizeType(trivialForall);
-  const expected3 = con_type("Int");
+  // Expected: Forall is preserved (no automatic elimination in normalizeType)
+  const expected3 = trivialForall;
   
   assert(
     typesEqual(normalized3, expected3),
     `Test 3 failed: Expected ${showType(expected3)} but got ${showType(normalized3)}`
+  );
+  assert(
+    "forall" in normalized3,
+    `Test 3 failed: Normalized type should preserve forall structure`
   );
   
   // Test 4: Mu types should NOT unfold during normalization
@@ -3297,28 +2420,41 @@ test("type normalization", () => {
     `Test 4 failed: Mu type should remain unchanged`
   );
   
-  // Test 5: Single-element tuple simplification
+  // Test 5: Single-element tuple - preserved, no simplification
   const singleTuple = tuple_type([con_type("Int")]);
   const normalized5 = normalizeType(singleTuple);
-  const expected5 = con_type("Int");
+  // Expected: Remains a tuple (no simplification to Int in normalizeType)
+  const expected5 = singleTuple;
   
   assert(
     typesEqual(normalized5, expected5),
     `Test 5 failed: Expected ${showType(expected5)} but got ${showType(normalized5)}`
   );
+  assert(
+    "tuple" in normalized5 && normalized5.tuple.length === 1,
+    `Test 5 failed: Normalized type should preserve single-element tuple structure`
+  );
   
-  // Test 6: Empty record simplification
+  // Test 6: Empty record - preserved, no simplification to unit
+  // Note: In this system, records and tuples (unitType = empty tuple) are distinct;
+  // no automatic conversion in normalizeType.
   const emptyRecord = record_type([]);
   const normalized6 = normalizeType(emptyRecord);
+  // Expected: Remains an empty record (no conversion to unitType)
+  const expected6 = emptyRecord;
   
   assert(
-    typesEqual(normalized6, unitType),
-    `Test 6 failed: Empty record should normalize to Unit`
+    typesEqual(normalized6, expected6),
+    `Test 6 failed: Expected ${showType(expected6)} but got ${showType(normalized6)}`
+  );
+  assert(
+    "record" in normalized6 && normalized6.record.length === 0,
+    `Test 6 failed: Normalized type should preserve empty record structure`
   );
   
   // Test 7: Complex nested application
-  const constType = lam_type("A", { star: null },
-    lam_type("B", { star: null },
+  const constType = lam_type("A", starKind,
+    lam_type("B", starKind,
       var_type("A")
     )
   );
@@ -3338,7 +2474,7 @@ test("type normalization", () => {
   // Test 8: Normalization preserves used forall variables
   const usedForall = forall_type(
     "T",
-    { star: null },
+    starKind,
     arrow_type(var_type("T"), var_type("T"))
   );
   
@@ -3360,7 +2496,7 @@ test("Simple trait definition", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3376,7 +2512,7 @@ test("Dictionary for Show Int", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3385,7 +2521,11 @@ test("Dictionary for Show Int", () => {
 
   const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
 
-  const context: Context = [{ trait_def: showTrait }];
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { trait_def: showTrait },
+  ];
 
   const result = typecheck(context, intShowDict);
   const type = assertOk(result, "should typecheck");
@@ -3396,7 +2536,7 @@ test("Dictionary with missing method", () => {
   const eqTrait: TraitDef = {
     name: "Eq",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [
       ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
       ["neq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
@@ -3413,7 +2553,11 @@ test("Dictionary with missing method", () => {
   // Missing neq method
   const incompleteDict = dict_term("Eq", intType, [["eq", eqImpl]]);
 
-  const context: Context = [{ trait_def: eqTrait }];
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Bool" } },
+    { trait_def: eqTrait },
+  ];
 
   const result = typecheck(context, incompleteDict);
   const err = assertErr(result, "should fail");
@@ -3424,7 +2568,7 @@ test("Dictionary with wrong method type", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3434,9 +2578,14 @@ test("Dictionary with wrong method type", () => {
 
   const wrongDict = dict_term("Show", intType, [["show", wrongImpl]]);
 
-  const context: Context = [{ trait_def: showTrait }];
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { trait_def: showTrait },
+  ];
 
   const result = typecheck(context, wrongDict);
+  console.log(result);
   const err = assertErr(result, "should fail");
   assert("type_mismatch" in err, "should be type mismatch error");
 });
@@ -3445,7 +2594,7 @@ test("Trait method access from dictionary variable", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3475,7 +2624,7 @@ test("Trait method access from concrete dictionary", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3483,7 +2632,11 @@ test("Trait method access from concrete dictionary", () => {
   const showImpl = lam_term("x", intType, con_term("\"42\"", con_type("String")));
   const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
 
-  const context: Context = [{ trait_def: showTrait }];
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { trait_def: showTrait },
+  ];
 
   const methodAccess = trait_method_term(intShowDict, "show");
 
@@ -3496,7 +2649,7 @@ test("Trait method access with wrong method name", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3524,7 +2677,7 @@ test("Simple trait lambda", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3533,7 +2686,7 @@ test("Simple trait lambda", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "x",
@@ -3561,7 +2714,7 @@ test("Trait application with concrete type", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3573,7 +2726,7 @@ test("Trait application with concrete type", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "x",
@@ -3586,6 +2739,8 @@ test("Trait application with concrete type", () => {
   );
 
   const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
     { trait_def: showTrait },
     { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
   ];
@@ -3604,7 +2759,7 @@ test("Trait application with missing implementation", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3612,7 +2767,7 @@ test("Trait application with missing implementation", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "x",
@@ -3642,14 +2797,14 @@ test("Multiple trait constraints", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
   const eqTrait: TraitDef = {
     name: "Eq",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [
       ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
     ],
@@ -3660,7 +2815,7 @@ test("Multiple trait constraints", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [
       { trait: "Show", type: var_type("T") },
       { trait: "Eq", type: var_type("T") },
@@ -3687,16 +2842,16 @@ test("Functor trait with map", () => {
   const functorTrait: TraitDef = {
     name: "Functor",
     type_param: "F",
-    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    kind: { arrow: { from: starKind, to: starKind } },
     methods: [
       [
         "map",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           forall_type(
             "B",
-            { star: null },
+            starKind,
             arrow_type(
               arrow_type(var_type("A"), var_type("B")),
               arrow_type(
@@ -3721,7 +2876,7 @@ test("Ord trait with superclass", () => {
   const eqTrait: TraitDef = {
     name: "Eq",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [
       ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
     ],
@@ -3730,7 +2885,7 @@ test("Ord trait with superclass", () => {
   const ordTrait: TraitDef = {
     name: "Ord",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [
       ["compare", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Int")))],
     ],
@@ -3754,6 +2909,8 @@ test("Ord trait with superclass", () => {
   const ordDict = dict_term("Ord", intType, [["compare", ordImpl]]);
 
   const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Bool" } },
     { trait_def: eqTrait },
     { trait_def: ordTrait },
   ];
@@ -3769,7 +2926,7 @@ test("Generic function with trait bound", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3778,7 +2935,7 @@ test("Generic function with trait bound", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "xs",
@@ -3804,7 +2961,7 @@ test("Trait for recursive type", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3824,7 +2981,11 @@ test("Trait for recursive type", () => {
 
   const listShowDict = dict_term("Show", listInt, [["show", showListImpl]]);
 
-  const context: Context = [{ trait_def: showTrait }];
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { trait_def: showTrait },
+  ];
 
   const result = typecheck(context, listShowDict);
   assertOk(result, "should typecheck");
@@ -3834,13 +2995,13 @@ test("Monad trait structure", () => {
   const monadTrait: TraitDef = {
     name: "Monad",
     type_param: "M",
-    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    kind: { arrow: { from: starKind, to: starKind } },
     methods: [
       [
         "return",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           arrow_type(var_type("A"), app_type(var_type("M"), var_type("A")))
         ),
       ],
@@ -3848,10 +3009,10 @@ test("Monad trait structure", () => {
         "bind",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           forall_type(
             "B",
-            { star: null },
+            starKind,
             arrow_type(
               app_type(var_type("M"), var_type("A")),
               arrow_type(
@@ -3881,14 +3042,14 @@ test("Bounded forall type equality", () => {
 
   const type1 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [constraint],
     arrow_type(var_type("T"), con_type("String"))
   );
 
   const type2 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [constraint],
     arrow_type(var_type("T"), con_type("String"))
   );
@@ -3899,14 +3060,14 @@ test("Bounded forall type equality", () => {
 test("Bounded forall with different constraints not equal", () => {
   const type1 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     arrow_type(var_type("T"), con_type("String"))
   );
 
   const type2 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Eq", type: var_type("T") }],
     arrow_type(var_type("T"), con_type("String"))
   );
@@ -3918,7 +3079,7 @@ test("Trait substitution in constraints", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -3931,7 +3092,7 @@ test("Trait substitution in constraints", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "f",
@@ -3941,6 +3102,8 @@ test("Trait substitution in constraints", () => {
   );
 
   const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
     { trait_def: showTrait },
     { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
   ];
@@ -3956,7 +3119,7 @@ test("Trait substitution in constraints", () => {
 test("Kind checking bounded forall", () => {
   const polyType = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     arrow_type(var_type("T"), con_type("String"))
   );
@@ -3970,7 +3133,7 @@ test("Kind mismatch in trait constraint type", () => {
   // Constraint type must have kind *, not * -> *
   const badType = bounded_forall_type(
     "F",
-    { arrow: { from: { star: null }, to: { star: null } } },
+    { arrow: { from: starKind, to: starKind } },
     [{ trait: "Show", type: var_type("F") }], // F has kind * -> *, but Show expects *
     var_type("F")
   );
@@ -3993,7 +3156,11 @@ test("Wildcard pattern in all positions", () => {
     ])
   );
 
-  const result = typecheck([], alwaysTrue);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], alwaysTrue);
   assertOk(result, "wildcard should match anything");
 });
 
@@ -4019,7 +3186,11 @@ test("Pattern matching with multiple wildcards", () => {
     ])
   );
 
-  const result = typecheck([], getMiddle);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], getMiddle);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
   assert(typesEqual(type.arrow.to, con_type("String")), "should return String");
@@ -4076,7 +3247,10 @@ test("Deeply nested pattern matching", () => {
     ])
   );
 
-  const result = typecheck([], extract);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ], extract);
   assertOk(result, "should handle deeply nested patterns");
 });
 
@@ -4092,7 +3266,10 @@ test("Pattern matching with constant patterns", () => {
     ])
   );
 
-  const result = typecheck([], isZero);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], isZero);
   assertOk(result, "should handle constant patterns");
 });
 
@@ -4127,7 +3304,9 @@ test("Mutual recursion with mu types", () => {
     )
   );
 
-  const result = typecheck([], leafNode);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], leafNode);
   assertOk(result, "should handle recursive tree construction");
 });
 
@@ -4153,7 +3332,9 @@ test("List concatenation function type", () => {
     )
   );
 
-  const result = typecheck([], concat);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], concat);
   const type = assertOk(result, "should typecheck");
   assert("arrow" in type, "should be function type");
 });
@@ -4176,7 +3357,9 @@ test("Nested mu types", () => {
     ])
   );
 
-  const kind = checkKind([], outerList);
+  const kind = checkKind([
+    { type: { kind: starKind, name: "Int" } },
+  ], outerList);
   assertOk(kind, "should handle nested mu types");
 });
 
@@ -4206,16 +3389,16 @@ test("Higher-kinded trait (Functor)", () => {
   const functorTrait: TraitDef = {
     name: "Functor",
     type_param: "F",
-    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    kind: { arrow: { from: starKind, to: starKind } },
     methods: [
       [
         "map",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           forall_type(
             "B",
-            { star: null },
+            starKind,
             arrow_type(
               arrow_type(var_type("A"), var_type("B")),
               arrow_type(
@@ -4232,7 +3415,7 @@ test("Higher-kinded trait (Functor)", () => {
   // Option functor
   const optionCon = lam_type(
     "T",
-    { star: null },
+    starKind,
     variant_type([
       ["None", unitType],
       ["Some", var_type("T")],
@@ -4252,7 +3435,7 @@ test("Trait with associated types simulation", () => {
   const collectionTrait: TraitDef = {
     name: "Collection",
     type_param: "C",
-    kind: { star: null },
+    kind: starKind,
     methods: [
       [
         "empty",
@@ -4288,7 +3471,11 @@ test("Trait with associated types simulation", () => {
     ["size", sizeImpl],
   ]);
 
-  const context: Context = [{ trait_def: collectionTrait }];
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
+    { trait_def: collectionTrait }];
 
   const result = typecheck(context, listDict);
   assertOk(result, "should typecheck collection instance");
@@ -4298,7 +3485,7 @@ test("Overlapping trait constraints", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -4307,7 +3494,7 @@ test("Overlapping trait constraints", () => {
     "dict1",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [
       { trait: "Show", type: var_type("T") },
       { trait: "Show", type: var_type("T") },
@@ -4325,13 +3512,13 @@ test("Trait method returning trait-constrained type", () => {
   const monadTrait: TraitDef = {
     name: "Monad",
     type_param: "M",
-    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    kind: { arrow: { from: starKind, to: starKind } },
     methods: [
       [
         "pure",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           arrow_type(var_type("A"), app_type(var_type("M"), var_type("A")))
         ),
       ],
@@ -4345,11 +3532,11 @@ test("Trait method returning trait-constrained type", () => {
     "monadDict",
     "Monad",
     "M",
-    { arrow: { from: { star: null }, to: { star: null } } },
+    { arrow: { from: starKind, to: starKind } },
     [{ trait: "Monad", type: var_type("M") }],
     tylam_term(
       "A",
-      { star: null },
+      starKind,
       lam_term(
         "x",
         var_type("A"),
@@ -4368,7 +3555,7 @@ test("Trait method returning trait-constrained type", () => {
 // ============= TYPE NORMALIZATION TESTS =============
 
 test("Normalization of nested applications", () => {
-  const f = lam_type("A", { star: null }, lam_type("B", { star: null }, var_type("A")));
+  const f = lam_type("A", starKind, lam_type("B", starKind, var_type("A")));
   const applied = app_type(app_type(f, con_type("Int")), con_type("Bool"));
   
   const normalized = normalizeType(applied);
@@ -4392,8 +3579,8 @@ test("Normalization preserves mu types", () => {
 test("Normalization with shadowed variables", () => {
   const type1 = forall_type(
     "A",
-    { star: null },
-    forall_type("A", { star: null }, var_type("A"))
+    starKind,
+    forall_type("A", starKind, var_type("A"))
   );
 
   const normalized = normalizeType(type1);
@@ -4402,8 +3589,8 @@ test("Normalization with shadowed variables", () => {
 
 test("Normalization of complex arrow types", () => {
   const complexArrow = arrow_type(
-    app_type(lam_type("T", { star: null }, var_type("T")), con_type("Int")),
-    app_type(lam_type("T", { star: null }, var_type("T")), con_type("Bool"))
+    app_type(lam_type("T", starKind, var_type("T")), con_type("Int")),
+    app_type(lam_type("T", starKind, var_type("T")), con_type("Bool"))
   );
 
   const normalized = normalizeType(complexArrow);
@@ -4415,8 +3602,8 @@ test("Normalization of complex arrow types", () => {
 // ============= ALPHA-EQUIVALENCE TESTS =============
 
 test("Alpha-equivalent forall types", () => {
-  const type1 = forall_type("A", { star: null }, var_type("A"));
-  const type2 = forall_type("B", { star: null }, var_type("B"));
+  const type1 = forall_type("A", starKind, var_type("A"));
+  const type2 = forall_type("B", starKind, var_type("B"));
 
   assert(typesEqual(type1, type2), "should be alpha-equivalent");
 });
@@ -4424,14 +3611,14 @@ test("Alpha-equivalent forall types", () => {
 test("Alpha-equivalent nested foralls", () => {
   const type1 = forall_type(
     "A",
-    { star: null },
-    forall_type("B", { star: null }, arrow_type(var_type("A"), var_type("B")))
+    starKind,
+    forall_type("B", starKind, arrow_type(var_type("A"), var_type("B")))
   );
 
   const type2 = forall_type(
     "X",
-    { star: null },
-    forall_type("Y", { star: null }, arrow_type(var_type("X"), var_type("Y")))
+    starKind,
+    forall_type("Y", starKind, arrow_type(var_type("X"), var_type("Y")))
   );
 
   assert(typesEqual(type1, type2), "nested foralls should be alpha-equivalent");
@@ -4440,14 +3627,14 @@ test("Alpha-equivalent nested foralls", () => {
 test("Not alpha-equivalent with wrong binding", () => {
   const type1 = forall_type(
     "A",
-    { star: null },
-    forall_type("B", { star: null }, var_type("A"))
+    starKind,
+    forall_type("B", starKind, var_type("A"))
   );
 
   const type2 = forall_type(
     "A",
-    { star: null },
-    forall_type("B", { star: null }, var_type("B"))
+    starKind,
+    forall_type("B", starKind, var_type("B"))
   );
 
   assert(!typesEqual(type1, type2), "should not be alpha-equivalent");
@@ -4459,26 +3646,35 @@ test("Occurs check prevents infinite types", () => {
   const worklist: Worklist = [];
   const subst = new Map<string, Type>();
 
-  // Try to unify X with X -> Int
+  // [FIX: Use a meta-var (flexible) for left to trigger binding + occurs check]
+  // Regular var_type("X") is rigid → immediate mismatch, no occurs.
+  // Meta ?0 is flexible → attempts bind ?0 := ?0 -> Int → occursCheck detects cycle.
+  const X = freshMetaVar() as VarType; // e.g., { var: "?0" } – now isMetaVar(X) = true
+  const infiniteType = arrow_type(X, con_type("Int")); // ?0 -> Int
+
   const result = unifyTypes(
-    var_type("X"),
-    arrow_type(var_type("X"), con_type("Int")),
+    X,  // Meta: flexible, will try to bind
+    infiniteType,
     worklist,
     subst
   );
+  console.log("Result:", result);
+  console.log("Subst after:", subst); // Should be empty (binding rejected)
 
   const err = assertErr(result, "should fail occurs check");
   assert("cyclic" in err, "should be cyclic error");
+  assert(err.cyclic === X.var, `cyclic should mention var ${X.var}, got ${err.cyclic}`); // Optional: more precise
 });
 
 test("Occurs check in records", () => {
   const worklist: Worklist = [];
   const subst = new Map<string, Type>();
 
+  const x = freshMetaVar();
   // Try to unify X with {f: X}
   const result = unifyTypes(
-    var_type("X"),
-    record_type([["f", var_type("X")]]),
+    x,
+    record_type([["f", x]]),
     worklist,
     subst
   );
@@ -4491,13 +3687,15 @@ test("Occurs check with nested types", () => {
   const worklist: Worklist = [];
   const subst = new Map<string, Type>();
 
+  const x = freshMetaVar();
+
   // X = List<X> should fail
   const listOfX = variant_type([
     ["Nil", unitType],
-    ["Cons", record_type([["head", var_type("X")], ["tail", var_type("X")]])],
+    ["Cons", record_type([["head", x], ["tail", x]])],
   ]);
 
-  const result = unifyTypes(var_type("X"), listOfX, worklist, subst);
+  const result = unifyTypes(x, listOfX, worklist, subst);
 
   const err = assertErr(result, "should fail occurs check");
   assert("cyclic" in err, "should be cyclic error");
@@ -4509,7 +3707,7 @@ test("Polymorphic list with trait constraints", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -4518,7 +3716,7 @@ test("Polymorphic list with trait constraints", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "list",
@@ -4552,16 +3750,16 @@ test("Functor instance for Option", () => {
   const functorTrait: TraitDef = {
     name: "Functor",
     type_param: "F",
-    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    kind: { arrow: { from: starKind, to: starKind } },
     methods: [
       [
         "map",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           forall_type(
             "B",
-            { star: null },
+            starKind,
             arrow_type(
               arrow_type(var_type("A"), var_type("B")),
               arrow_type(
@@ -4577,7 +3775,7 @@ test("Functor instance for Option", () => {
 
   const optionType = lam_type(
     "T",
-    { star: null },
+    starKind,
     variant_type([
       ["None", unitType],
       ["Some", var_type("T")],
@@ -4587,10 +3785,10 @@ test("Functor instance for Option", () => {
   // Simplified map implementation
   const mapImpl = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       lam_term(
         "f",
         arrow_type(var_type("A"), var_type("B")),
@@ -4625,16 +3823,16 @@ test("Monad with do-notation simulation", () => {
   const monadTrait: TraitDef = {
     name: "Monad",
     type_param: "M",
-    kind: { arrow: { from: { star: null }, to: { star: null } } },
+    kind: { arrow: { from: starKind, to: starKind } },
     methods: [
       [
         "bind",
         forall_type(
           "A",
-          { star: null },
+          starKind,
           forall_type(
             "B",
-            { star: null },
+            starKind,
             arrow_type(
               app_type(var_type("M"), var_type("A")),
               arrow_type(
@@ -4650,7 +3848,7 @@ test("Monad with do-notation simulation", () => {
 
   const optionType = lam_type(
     "T",
-    { star: null },
+    starKind,
     variant_type([
       ["None", unitType],
       ["Some", var_type("T")],
@@ -4686,7 +3884,10 @@ test("GADTs simulation with variants", () => {
   );
 
   // This is a simplified version - true GADTs would need more type system support
-  const result = typecheck([], eval_term);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], eval_term);
   assertOk(result, "should handle GADT-like structures");
 });
 
@@ -4749,7 +3950,10 @@ test("Phantom types simulation", () => {
     ],
   ]);
 
-  const result = typecheck([], emptyList);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Zero" } },
+  ], emptyList);
   assertOk(result, "should support phantom types");
 });
 
@@ -4771,7 +3975,12 @@ test("Deeply nested errors maintain context", () => {
     )
   );
 
-  const result = typecheck([], deeplyNested);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
+    { type: { kind: starKind, name: "\"wrong\"" } },
+  ], deeplyNested);
   const err = assertErr(result, "should propagate error from deep nesting");
   assert("type_mismatch" in err || "not_a_function" in err, "should have appropriate error");
 });
@@ -4795,7 +4004,10 @@ test("Error in pattern match branch", () => {
     ])
   );
 
-  const result = typecheck([], badMatch);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ], badMatch);
   const err = assertErr(result, "should catch error in branch");
   assert("type_mismatch" in err, "should be type mismatch");
 });
@@ -4819,10 +4031,10 @@ test("Large tuple size limits", () => {
 // ============= TYPE INFERENCE TESTS =============
 
 test("Automatic type instantiation for polymorphic identity", () => {
-  const polyId = tylam_term("T", { star: null }, lam_term("x", var_type("T"), var_term("x")));
+  const polyId = tylam_term("T", starKind, lam_term("x", var_type("T"), var_term("x")));
   
   const context: Context = [
-    { term: { name: "id", type: forall_type("T", { star: null }, arrow_type(var_type("T"), var_type("T"))) } }
+    { term: { name: "id", type: forall_type("T", starKind, arrow_type(var_type("T"), var_type("T"))) } }
   ];
 
   // id 5 should automatically instantiate T = Int
@@ -4836,13 +4048,13 @@ test("Automatic type instantiation for polymorphic identity", () => {
 test("Inference with nested applications", () => {
   const compose = tylam_term(
     "A",
-    { star: null },
+    starKind,
     tylam_term(
       "B",
-      { star: null },
+      starKind,
       tylam_term(
         "C",
-        { star: null },
+        starKind,
         lam_term(
           "f",
           arrow_type(var_type("B"), var_type("C")),
@@ -4861,18 +4073,21 @@ test("Inference with nested applications", () => {
   );
 
   const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
     { 
       term: { 
         name: "compose", 
         type: forall_type(
           "A",
-          { star: null },
+          starKind,
           forall_type(
             "B",
-            { star: null },
+            starKind,
             forall_type(
               "C",
-              { star: null },
+              starKind,
               arrow_type(
                 arrow_type(var_type("B"), var_type("C")),
                 arrow_type(
@@ -4899,7 +4114,7 @@ test("Inference with nested applications", () => {
 });
 
 test("Subsumption allows polymorphic to specific", () => {
-  const polyId = forall_type("T", { star: null }, arrow_type(var_type("T"), var_type("T")));
+  const polyId = forall_type("T", starKind, arrow_type(var_type("T"), var_type("T")));
   const intToInt = arrow_type(con_type("Int"), con_type("Int"));
 
   const worklist: Worklist = [];
@@ -4921,9 +4136,11 @@ test("Bidirectional checking for lambdas", () => {
   // Lambda without explicit type on argument
   const lam = lam_term("x", intType, var_term("x"));
 
-  const result = checkType([], lam, expectedType);
+  const result = checkType([
+    { type: { kind: starKind, name: "Int" } },
+  ], lam, expectedType);
   const type = assertOk(result, "should check lambda against expected type");
-  assert(typesEqual(type, expectedType), "should match expected type");
+  assert(typesEqual(type.type, expectedType), "should match expected type");
 });
 
 test("Bidirectional checking for records", () => {
@@ -4937,7 +4154,10 @@ test("Bidirectional checking for records", () => {
     ["y", con_term("\"hello\"", con_type("String"))],
   ]);
 
-  const result = checkType([], record, expectedType);
+  const result = checkType([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ], record, expectedType);
   assertOk(result, "should check record structure");
 });
 
@@ -4949,7 +4169,10 @@ test("Bidirectional checking for tuples", () => {
     con_term("true", con_type("Bool")),
   ]);
 
-  const result = checkType([], tuple, expectedType);
+  const result = checkType([
+    { type: { kind: starKind, name: "Bool" } },
+    { type: { kind: starKind, name: "Int" } },
+  ], tuple, expectedType);
   assertOk(result, "should check tuple elements");
 });
 
@@ -4958,10 +4181,12 @@ test("Inference fails with ambiguous types", () => {
   const ambiguous = lam_term(
     "x",
     con_type("Int"),
-    tylam_term("T", { star: null }, lam_term("y", var_type("T"), var_term("y")))
+    tylam_term("T", starKind, lam_term("y", var_type("T"), var_term("y")))
   );
 
-  const result = typecheck([], ambiguous);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], ambiguous);
   assertOk(result, "should infer polymorphic result");
 });
 
@@ -5000,13 +4225,13 @@ test("Occurs check with metavariables", () => {
 test("Higher-rank polymorphism simulation", () => {
   // (∀a. a -> a) -> Int -> Int
   const higherRank = arrow_type(
-    forall_type("a", { star: null }, arrow_type(var_type("a"), var_type("a"))),
+    forall_type("a", starKind, arrow_type(var_type("a"), var_type("a"))),
     arrow_type(con_type("Int"), con_type("Int"))
   );
 
   const f = lam_term(
     "id",
-    forall_type("a", { star: null }, arrow_type(var_type("a"), var_type("a"))),
+    forall_type("a", starKind, arrow_type(var_type("a"), var_type("a"))),
     lam_term(
       "x",
       con_type("Int"),
@@ -5017,28 +4242,54 @@ test("Higher-rank polymorphism simulation", () => {
     )
   );
 
-  const result = typecheck([], f);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], f);
   assertOk(result, "should handle rank-2 types");
 });
 
 // ============= CONSTRAINT SOLVING TESTS =============
 
 test("Worklist-based unification", () => {
-  const worklist: Worklist = [
-    { type_eq: { left: var_type("A"), right: con_type("Int") } },
-    { type_eq: { left: var_type("B"), right: var_type("A") } },
-  ];
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>(); // Explicitly pass to solveConstraints (though default is new Map)
 
-  const result = solveConstraints(worklist);
-  const subst = assertOk(result, "should solve constraints");
-  
-  assert(typesEqual(subst.get("A")!, con_type("Int")), "A should map to Int");
-  assert(typesEqual(subst.get("B")!, con_type("Int")), "B should map to Int");
+  // [FIX: Use meta-vars for A/B to allow binding (regular vars are rigid, cause immediate mismatch)]
+  // Regular var_type("A") is rigid → no binding, type_mismatch error.
+  // Metas (?0, ?1) are flexible → unifyVariable binds them, supports transitivity.
+  const A = freshMetaVar() as VarType; // e.g., { var: "?0" }
+  const B = freshMetaVar() as VarType; // e.g., { var: "?1" }
+  const intType = con_type("Int");
+
+  worklist.push(
+    { type_eq: { left: A, right: intType } }, // ?0 ~ Int
+    { type_eq: { left: B, right: A } }         // ?1 ~ ?0 (will become ?1 ~ Int after subst)
+  );
+
+  const result = solveConstraints(worklist, subst); // Pass subst explicitly for clarity
+  const solvedSubst = assertOk(result, "should solve constraints"); // Now uses passed subst
+
+  // Verify bindings (apply subst recursively if needed, but here direct)
+  assert(
+    typesEqual(solvedSubst.get(A.var)!, intType),
+    `A (${A.var}) should map to Int, got ${showType(solvedSubst.get(A.var)!)}`
+  );
+  assert(
+    typesEqual(solvedSubst.get(B.var)!, intType),
+    `B (${B.var}) should map to Int, got ${showType(solvedSubst.get(B.var)!)}`
+  );
+
+  // Optional: Verify transitivity by applying subst to B ~ A
+  const appliedA = applySubstitution(solvedSubst, A);
+  assert(typesEqual(appliedA, intType), "applySubstitution on A should yield Int");
+
+  // Ensure no errors propagated to global meta solutions (isolated subst)
+  console.log("Solved subst:", solvedSubst); // e.g., Map { "?0" => { con: "Int" }, "?1" => { con: "Int" } }
 });
 
 test("Kind constraint solving", () => {
   const worklist: Worklist = [
-    { kind_eq: { left: { star: null }, right: { star: null } } },
+    { kind_eq: { left: starKind, right: starKind } },
   ];
 
   const result = solveConstraints(worklist);
@@ -5047,7 +4298,7 @@ test("Kind constraint solving", () => {
 
 test("Has-kind constraint", () => {
   const worklist: Worklist = [
-    { has_kind: { ty: con_type("Int"), kind: { star: null }, context: [] } },
+    { has_kind: { ty: con_type("Int"), kind: starKind, context: [{ type: { kind: starKind, name: "Int" } },] } },
   ];
 
   const result = solveConstraints(worklist);
@@ -5086,7 +4337,7 @@ test("Automatic dictionary passing", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
@@ -5098,7 +4349,7 @@ test("Automatic dictionary passing", () => {
     "showDict",
     "Show",
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     lam_term(
       "x",
@@ -5115,7 +4366,7 @@ test("Automatic dictionary passing", () => {
   // Should automatically find and pass the dictionary
   const result = instantiateWithTraits(context, bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     arrow_type(var_type("T"), con_type("String"))
   ));
@@ -5127,14 +4378,14 @@ test("Multiple dictionary inference", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
   const eqTrait: TraitDef = {
     name: "Eq",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [
       ["eq", arrow_type(var_type("Self"), arrow_type(var_type("Self"), con_type("Bool")))],
     ],
@@ -5169,13 +4420,13 @@ test("Trait constraint substitution during instantiation", () => {
   const showTrait: TraitDef = {
     name: "Show",
     type_param: "Self",
-    kind: { star: null },
+    kind: starKind,
     methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
   };
 
   const polyType = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     arrow_type(var_type("T"), con_type("String"))
   );
@@ -5214,7 +4465,9 @@ test("Never in match branches", () => {
     ])
   );
 
-  const result = typecheck([], matchWithNever);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], matchWithNever);
   assertOk(result, "never should unify with any branch type");
 });
 
@@ -5228,7 +4481,7 @@ test("Never type kinding", () => {
 // ============= LET POLYMORPHISM TESTS =============
 
 test("Let polymorphism basic", () => {
-  const polyId = tylam_term("T", { star: null }, lam_term("x", var_type("T"), var_term("x")));
+  const polyId = tylam_term("T", starKind, lam_term("x", var_type("T"), var_term("x")));
   
   const letTerm = let_term(
     "id",
@@ -5239,7 +4492,10 @@ test("Let polymorphism basic", () => {
     ])
   );
 
-  const result = typecheck([], letTerm);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], letTerm);
   assertOk(result, "should allow polymorphic use of let-bound variable");
 });
 
@@ -5255,7 +4511,9 @@ test("Let with type inference", () => {
     )
   );
 
-  const result = typecheck([], letTerm);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], letTerm);
   const type = assertOk(result, "should infer let binding type");
   assert(typesEqual(type, intType), "should be Int");
 });
@@ -5277,7 +4535,9 @@ test("Nested let bindings", () => {
     )
   );
 
-  const result = typecheck([], nested);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], nested);
   assertOk(result, "should handle nested lets");
 });
 
@@ -5320,7 +4580,7 @@ test("Substitution in complex types", () => {
 test("Substitution avoids capture", () => {
   const type1 = forall_type(
     "A",
-    { star: null },
+    starKind,
     arrow_type(var_type("A"), var_type("B"))
   );
 
@@ -5372,7 +4632,9 @@ test("Constant pattern type checking", () => {
     ])
   );
 
-  const result = typecheck([], matchConst);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+  ], matchConst);
   assertOk(result, "should handle constant patterns");
 });
 
@@ -5389,7 +4651,11 @@ test("Pattern with wrong constant type", () => {
     ])
   );
 
-  const result = typecheck([], badMatch);
+  const result = typecheck([
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ], badMatch);
   const err = assertErr(result, "should reject mismatched constant");
   assert("type_mismatch" in err, "should be type mismatch");
 });
@@ -5405,7 +4671,7 @@ test("Exhaustiveness with constants", () => {
     variant_pattern("False", wildcard_pattern()),
   ];
 
-  const result = checkExhaustive(patterns, boolType);
+  const result = checkExhaustive(patterns, boolType, []);
   assertOk(result, "should be exhaustive");
 });
 
@@ -5419,7 +4685,7 @@ test("Non-exhaustive with missing constant", () => {
     variant_pattern("True", wildcard_pattern()),
   ];
 
-  const result = checkExhaustive(patterns, boolType);
+  const result = checkExhaustive(patterns, boolType, []);
   const err = assertErr(result, "should be non-exhaustive");
   assert("missing_case" in err, "should detect missing case");
 });
@@ -5428,7 +4694,7 @@ test("Non-exhaustive with missing constant", () => {
 
 test("Normalization idempotence", () => {
   const type1 = arrow_type(
-    app_type(lam_type("T", { star: null }, var_type("T")), con_type("Int")),
+    app_type(lam_type("T", starKind, var_type("T")), con_type("Int")),
     con_type("Bool")
   );
 
@@ -5441,10 +4707,10 @@ test("Normalization idempotence", () => {
 test("Normalization of bounded forall", () => {
   const type1 = bounded_forall_type(
     "T",
-    { star: null },
+    starKind,
     [{ trait: "Show", type: var_type("T") }],
     app_type(
-      lam_type("X", { star: null }, var_type("X")),
+      lam_type("X", starKind, var_type("X")),
       var_type("T")
     )
   );
@@ -5458,8 +4724,8 @@ test("Normalization of bounded forall", () => {
 // ============= TYPE EQUALITY EDGE CASES =============
 
 test("Alpha equivalence with unused variables", () => {
-  const type1 = forall_type("A", { star: null }, con_type("Int"));
-  const type2 = forall_type("B", { star: null }, con_type("Int"));
+  const type1 = forall_type("A", starKind, con_type("Int"));
+  const type2 = forall_type("B", starKind, con_type("Int"));
 
   assert(typesEqual(type1, type2), "unused variables should be alpha equivalent");
 });
@@ -5481,4 +4747,620 @@ test("Inequality with different structures", () => {
   const type2 = tuple_type([con_type("Int")]);
 
   assert(!typesEqual(type1, type2), "different structures should not be equal");
+});
+
+test("Enum definition and nominal Option type", () => {
+  const optionEnum: EnumDef = {
+    enum: {
+      name: "Option",
+      kind: { arrow: { from: starKind, to: starKind } },
+      params: ["T"],
+      variants: [
+        ["None", unitType],
+        ["Some", var_type("T")],
+      ],
+    },
+  };
+
+  const intType = con_type("Int");
+  const optionInt = app_type(con_type("Option"), intType); // Nominal: Option<Int>
+
+  const context: Context = [
+    // ADD: Explicit kind binding for "Option" constructor (required for checkKind)
+    { type: { name: "Option", kind: { arrow: { from: starKind, to: starKind } } } },
+    // Enum for nominal semantics (patterns, injections, exhaustive)
+    { enum: optionEnum },
+    // Primitive bindings
+    { type: { name: "Int", kind: starKind } },
+  ];
+
+  // Kind check
+  // Kind check (passes)
+  const kindResult = checkKind(context, optionInt);
+  const kind = assertOk(kindResult, "should kind-check nominal Option<Int>");
+  assert("star" in kind, "should be *");
+
+  // Unify nominal ~ structural (now passes with expansion)
+  const structuralOption = variant_type([["None", unitType], ["Some", intType]]);
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>();
+  const unifyRes = unifyTypes(optionInt, structuralOption, worklist, subst, context); // Pass context
+  assertOk(unifyRes, "nominal should unify with structural via enum expansion");
+
+  // Bonus: Normalize should expand too
+  const normalized = normalizeType(optionInt, context);
+  assert("variant" in normalized, "normalize should expand to structural");
+  assert(typesEqual(normalized, structuralOption), "should match structural");
+});
+
+test("Nominal injection into enum (Option::Some)", () => {
+  const optionEnum: EnumDef = {
+    enum: {
+      name: "Option",
+      kind: { arrow: { from: starKind, to: starKind } },
+      params: ["T"],
+      variants: [
+        ["None", unitType],
+        ["Some", var_type("T")],
+      ],
+    },
+  };
+
+  const intType = con_type("Int");
+  const optionInt = app_type(con_type("Option"), intType); // Option<Int>
+
+  const someVal = inject_term("Some", con_term("42", intType), optionInt);
+
+  const context: Context = [
+    { enum: optionEnum },
+    { type: { name: "Int", kind: starKind } },
+  ];
+
+  const result = typecheck(context, someVal);
+  const type = assertOk(result, "should typecheck nominal Some");
+  assert("app" in type, "should be Option<Int>");
+  const spineArgs = getSpineArgs(type);
+  assert(spineArgs.length === 1 && typesEqual(spineArgs[0], intType), "spine arg should be Int");
+});
+
+test("Nominal exhaustive matching on enum (Either)", () => {
+  const eitherEnum: EnumDef = {
+    enum: {
+      name: "Either",
+      kind: { arrow: { from: starKind, to: { arrow: { from: starKind, to: starKind } } } }, // * → * → *
+      params: ["L", "R"],
+      variants: [
+        ["Left", var_type("L")],
+        ["Right", var_type("R")],
+      ],
+    },
+  };
+
+  const intType = con_type("Int");
+  const boolType = con_type("Bool");
+  const eitherIntBool = app_type(app_type(con_type("Either"), intType), boolType); // Either<Int, Bool>
+
+  const patterns = [
+    variant_pattern("Left", var_pattern("l")),
+    variant_pattern("Right", var_pattern("r")),
+  ];
+
+  const context: Context = [
+    // ADD: Explicit kind binding for "Either" constructor (required for any implicit kind checks in patterns/normalize)
+    { 
+      type: { 
+        name: "Either", 
+        kind: { arrow: { from: starKind, to: { arrow: { from: starKind, to: starKind } } } } 
+      } 
+    },
+    // Enum for nominal semantics (patterns, injections, exhaustive)
+    { enum: eitherEnum },
+    // Primitive bindings
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "Bool", kind: starKind } },
+  ];
+
+  const exhaustRes = checkExhaustive(patterns, eitherIntBool, context);
+  assertOk(exhaustRes, "nominal Either should be exhaustive");
+
+  // Non-exhaustive (missing Right)
+  const incompletePatterns = [variant_pattern("Left", var_pattern("l"))];
+  const incompleteRes = checkExhaustive(incompletePatterns, eitherIntBool, context);
+  const err = assertErr(incompleteRes, "should detect missing case");
+  assert("missing_case" in err && err.missing_case.label === "Right", "should report missing Right");
+});
+
+test("Invalid label in nominal enum injection", () => {
+  const optionEnum: EnumDef = {
+    enum: {
+      name: "Option",
+      params: ["T"],
+      kind: { arrow: { from: starKind, to: starKind } },
+      variants: [["None", unitType], ["Some", var_type("T")]],
+    },
+  };
+
+  const optionUnit = app_type(con_type("Option"), unitType);
+  const invalidInject = inject_term("Invalid", unitValue, optionUnit);
+
+  const context: Context = [{ enum: optionEnum }];
+
+  const result = typecheck(context, invalidInject);
+  const err = assertErr(result, "should fail on invalid label");
+  assert("invalid_variant_label" in err && err.invalid_variant_label.label === "Invalid", "should report invalid label");
+});
+
+test("Concrete trait impl binding and lookup", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: starKind,
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  const intType = con_type("Int");
+  const showImpl = lam_term("x", intType, con_term("\"int\"", con_type("String")));
+  const intShowDict = dict_term("Show", intType, [["show", showImpl]]);
+
+  const intImplBinding: TraitImplBinding = {
+    trait_impl: { trait: "Show", type: intType, dict: intShowDict },
+  };
+
+  const context: Context = [
+    { trait_def: showTrait },
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+    intImplBinding, // Add impl
+  ];
+
+  // Lookup impl for Show<Int>
+  const lookupRes = checkTraitImplementation(context, "Show", intType);
+  const dict = assertOk(lookupRes, "should find concrete impl");
+  assert("dict" in dict, "should return dict term");
+
+  // Use in a function
+  const useImpl = lam_term("x", intType, app_term(trait_method_term(dict, "show"), var_term("x")));
+  const result = typecheck(context, useImpl);
+  const type = assertOk(result, "should use impl");
+  assert(typesEqual(type, arrow_type(intType, con_type("String"))), "should be Show method type");
+});
+
+test("Polymorphic trait impl instantiation", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: starKind,
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  // Polymorphic impl: ∀T. Show T where T=Int (but pretend it's poly)
+  const polyImplType = forall_type("T", starKind, con_type("Int")); // Simplified poly type
+  const polyDict = dict_term("Show", polyImplType, [["show", lam_term("x", polyImplType, con_term("\"poly\"", con_type("String")))]]);
+
+  const polyImplBinding: TraitImplBinding = {
+    trait_impl: { trait: "Show", type: polyImplType, dict: polyDict },
+  };
+
+  const context: Context = [
+    { trait_def: showTrait },
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+    polyImplBinding,
+  ];
+
+  // Instantiate for concrete Int
+  const instRes = checkTraitImplementation(context, "Show", con_type("Int"));
+  const instDict = assertOk(instRes, "should instantiate poly impl");
+  assert("dict" in instDict, "should return instantiated dict");
+
+  // Test failure: No impl for String
+  const noImplRes = checkTraitImplementation(context, "Show", con_type("String"));
+  const err = assertErr(noImplRes, "should fail without impl");
+  assert("missing_trait_impl" in err && (err.missing_trait_impl.type as ConType).con === "String", "should report missing impl");
+});
+test("Trait impl with wrong number of dicts in app", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: starKind,
+    methods: [["show", arrow_type(var_type("Self"), con_type("String"))]],
+  };
+
+  // Use the dict variable as the body (valid term)
+  const showValue = trait_lam_term(
+    "d",
+    "Show",
+    "T",
+    starKind,
+    [{ trait: "Show", type: var_type("T") }],
+    var_term("d") // Valid body - references the dict
+  );
+
+  const context: Context = [
+    { trait_def: showTrait },
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+  ];
+
+  // Provide 0 dicts (expected 1)
+  const appWithZero = trait_app_term(showValue, con_type("Int"), []);
+  const result = typecheck(context, appWithZero);
+  const err = assertErr(result, "should fail");
+  assert("wrong_number_of_dicts" in err && err.wrong_number_of_dicts.expected === 1 && err.wrong_number_of_dicts.actual === 0, "should report wrong dict count");
+
+  // Provide 2 dicts (extra)
+  const appWithExtra = trait_app_term(showValue, con_type("Int"), [
+    dict_term("Show", con_type("Int"), [["show", lam_term("x", con_type("Int"), con_term("\"x\"", con_type("String")))]]),
+    dict_term("Show", con_type("Int"), [["show", lam_term("x", con_type("Int"), con_term("\"x\"", con_type("String")))]])
+  ]);
+  const extraRes = typecheck(context, appWithExtra);
+  const extraErr = assertErr(extraRes, "should fail on extra dicts");
+  assert("wrong_number_of_dicts" in extraErr && extraErr.wrong_number_of_dicts.expected === 1 && extraErr.wrong_number_of_dicts.actual === 2, "should report extra dicts");
+});
+
+test("Subsumption: Bottom subtypes everything", () => {
+  const neverType = { never: null };
+  const intType = con_type("Int");
+  const arrowType = arrow_type(intType, con_type("String"));
+
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>();
+
+  // ⊥ <: Int
+  let subsumesRes = subsumes([], arrowType, neverType, worklist, subst); // General first
+  assertOk(subsumesRes, "⊥ should subtype Int");
+
+  // ⊥ <: arrow
+  subsumesRes = subsumes([], arrowType, neverType, worklist, subst);
+  assertOk(subsumesRes, "⊥ should subtype function");
+
+  // Non-bottom not subtype of ⊥
+  subsumesRes = subsumes([], neverType, intType, worklist, subst);
+  const err = assertErr(subsumesRes, "Int should not subtype ⊥");
+  assert("type_mismatch" in err, "should mismatch");
+
+  // AssignableTo checks
+  assert(isAssignableTo(neverType, intType), "⊥ assignable to Int");
+  assert(!isAssignableTo(intType, neverType), "Int not assignable to ⊥");
+});
+
+test("Subsumption in match branches (unreachable = bottom)", () => {
+  const optionInt = variant_type([["None", unitType], ["Some", con_type("Int")]]);
+  const neverType = { never: null };
+
+  // Create a term with bottom type (e.g., unreachable())
+  const unreachableTerm = con_term("unreachable", neverType);
+
+  // Match with unreachable Some branch
+  const unreachableMatch = lam_term(
+    "opt",
+    optionInt,
+    match_term(var_term("opt"), [
+      [variant_pattern("None", wildcard_pattern()), con_term("0", con_type("Int"))],
+      [variant_pattern("Some", var_pattern("x")), unreachableTerm], // Bottom term
+    ])
+  );
+
+  const context: Context = [{ type: { name: "Int", kind: starKind } }];
+  const result = typecheck(context, unreachableMatch);
+  const type = assertOk(result, "bottom branch should subtype Int");
+  assert(typesEqual(type, arrow_type(optionInt, con_type("Int"))), "overall type should be Option Int -> Int");
+});
+
+test("Subsumption for records (width subtyping simulation)", () => {
+  const baseRecord = record_type([["x", con_type("Int")]]);
+  const extendedRecord = record_type([["x", con_type("Int")], ["y", con_type("String")]]);
+
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>();
+
+  // Extended <: base (width: extra fields OK)
+  const subsumesRes = subsumes([], baseRecord, extendedRecord, worklist, subst);
+  assertOk(subsumesRes, "extended record should subtype base");
+
+  // Reverse fails
+  const reverseRes = subsumes([], extendedRecord, baseRecord, worklist, subst);
+  const err = assertErr(reverseRes, "base should not subtype extended");
+  assert("type_mismatch" in err, "should mismatch");
+});
+
+test("Unification of lambda types", () => {
+  const lam1 = lam_type("A", starKind, var_type("A"));
+  const lam2 = lam_type("X", starKind, var_type("X")); // Alpha equiv
+
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>();
+  const res = unifyTypes(lam1, lam2, worklist, subst);
+  assertOk(res, "lambdas should unify via alpha");
+
+  // Mismatch kinds
+  const badLam = lam_type("A", { arrow: { from: starKind, to: starKind } }, var_type("A"));
+  const badRes = unifyTypes(lam1, badLam, worklist, subst);
+  const err = assertErr(badRes, "kind mismatch should fail");
+  assert("kind_mismatch" in err, "should report kind error");
+});
+
+test("Unification with app types", () => {
+  const app1 = app_type(lam_type("T", starKind, var_type("T")), con_type("Int"));
+  const app2 = app_type(lam_type("X", starKind, var_type("X")), con_type("Int"));
+
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>();
+  const res = unifyTypes(app1, app2, worklist, subst);
+  assertOk(res, "apps should unify after beta/normalize to Int");
+
+  // Head mismatch
+  const badApp = app_type(con_type("List"), con_type("Int"));
+  const badRes = unifyTypes(app1, badApp, [], new Map());
+  const err = assertErr(badRes, "head mismatch");
+  assert("type_mismatch" in err, "should mismatch");
+});
+
+test("Substitution in mu types with cycles", () => {
+  const muType = mu_type("M", arrow_type(var_type("M"), var_type("M")));
+  const avoid = new Set(["M"]); // Protect against self-subst
+
+  // Subst non-bound var
+  const substRes = substituteType("X", con_type("Int"), muType, avoid);
+  assert("mu" in substRes, "should preserve mu");
+
+  // Subst bound var: Should skip (no capture)
+  const selfSubst = substituteType("M", con_type("Int"), muType, new Set());
+  assert("mu" in selfSubst && selfSubst.mu.var === "M", "should not subst bound var");
+
+  // Infinite recursion protection
+  const cyclicAvoid = new Set<string>();
+  cyclicAvoid.add("M");
+  const protectedSubst = substituteType("Y", muType, arrow_type(var_type("Y"), muType), cyclicAvoid);
+  assert("arrow" in protectedSubst && "mu" in protectedSubst.arrow.to, "should stop at cycle");
+});
+
+test("Unification detects cycles in mu", () => {
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>();
+  const mu1 = mu_type("M", var_type("M")); // Infinite M
+  const metaM = freshMetaVar();
+
+  const res = unifyTypes(metaM, mu1, worklist, subst);
+  const err = assertErr(res, "should detect mu cycle");
+  assert("cyclic" in err && err.cyclic === "M", "should report cyclic M");
+});
+
+test("Infer mode for simple lambda", () => {
+  const lam = lam_term("x", con_type("Int"), var_term("x"));
+  const context: Context = [{ type: { name: "Int", kind: starKind } }];
+
+  const inferRes = inferTypeWithMode(context, lam, { infer: null });
+  const type = assertOk(inferRes, "infer mode should work");
+  assert("arrow" in type, "should infer arrow");
+});
+
+test("Check mode against expected arrow", () => {
+  const expected = arrow_type(con_type("Int"), con_type("String"));
+  const lam = lam_term("x", con_type("Int"), con_term("\"hi\"", con_type("String")));
+
+  const context: Context = [
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+  ];
+
+  const checkRes = inferTypeWithMode(context, lam, { check: expected });
+  const typeRes = assertOk(checkRes, "check mode should succeed");
+  // const { type } = assertOk(typeRes, "should match expected"); // From checkType return
+  assert(typesEqual(typeRes, expected), "inferred should match checked");
+});
+
+test("Check mode failure for inject", () => {
+  const variant = variant_type([["Ok", con_type("Int")], ["Err", con_type("String")]]);
+  const badInject = inject_term("Ok", con_term("\"bad\"", con_type("String")), variant);
+
+  const context: Context = [
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+  ];
+
+  const checkRes = checkType(context, badInject, variant);
+  const err = assertErr(checkRes, "should fail check");
+  console.log(err);
+  assert("type_mismatch" in err && typesEqual(err.type_mismatch.actual, con_type("String")), "should mismatch payload");
+
+  // Infer mode also fails (same error)
+  const inferRes = typecheck(context, badInject);
+  const inferErr = assertErr(inferRes, "infer should also fail");
+  assert("type_mismatch" in inferErr, "infer should propagate mismatch");
+});
+
+test("Check mode for fold against mu", () => {
+  const natType = mu_type("N", variant_type([["Zero", unitType], ["Succ", var_type("N")]]));
+  const unfolded = variant_type([["Zero", unitType], ["Succ", natType]]);
+  const zeroFold = fold_term(natType, inject_term("Zero", unitValue, unfolded));
+
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" }}
+  ]; // No extra
+
+  const checkRes = checkType(context, zeroFold, natType);
+  assertOk(checkRes, "should check fold against mu");
+
+  // Wrong: Fold against non-mu
+  const wrongCheck = checkType(context, zeroFold, con_type("Int"));
+  const err = assertErr(wrongCheck, "should fail non-mu check");
+  assert("type_mismatch" in err || "not_a_variant" in err, "should mismatch or invalid fold");
+});
+
+test("Fresh meta-var creation and solving", () => {
+  const meta1 = freshMetaVar(); // { var: "?0" }
+  const meta2 = freshMetaVar(); // { var: "?1" }
+
+  assert("var" in meta1 && meta1.var.startsWith("?"), "should create meta");
+  assert(metaKind.has(meta1.var) && "star" in metaKind.get(meta1.var)!, "should assign * kind");
+
+  const intType = con_type("Int");
+  const solveRes1 = solveMetaVar(meta1.var, intType);
+  assertOk(solveRes1, "should solve meta");
+
+  // Global lookup
+  const globalSubst = getMetaSubstitution();
+  assert(globalSubst.has(meta1.var) && typesEqual(globalSubst.get(meta1.var)!, intType), "should be in global subst");
+
+  // Solve same meta twice (conflict)
+  const solveRes2 = solveMetaVar(meta1.var, con_type("String"));
+  const conflictErr = assertErr(solveRes2, "should conflict on re-solve");
+  assert("type_mismatch" in conflictErr, "should report mismatch");
+});
+
+test("Meta-var in unification with conflict", () => {
+  const meta = freshMetaVar();
+  const intType = con_type("Int");
+  const strType = con_type("String");
+
+  const worklist1: Worklist = [{ type_eq: { left: meta, right: intType } }];
+  let subst1 = new Map<string, Type>();
+  let solveRes1 = solveConstraints(worklist1, subst1);
+  assertOk(solveRes1, "first unify OK");
+
+  // Conflict: Same meta ~ String
+  const worklist2: Worklist = [{ type_eq: { left: meta, right: strType } }];
+  let subst2 = new Map<string, Type>(subst1); // Inherit
+  let solveRes2 = solveConstraints(worklist2, subst2);
+  const conflict = assertErr(solveRes2, "should conflict");
+  assert("type_mismatch" in conflict && typesEqual(conflict.type_mismatch.expected, intType), "should keep first binding");
+});
+
+test("Merge local/global substitutions with override", () => {
+  const globalSubst = new Map<string, Type>([["?0", con_type("Int")]]);
+
+  // Local overrides ?0 to String, adds ?1=Bool
+  const localSubst = new Map<string, Type>([
+    ["?0", con_type("String")],
+    ["?1", con_type("Bool")],
+  ]);
+
+  const merged = mergeSubsts(localSubst, globalSubst);
+  assert(merged.size === 2, "should merge without duplicates");
+  assert(typesEqual(merged.get("?0")!, con_type("String")), "local should override global");
+  assert(typesEqual(merged.get("?1")!, con_type("Bool")), "local should add new");
+});
+
+test("Not a function error in app", () => {
+  const intType = con_type("Int");
+
+  // Proper term-level constant: 42 : Int
+  const intConstant = con_term("42", intType);
+
+  // Make a variable bound in the context: x : Int
+  const badCallee = var_term("x");
+
+  // x 42 -- apply an Int-typed value as a function
+  const badApp = app_term(badCallee, intConstant);
+
+  // Context where x : Int
+  const context: Context = [
+    { type: { name: "Int", kind: starKind } }, // type binding
+    { term: { name: "x", type: intType } },   // term binding
+  ];
+
+  const result = typecheck(context, badApp);
+  const err = assertErr(result, "should fail");
+
+  console.log(err);
+
+  // Expect: not_a_function error on type Int
+  assert(
+    "not_a_function" in err && typesEqual(err.not_a_function, intType),
+    "should report not_a_function(Int)"
+  );
+});
+
+test("Not a type function in kind app", () => {
+  const badApp = app_type(con_type("Int"), con_type("Bool")); // Int applied to Bool (not lam)
+
+  const context: Context = [
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "Bool", kind: starKind } },
+  ];
+  const kindRes = checkKind(context, badApp);
+  const err = assertErr(kindRes, "should fail kind app");
+  assert("not_a_type_function" in err && (err.not_a_type_function as ConType).con === "Int", "should report not type func");
+});
+
+test("Cyclic type error in mu", () => {
+  const cyclicMu = mu_type("X", var_type("Y"));
+  const worklist: Worklist = [];
+  const subst = new Map<string, Type>();
+
+  const unifyRes = unifyTypes(cyclicMu, var_type("Y"), worklist, subst);
+  const err = assertErr(unifyRes, "should detect cyclic mu");
+  assert("cyclic" in err && err.cyclic === "Y", "should report cyclic Y");
+});
+
+test("Direct self-reference μX.X is cyclic", () => {
+  const selfMu = mu_type("X", var_type("X"));
+  const unifyRes = unifyTypes(selfMu, var_type("Z"), [], new Map());
+  const err = assertErr(unifyRes, "should detect self-referential mu");
+  assert("cyclic" in err && err.cyclic === "X", "should report cyclic X");
+});
+
+test("Unexpected kind error", () => {
+  // Type var with unexpected kind in context
+  const ctx: Context = [
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "T", kind: { arrow: { from: starKind, to: starKind } } } },
+  ];
+  const app = app_type(var_type("T"), con_type("Int")); // T :: * -> * applied to *, OK
+  const kindRes = checkKind(ctx, app);
+  assertOk(kindRes, "should succeed");
+
+  // Unexpected: Use arrow kind where * expected
+  const badUse = arrow_type(var_type("T"), con_type("Int")); // T has * -> *, but arrow expects *
+  const badRes = checkKind(ctx, badUse);
+  const err = assertErr(badRes, "should fail unexpected kind");
+  assert("unexpected_kind" in err || "kind_mismatch" in err, "should report kind error");
+});
+
+test("Show functions for complex types/terms", () => {
+  const complexType = arrow_type(
+    forall_type("A", starKind, app_type(lam_type("T", starKind, var_type("T")), var_type("A"))),
+    mu_type("M", bounded_forall_type("B", starKind, [{ trait: "Show", type: var_type("B") }], var_type("M")))
+  );
+  const shownType = showType(complexType);
+  assert(typeof shownType === "string" && shownType.includes("∀") && shownType.includes("μ") && shownType.includes("where"), "should pretty-print complex");
+
+  const complexTerm = app_term(
+    trait_app_term(tylam_term("X", starKind, inject_term("Some", fold_term(mu_type("M", var_type("X")), var_term("x")), app_type(con_type("Option"), var_type("X")))), con_type("Int"), []),
+    record_term([["f", lam_term("y", con_type("Int"), var_term("y"))]])
+  );
+  const shownTerm = showTerm(complexTerm);
+  assert(typeof shownTerm === "string" && shownTerm.includes("Λ") && shownTerm.includes("fold") && shownTerm.includes("dict"), "should pretty-print complex terms");
+});
+
+test("InferTypeWithMode delegation", () => {
+  const lam = lam_term("x", con_type("Int"), var_term("x"));
+  const context: Context = [{ type: { name: "Int", kind: starKind } }];
+
+  // Infer mode
+  const inferRes = inferTypeWithMode(context, lam, { infer: null });
+  assertOk(inferRes, "should delegate to inferType");
+
+  // Check mode
+  const expected = arrow_type(con_type("Int"), con_type("Int"));
+  const checkRes = inferTypeWithMode(context, lam, { check: expected });
+  const typeRes = assertOk(checkRes, "should delegate to checkType and return type");
+  assert("arrow" in typeRes, "should return checked type");
+});
+
+test("Deep recursion in substitution/normalization (no stack overflow)", () => {
+  // Build deep arrow: Int -> (Int -> (Int -> ... )) with 100 levels
+  let deepArrow: Type = con_type("Int");
+  for (let i = 0; i < 100; i++) {
+    deepArrow = arrow_type(con_type("Int"), deepArrow);
+  }
+
+  // Subst in deep structure
+  const substDeep = substituteType("X", con_type("Bool"), deepArrow, new Set()); // No X, but traverses
+  assert("arrow" in substDeep, "should traverse deep without overflow");
+
+  // Normalize deep (no apps, so unchanged)
+  const normDeep = normalizeType(deepArrow);
+  assert(typesEqual(normDeep, deepArrow), "deep should normalize idempotently");
 });

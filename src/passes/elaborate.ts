@@ -1747,7 +1747,7 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     // Strip impl param apps to match trait's Self kind (e.g., Either<l,r> → Either<l>)
-    let strippedForType = normalizeType(forType);
+    let strippedForType = normalizeType(forType, implContext);
     for (let i = 0; i < implParamVars.length; i++) {
       if ("app" in strippedForType) {
         strippedForType = strippedForType.app.func; // Peel one app

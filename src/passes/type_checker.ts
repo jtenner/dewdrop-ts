@@ -830,7 +830,7 @@ export class TypeChecker extends BaseVisitor {
       let instantiatedMethodTy = substituteType("Self", forType, methodTy);
 
       // Beta-reduce lambda applications
-      instantiatedMethodTy = normalizeType(instantiatedMethodTy);
+      instantiatedMethodTy = normalizeType(instantiatedMethodTy, this.context);
 
       // Substitute trait top-level params with impl params (existing)
       for (const [traitParam, implType] of traitTypeParamMap.entries()) {
@@ -846,7 +846,7 @@ export class TypeChecker extends BaseVisitor {
       instantiatedMethodTy = instantiate(instantiatedMethodTy, freshMetaVar);
 
       // Normalize to beta-reduce any remaining apps
-      instantiatedMethodTy = normalizeType(instantiatedMethodTy);
+      instantiatedMethodTy = normalizeType(instantiatedMethodTy, this.context);
 
       console.log(
         `Bound method ${methodName}: ${showType(instantiatedMethodTy)}`, // Now shows (?0 → ?1) → (forType ?0) → (forType ?1)
@@ -904,7 +904,7 @@ export class TypeChecker extends BaseVisitor {
       showType(dictResult.ok),
     );
 
-    let strippedForType = normalizeType(forType);
+    let strippedForType = normalizeType(forType, this.context);
     for (let i = implParamVars.length - 1; i >= 0; i--) {
       if ("app" in strippedForType) {
         strippedForType = strippedForType.app.func;
