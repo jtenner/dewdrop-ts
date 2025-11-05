@@ -71,6 +71,7 @@ import {
   type TypingError,
   tylam_term,
   unitType,
+  normalizeType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import {
@@ -99,7 +100,7 @@ export function collectTypeVarsFromTypes(types: Type[], vars: Set<string>) {
   }
 }
 
-function computeEnumKind(params: NameIdentifier[]): Kind {
+export function computeEnumKind(params: NameIdentifier[]): Kind {
   let kind: Kind = starKind;
   for (let i = params.length - 1; i >= 0; i--) {
     kind = arrow_kind(starKind, kind);
@@ -1774,15 +1775,33 @@ export class ElaboratePass extends BaseVisitor {
       // ... rest of the method processing ...
     }
 
-    // Register the impl in the type checker context
+    // Strip impl param apps to match trait's Self kind (e.g., Either<l,r> → Either<l>)
+    let strippedForType = normalizeType(forType);
+    for (let i = 0; i < implParamVars.length; i++) {
+      if ("app" in strippedForType) {
+        strippedForType = strippedForType.app.func; // Peel one app
+      } else {
+        break; // Shouldn't happen, but safety
+      }
+    }
+    console.log(
+      `Stripped forType for registration: ${showType(strippedForType)}`,
+    );
+
+    // Use strippedForType for the impl binding (but keep full forType for dict type)
+    // Wrap the stripped type in foralls for skolems (e.g., ∀l. Either<l>)
+    let implType = strippedForType;
+    for (let i = skolems.length - 1; i >= 0; i--) {
+      implType = forall_type(skolems[i]!, starKind, implType);
+    }
+
     this.context.push({
       trait_impl: {
         trait: impl_decl.name.type,
-        type: forType,
+        type: implType, // ← Now ∀l::*. Either<l> instead of Either<l>
         dict: dictTerm,
       },
     });
-
     return node;
   }
 

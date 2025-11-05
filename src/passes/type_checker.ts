@@ -49,6 +49,7 @@ import { BaseVisitor } from "../visitor.js";
 import { lookup_type, type Scope, type ScopeIndex } from "./create_scopes.js";
 import {
   collectTypeVarsFromTypes,
+  computeEnumKind,
   type TermMap,
   type TypeMap,
 } from "./elaborate.js";
@@ -178,6 +179,10 @@ export class TypeChecker extends BaseVisitor {
   }
 
   override visitImportDeclaration(node: ImportDeclaration): Declaration {
+    // Visit each import to register them in the context
+    for (const imp of node.import_dec.imports) {
+      this.visitImport(imp);
+    }
     return node;
   }
 
@@ -190,12 +195,9 @@ export class TypeChecker extends BaseVisitor {
 
     if ("enum" in type) {
       const enumImport = type.enum;
-      const enumType = this.typeMap.get(enumImport);
-      if (!enumType) throw new Error("Enum type not generated.");
-      const kind = checkKind(this.context, enumType);
-      if ("err" in kind) throw new Error("Err in kind here, what happened?");
-
-      this.context.push({ type: { name: alias, kind: kind.ok } });
+      // Compute kind directly from type parameters (no context lookup needed)
+      const kind = computeEnumKind(enumImport.enum.type_params);
+      this.context.push({ type: { name: alias, kind } });
     } else throw new Error("Not Implemented");
     return node;
   }
@@ -917,10 +919,21 @@ export class TypeChecker extends BaseVisitor {
       showType(dictResult.ok),
     );
 
+    let strippedForType = normalizeType(forType);
+    for (let i = implParamVars.length - 1; i >= 0; i--) {
+      if ("app" in strippedForType) {
+        strippedForType = strippedForType.app.func;
+      }
+    }
+    let implType = strippedForType;
+    for (const skolem of trueFreeVars) {
+      implType = forall_type(skolem, starKind, implType);
+    }
+
     const implBinding = {
       trait_impl: {
         trait: impl_decl.name.type,
-        type: forType,
+        type: implType, // ← now polymorphic ∀l::*.Either<l>
         dict: dictTerm,
       },
     };

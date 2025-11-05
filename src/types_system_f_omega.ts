@@ -3075,6 +3075,7 @@ export function checkType(
   };
 }
 
+// types_system_f_omega.ts (cont.)
 // Typing judgment: Γ ⊢ e : τ
 export function inferType(ctx: Context, term: Term): Result<TypingError, Type> {
   if ("var" in term) return inferVarType(ctx, term);
