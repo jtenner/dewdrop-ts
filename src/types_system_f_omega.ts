@@ -1187,6 +1187,11 @@ export function checkPattern(
   if ("wildcard" in pattern) return { ok: [] };
 
   if ("variant" in pattern) {
+    if ("mu" in type) {
+      const unfolded = substituteType(type.mu.var, type, type.mu.body);
+      return checkPattern(pattern, unfolded, ctx);
+    }
+
     const normType = normalizeType(type);
     console.log(
       `Checking variant pattern ${pattern.variant.label} on ${showType(normType)}`,
@@ -1300,22 +1305,6 @@ function checkTuplePattern(
     bindings.push(...subResult.ok);
   }
   return ok(bindings);
-}
-
-function checkVariantPattern(
-  pattern: VariantPattern,
-  type: Type,
-  context: Context,
-) {
-  if (!("variant" in type)) return { err: { not_a_variant: type } };
-
-  const caseType = type.variant.find((t) => t[0] === pattern.variant.label);
-  if (!caseType)
-    return err({
-      invalid_variant_label: { variant: type, label: pattern.variant.label },
-    });
-
-  return checkPattern(pattern.variant.pattern, caseType[1], context);
 }
 
 function checkConPattern(pattern: ConPattern, type: Type, _context: Context) {
@@ -3196,7 +3185,15 @@ function inferFoldType(ctx: Context, term: FoldTerm) {
 function inferMatchType(ctx: Context, term: MatchTerm) {
   const scrutineeType = inferType(ctx, term.match.scrutinee);
   if ("err" in scrutineeType) return scrutineeType;
-  const normalizedScrutinee = normalizeType(scrutineeType.ok);
+  let normalizedScrutinee = normalizeType(scrutineeType.ok);
+  if ("mu" in normalizedScrutinee) {
+    // Automatically unfold folded values when pattern matching
+    normalizedScrutinee = substituteType(
+      normalizedScrutinee.mu.var,
+      normalizedScrutinee,
+      normalizedScrutinee.mu.body,
+    );
+  }
 
   const patterns = term.match.cases.map((c) => c[0]);
   const exhaustCheck = checkExhaustive(patterns, normalizedScrutinee, ctx);
@@ -3455,7 +3452,7 @@ function checkInjectValue(
     });
   }
 
-  let valueType: Type = { tuple: [] };
+  const valueType: Type = { tuple: [] };
   for (let i = 0; i < value.tuple.length; i++) {
     const valueElem = value.tuple[i]!;
     const expectedElemType = expectedFieldType.tuple[i]!;

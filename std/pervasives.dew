@@ -14,6 +14,11 @@ enum Result<t_err, t_ok> {
   Err(t_err)
 }
 
+enum rec List<t_item> {
+  Nil,
+  Cons(t_item, List(t_item))
+}
+
 fn expect<t_err, t_ok>(n: Result<t_err, t_ok>) {
   match n {
     Ok(val) => val,

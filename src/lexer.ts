@@ -353,6 +353,7 @@ export async function* lex(
     "self",
     "assert",
     "for",
+    "rec",
   ],
 ) {
   const effective_keywords = new Set([...keywords]);

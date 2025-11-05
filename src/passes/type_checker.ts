@@ -16,11 +16,14 @@ import type {
 } from "../parser.js";
 import {
   app_type,
+  arrow_kind,
   arrow_type,
   type Binding,
   type Context,
   checkKind,
   collectTypeVars,
+  type EnumDef,
+  type FieldScheme,
   forall_type,
   freshMetaVar,
   instantiate,
@@ -41,9 +44,6 @@ import {
   type TypingError,
   typecheck,
   typesEqual,
-  type EnumDef,
-  type FieldScheme,
-  arrow_kind,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import { lookup_type, type Scope, type ScopeIndex } from "./create_scopes.js";
@@ -77,21 +77,6 @@ export class TypeChecker extends BaseVisitor {
   ) {
     super();
     this.context = this.globalContext;
-
-    // for (const [_, element] of globalScope.term_elements) {
-    //   if ("let_decl" in element) {
-    //     this.visitLetDeclaration(element.let_decl);
-    //   } else if ("enum" in element) {
-    //     this.visitEnumDeclaration(element.enum);
-    //   } else if ("fn" in element) {
-    //     this.visitFn(element.fn);
-    //   } else if ("builtin" in element) {
-    //     this.visitBuiltinDeclaration(element.builtin);
-    //   } else {
-    //     console.log(element);
-    //     process.exit(1);
-    //   }
-    // }
   }
 
   check(module: Module) {

@@ -384,6 +384,8 @@ test.each([
   { decl: `enum Result<t, e> { Ok(t), Err(e) }` },
   { decl: `pub type Map<k, v> = #{entries: List<#(k, v)>}` },
   
+  { decl: `enum rec List<t_item> { Nil, Cons(t_item, List<t_item>) }` },
+
   // Complex enum variants
   { decl: `enum Tree<t> { Leaf, Node { value: t, left: Tree<t>, right: Tree<t> } }` },
   { decl: `pub enum Message { Quit, Move { x: i32, y: i32 }, Write(String), ChangeColor(i32, i32, i32) }` },

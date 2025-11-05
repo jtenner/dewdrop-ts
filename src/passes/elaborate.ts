@@ -53,12 +53,14 @@ import {
   con_type,
   type EnumDef,
   type FieldScheme,
+  fold_term,
   forall_type,
   type Kind,
   lam_term,
   lam_type,
   type MatchTerm,
   mu_type,
+  normalizeType,
   type Pattern,
   showPattern,
   showType,
@@ -71,7 +73,6 @@ import {
   type TypingError,
   tylam_term,
   unitType,
-  normalizeType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
 import {
@@ -176,11 +177,6 @@ export class ElaboratePass extends BaseVisitor {
 
   // Helper: Map for projection terms (trait_lam)
   private projectionTerms = new Map<string, Term>(); // "map" → trait_lam term
-
-  private impls: Map<
-    string,
-    Map<string, { dictTerm: Term; trait: string; methods: Map<string, Type> }>
-  > = new Map(); // trait -> typeCon -> impl info
 
   private elaboratedTypes = new Set<Declaration>(); // Top-level decls elaborated in phase 1
   private elaboratedTerms = new Set<
@@ -1085,44 +1081,6 @@ export class ElaboratePass extends BaseVisitor {
     return node;
   }
 
-  // Add to ElaboratePass class
-  private instantiateTypeWithArgs(type: Type, args: Type[]): Type {
-    if (args.length === 0) return type;
-
-    // Handle forall types (e.g., ∀t::*.∀u::*. body)
-    if ("forall" in type) {
-      const [firstArg, ...restArgs] = args;
-      const instantiatedBody = substituteType(
-        type.forall.var,
-        firstArg!,
-        type.forall.body,
-      );
-      return this.instantiateTypeWithArgs(instantiatedBody, restArgs);
-    }
-
-    // Handle lambda types (e.g., λt::*.λu::*. body)
-    if ("lam" in type) {
-      const [firstArg, ...restArgs] = args;
-      const instantiatedBody = substituteType(
-        type.lam.var,
-        firstArg!,
-        type.lam.body,
-      );
-      return this.instantiateTypeWithArgs(instantiatedBody, restArgs);
-    }
-
-    // No more binders but still have args - create type applications
-    if (args.length > 0) {
-      let result = type;
-      for (const arg of args) {
-        result = { app: { func: result, arg } };
-      }
-      return result;
-    }
-
-    return type;
-  }
-
   // Helper method to extract the type of a specific binding from a pattern
   private extractPatternBindingType(
     pattern: PatternExpression,
@@ -1229,7 +1187,14 @@ export class ElaboratePass extends BaseVisitor {
       const paramType = { var: param.name };
       familyType = app_type(familyType, paramType); // Left-assoc: app(app(con, t), u)
     }
-    this.types.set(node, familyType); // Overwrite? No, set family as con, instance as app (but for decl, con)
+
+    const isRecursive = variants.some(
+      ([_, scheme]) =>
+        node.enum.recursive || collectTypeVars(scheme).includes(enumId),
+    );
+
+    familyType = isRecursive ? mu_type(enumId, familyType) : familyType;
+    this.types.set(node, familyType);
 
     for (const v of node.enum.variants) {
       const label = "fields" in v ? v.fields.id.type : v.values.id.type;
@@ -1263,7 +1228,13 @@ export class ElaboratePass extends BaseVisitor {
             variant_type: resultType,
           },
         };
-        ctorTerm = lam_term("$fields", fieldScheme, ctorTerm);
+        ctorTerm = lam_term(
+          "$fields",
+          fieldScheme,
+          isRecursive
+            ? fold_term(familyType, ctorTerm) // Wrap body
+            : ctorTerm,
+        );
       }
 
       // Wrap foralls (unchanged)
