@@ -1356,9 +1356,29 @@ test("Self-application fails with cyclic type", () => {
   );
 });
 
+test("Self-application fails with type mismatch", () => {
+  // λx: (Int → Int). x x
+  // This fails because:
+  // - x expects argument of type Int
+  // - but x itself has type Int → Int (not Int)
+  const selfApp = lam_term(
+    "x",
+    arrow_type(con_type("Int"), con_type("Int")),
+    app_term(var_term("x"), var_term("x")),
+  );
+
+  const context: Context = [{ type: { name: "Int", kind: starKind } }];
+
+  const result = typecheck(context, selfApp);
+  const err = assertErr(result, "should fail type checking");
+  assert("type_mismatch" in err, "x x should be a type mismatch");
+  // Expected: x takes argument of type Int
+  // Actual: x has type Int → Int
+});
+
 test("Polymorphic self-application succeeds in System F", () => {
-  // Λα. λx: (∀β. β → β). x [α] (x [α])
-  // The polymorphic identity can be applied to itself at different instantiations
+  // λx: (∀β. β → β). x [∀β. β → β] x
+  // Instantiate the polymorphic identity at its own type
 
   const polyId = forall_type(
     "β",
@@ -1366,22 +1386,22 @@ test("Polymorphic self-application succeeds in System F", () => {
     arrow_type(var_type("β"), var_type("β")),
   );
 
-  const selfApp = tylam_term(
-    "α",
-    starKind,
-    lam_term(
-      "x",
-      polyId,
-      app_term(
-        tyapp_term(var_term("x"), var_type("α")),
-        tyapp_term(var_term("x"), var_type("α")),
-      ),
+  const selfApp = lam_term(
+    "x",
+    polyId, // x : ∀β. β → β
+    app_term(
+      tyapp_term(var_term("x"), polyId), // x[∀β. β → β] : (∀β. β → β) → (∀β. β → β)
+      var_term("x"), // x : ∀β. β → β
     ),
   );
 
   const result = typecheck([], selfApp);
   const type = assertOk(result, "polymorphic self-application should succeed");
-  assert("forall" in type, "should be polymorphic");
+  assert("arrow" in type, "should be function type");
+  assert(
+    typesEqual(type, arrow_type(polyId, polyId)),
+    "should have type (∀β. β → β) → (∀β. β → β)",
+  );
 });
 
 test("Omega combinator (ω ω) cannot be typed", () => {
