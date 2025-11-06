@@ -15,16 +15,16 @@ import type {
   TypeImport,
 } from "../parser.js";
 import {
-  app_type,
+  appType,
   arrow_kind,
-  arrow_type,
+  arrowType,
   type Binding,
   type Context,
   checkKind,
   collectTypeVars,
   type EnumDef,
   type FieldScheme,
-  forall_type,
+  forallType,
   freshMetaVar,
   instantiate,
   type Kind,
@@ -347,12 +347,10 @@ export class TypeChecker extends BaseVisitor {
     }
 
     const enumDef: EnumDef = {
-      enum: {
-        name: enum_decl.id.type,
-        kind: enumKind,
-        params,
-        variants,
-      },
+      name: enum_decl.id.type,
+      kind: enumKind,
+      params,
+      variants,
     };
     this.context.push({ enum: enumDef }); // Push to global (this.context in phase 1)
 
@@ -491,13 +489,13 @@ export class TypeChecker extends BaseVisitor {
             ? "Self"
             : methodGenericRenaming.get(origParam) || origParam;
 
-        selfType = app_type(selfType, { var: renamedParam });
+        selfType = appType(selfType, { var: renamedParam });
       }
 
-      let methodType = arrow_type(selfType, returnType) as Type;
+      let methodType = arrowType(selfType, returnType) as Type;
 
       for (let i = paramTypes.length - 1; i >= 0; i--)
-        methodType = arrow_type(paramTypes[i]!, methodType);
+        methodType = arrowType(paramTypes[i]!, methodType);
 
       const boundVars = new Set(
         traitFn.type_params.map((tp) => {
@@ -515,7 +513,7 @@ export class TypeChecker extends BaseVisitor {
       // Wrap in foralls for free variables
       let generalizedMethodType = methodType;
       for (const freeVar of sigFreeVars.sort().reverse())
-        generalizedMethodType = forall_type(
+        generalizedMethodType = forallType(
           freeVar,
           starKind,
           generalizedMethodType,
@@ -526,7 +524,7 @@ export class TypeChecker extends BaseVisitor {
         const origVar = traitFn.type_params[i]!.name;
         if (origVar === "Self") continue;
         const renamedVar = methodGenericRenaming.get(origVar) || origVar;
-        generalizedMethodType = forall_type(
+        generalizedMethodType = forallType(
           renamedVar,
           starKind,
           generalizedMethodType,
@@ -912,7 +910,7 @@ export class TypeChecker extends BaseVisitor {
     }
     let implType = strippedForType;
     for (const skolem of trueFreeVars) {
-      implType = forall_type(skolem, starKind, implType);
+      implType = forallType(skolem, starKind, implType);
     }
 
     const implBinding = {

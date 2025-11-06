@@ -44,22 +44,22 @@ import {
   type TypeExpression,
 } from "../parser.js";
 import {
-  app_type,
+  appType,
   arrow_kind,
-  arrow_type,
+  arrowType,
   type BoundedForallType,
   type Context,
   collectTypeVars,
-  con_type,
+  conType,
   type EnumDef,
   type FieldScheme,
-  fold_term,
-  forall_type,
+  foldTerm,
+  forallType,
   type Kind,
-  lam_term,
   lam_type,
+  lamTerm,
   type MatchTerm,
-  mu_type,
+  muType,
   normalizeType,
   type Pattern,
   showPattern,
@@ -71,7 +71,7 @@ import {
   type TraitLamTerm,
   type Type,
   type TypingError,
-  tylam_term,
+  tylamTerm,
   unitType,
 } from "../types_system_f_omega.js";
 import { BaseVisitor } from "../visitor.js";
@@ -1165,27 +1165,25 @@ export class ElaboratePass extends BaseVisitor {
       ]);
     }
 
-    // NEW: Push EnumDef to context
+    // Push EnumDef to context
     const enumDef: EnumDef = {
-      enum: {
-        name: enumId,
-        kind,
-        params: params.map((p) => p.name), // ["t", "u"]
-        variants,
-      },
+      name: enumId,
+      kind,
+      params: params.map((p) => p.name), // ["t", "u"]
+      variants,
     };
     this.context.push({ enum: enumDef });
 
     // Bind the family type { con: "Either" } with kind * → * → *
     this.context.push({ type: { name: enumId, kind } });
-    this.types.set(node, con_type(enumId));
+    this.types.set(node, conType(enumId));
 
     // Build nominal instance type constructor (nested app: app(app(con, param1), param2))
-    let familyType = con_type(enumId) as Type;
+    let familyType = conType(enumId) as Type;
     for (const param of params) {
       // param is NameIdentifier, type is {var: param.name}
       const paramType = { var: param.name };
-      familyType = app_type(familyType, paramType); // Left-assoc: app(app(con, t), u)
+      familyType = appType(familyType, paramType); // Left-assoc: app(app(con, t), u)
     }
 
     const isRecursive = variants.some(
@@ -1193,7 +1191,7 @@ export class ElaboratePass extends BaseVisitor {
         node.enum.recursive || collectTypeVars(scheme).includes(enumId),
     );
 
-    familyType = isRecursive ? mu_type(enumId, familyType) : familyType;
+    familyType = isRecursive ? muType(enumId, familyType) : familyType;
     this.types.set(node, familyType);
 
     for (const v of node.enum.variants) {
@@ -1220,7 +1218,7 @@ export class ElaboratePass extends BaseVisitor {
         };
       } else {
         // Non-nullary: wrap in lambda as before
-        ctorType = arrow_type(fieldScheme, resultType);
+        ctorType = arrowType(fieldScheme, resultType);
         ctorTerm = {
           inject: {
             label,
@@ -1228,19 +1226,19 @@ export class ElaboratePass extends BaseVisitor {
             variant_type: resultType,
           },
         };
-        ctorTerm = lam_term(
+        ctorTerm = lamTerm(
           "$fields",
           fieldScheme,
           isRecursive
-            ? fold_term(familyType, ctorTerm) // Wrap body
+            ? foldTerm(familyType, ctorTerm) // Wrap body
             : ctorTerm,
         );
       }
 
       // Wrap foralls (unchanged)
       for (let i = params.length - 1; i >= 0; i--) {
-        ctorType = forall_type(params[i]!.name, starKind, ctorType);
-        ctorTerm = tylam_term(params[i]!.name, starKind, ctorTerm);
+        ctorType = forallType(params[i]!.name, starKind, ctorType);
+        ctorTerm = tylamTerm(params[i]!.name, starKind, ctorTerm);
       }
 
       this.types.set(v, ctorType);
@@ -1295,7 +1293,7 @@ export class ElaboratePass extends BaseVisitor {
         const enumDecl = item.enum;
 
         // Just use the constructor name
-        this.types.set(node, con_type(enumDecl.enum.id.type));
+        this.types.set(node, conType(enumDecl.enum.id.type));
         return node;
       } else if (
         "star_import" in item ||
@@ -1383,7 +1381,7 @@ export class ElaboratePass extends BaseVisitor {
       // Collect vars but filter out "Self"
       const vars = new Set<string>();
       collectTypeVarsFromTypes([...paramTypes, returnType], vars);
-      vars.delete("Self"); // ← KEY FIX: Don't rename Self
+      vars.delete("Self");
 
       for (const v of vars) {
         allMethodGenerics.add(v);
@@ -1566,9 +1564,8 @@ export class ElaboratePass extends BaseVisitor {
     isUsed: boolean;
     arity: number;
   } {
-    if ("type" in typeExpr && typeExpr.type === "Self") {
+    if ("type" in typeExpr && typeExpr.type === "Self")
       return { isUsed: true, arity: 0 }; // Self itself, not an application
-    }
 
     if ("app" in typeExpr) {
       // Check if the root is Self
@@ -1583,17 +1580,13 @@ export class ElaboratePass extends BaseVisitor {
   }
 
   private getApplicationRoot(typeExpr: TypeExpression): TypeExpression {
-    if ("app" in typeExpr) {
-      return this.getApplicationRoot(typeExpr.app.callee);
-    }
-    return typeExpr;
+    return "app" in typeExpr
+      ? this.getApplicationRoot(typeExpr.app.callee)
+      : typeExpr;
   }
 
   private countApplicationArgs(typeExpr: TypeExpression): number {
-    if ("app" in typeExpr) {
-      return typeExpr.app.args.length;
-    }
-    return 0;
+    return "app" in typeExpr ? typeExpr.app.args.length : 0;
   }
 
   override visitImplDeclaration(node: ImplDeclaration): Declaration {
@@ -1635,7 +1628,7 @@ export class ElaboratePass extends BaseVisitor {
     // Create a temporary context [REMOVED: No adding trait's original params 't','u']
     const implContext: Context = [...this.context];
 
-    // [FIX: Add impl's type parameters to context, even for vars]
+    // Add impl's type parameters to context, even for vars
     const implParamVars: string[] = [];
     for (const typeParam of impl_decl.type_params) {
       this.visitTypeExpression(typeParam);
@@ -1688,9 +1681,10 @@ export class ElaboratePass extends BaseVisitor {
       },
     };
 
-    // [FIX: Skolems only over true free vars (exclude impl param vars like 'r'; only 'l')]
+    // Skolems only over true free vars (exclude impl param vars like 'r'; only 'l')
     const allFreeVars = collectTypeVars(forType);
-    const skolems = allFreeVars.filter((v) => !implParamVars.includes(v)); // e.g., ['l']
+    // e.g., ['l']
+    const skolems = allFreeVars.filter((v) => !implParamVars.includes(v));
 
     // Wrap in type lambdas for each skolem (only 'l')
     for (let i = skolems.length - 1; i >= 0; i--) {
@@ -1702,9 +1696,6 @@ export class ElaboratePass extends BaseVisitor {
         },
       };
     }
-
-    // [REMOVED: The entire kind computation, areKindsCompatible, app/lam branches, and arity wrapping]
-    // (Elaboration doesn't need deep kind checks; defer to type checker)
 
     // Compute the dictionary type: ∀l. Dict<Map<r, u>, Either<l, r>>
     let dictType: Type = {
@@ -1742,8 +1733,6 @@ export class ElaboratePass extends BaseVisitor {
       if (!implContext.some((e) => "type" in e && e.type.name === rightVar)) {
         implContext.push({ type: { name: rightVar, kind: starKind } });
       }
-
-      // ... rest of the method processing ...
     }
 
     // Strip impl param apps to match trait's Self kind (e.g., Either<l,r> → Either<l>)
@@ -1763,7 +1752,7 @@ export class ElaboratePass extends BaseVisitor {
     // Wrap the stripped type in foralls for skolems (e.g., ∀l. Either<l>)
     let implType = strippedForType;
     for (let i = skolems.length - 1; i >= 0; i--) {
-      implType = forall_type(skolems[i]!, starKind, implType);
+      implType = forallType(skolems[i]!, starKind, implType);
     }
 
     this.context.push({
@@ -1821,7 +1810,7 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     if ("app" in type)
-      return app_type(
+      return appType(
         this.renameFreeVarsInType(type.app.func, renaming),
         this.renameFreeVarsInType(type.app.arg, renaming),
       );
@@ -1829,7 +1818,7 @@ export class ElaboratePass extends BaseVisitor {
     if ("forall" in type)
       // Don't rename bound var; recurse on body
       // If bound var is to be renamed (if it's a method generic), but since renaming excludes bound, keep
-      return forall_type(
+      return forallType(
         type.forall.var, // Bound vars not in renaming
         type.forall.kind,
         this.renameFreeVarsInType(type.forall.body, renaming),
@@ -1882,11 +1871,12 @@ export class ElaboratePass extends BaseVisitor {
     }
 
     if ("mu" in type)
-      return mu_type(
+      return muType(
         type.mu.var,
         this.renameFreeVarsInType(type.mu.body, renaming),
       );
 
-    return type; // Fallback
+    // Fallback
+    return type;
   }
 }
