@@ -1337,11 +1337,9 @@ test("Self-application with unbound type variable", () => {
   assert("unbound" in err && err.unbound === "T", "should report unbound T");
 });
 
-test("Self-application fails even with bound type", () => {
+test("Self-application fails with cyclic type", () => {
   // λx: (T → T). x x
-  // Even if T is bound, x x fails because:
-  // - x expects argument of type T
-  // - but x itself has type T → T (not T)
+  // This fails because trying to unify T with (T → T) creates a cyclic type
   const selfApp = lam_term(
     "x",
     arrow_type(var_type("T"), var_type("T")),
@@ -1352,9 +1350,10 @@ test("Self-application fails even with bound type", () => {
 
   const result = typecheck(context, selfApp);
   const err = assertErr(result, "should fail type checking");
-  assert("type_mismatch" in err, "x x should be a type mismatch");
-  // Expected: x takes argument of type T
-  // Actual: x has type T → T
+  assert(
+    "cyclic" in err && err.cyclic === "T",
+    "should detect cyclic type T = T → T",
+  );
 });
 
 test("Polymorphic self-application succeeds in System F", () => {
