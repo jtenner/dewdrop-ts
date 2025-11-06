@@ -1322,20 +1322,16 @@ export const take_list = async <T>(
     [next_token, item] = await fn(next_token, tokens);
     if ("err" in item) return [next_token, item];
 
-    console.log("adding", item.ok);
     results.push(item.ok);
     next_token ??= await next(tokens);
 
     if (!next_token) return [null, expected("token", null)];
-    console.log("not eof");
     if ("symbol" in next_token && next_token.symbol === term)
       return [null, ok(results)];
-    console.log("not terminator");
     if ("symbol" in next_token && next_token.symbol === sep) {
       next_token = null;
       continue;
     }
-    console.log("not seperator");
 
     // parse failed, pass the token on
     return [next_token, expected("list", next_token)];
@@ -1988,7 +1984,6 @@ const take_enum_variant = async (
     if ("err" in values) return [next_token, values];
     return [next_token, ok({ values: { id: id.ok, values: values.ok } })];
   }
-  console.log("No ( found");
   [next_token, success_token] = await take_symbol(next_token, tokens, "{");
   if ("ok" in success_token) {
     let fields: Result<ParseError, NamedTypeExpression[]>;
@@ -2003,7 +1998,6 @@ const take_enum_variant = async (
 
     return [next_token, ok({ fields: { id: id.ok, fields: fields.ok } })];
   }
-  console.log("No { found");
   return [next_token, ok({ values: { id: id.ok, values: [] } })];
 };
 

@@ -245,8 +245,11 @@ export class BaseVisitor implements ASTVisitor {
     return {
       enum: {
         pub: node.enum.pub,
-        id: node.enum.id,
-        type_params: node.enum.type_params,
+        id: this.visitTypeIdentifier(node.enum.id),
+        recursive: node.enum.recursive,
+        type_params: node.enum.type_params.map((v) =>
+          this.visitNameIdentifier(v),
+        ),
         variants: node.enum.variants.map((v) => this.visitEnumVariant(v)),
       },
     };

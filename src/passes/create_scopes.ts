@@ -182,6 +182,7 @@ export class CreateScopes extends BaseVisitor {
   override visitEnumVariant(node: EnumVariant): EnumVariant {
     const name = "fields" in node ? node.fields.id : node.values.id;
     this.define_type(name, { variant: node });
+    super.visitEnumVariant(node);
     return node;
   }
 
@@ -357,6 +358,11 @@ export class CreateScopes extends BaseVisitor {
     super.visitTraitDeclaration(node);
 
     this.exit();
+    return node;
+  }
+
+  override visitTypeIdentifier(node: TypeToken): TypeToken {
+    this.scopes.set(node, this.current);
     return node;
   }
 

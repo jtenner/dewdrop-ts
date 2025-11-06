@@ -16,7 +16,7 @@ enum Result<t_err, t_ok> {
 
 enum rec List<t_item> {
   Nil,
-  Cons(t_item, List(t_item))
+  Cons(t_item, List<t_item>)
 }
 
 fn expect<t_err, t_ok>(n: Result<t_err, t_ok>) {
