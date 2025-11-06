@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@biomejs/biome": "^2.3.3",
+    "@biomejs/biome": "^2.3.4",
     "@types/bun": "latest",
     "ts-macros": "^2.6.2",
     "ts-patch": "^3.3.0",

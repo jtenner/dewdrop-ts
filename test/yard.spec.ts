@@ -1,5 +1,5 @@
-import { describe, it, expect } from "bun:test";
-import { Operator, Yard } from "../src/yard";
+import { describe, expect, it } from "bun:test";
+import { type Operator, Yard } from "../src/yard";
 
 describe("Yard Algorithm", () => {
   type Expr = number;
@@ -62,7 +62,7 @@ describe("Yard Algorithm", () => {
 
   it("supports right-associative operators", () => {
     const yard = new Yard<Expr>();
-    const pow = mkInfix("^", 3, "right", (a, b) => Math.pow(a, b));
+    const pow = mkInfix("^", 3, "right", (a, b) => a ** b);
 
     yard.push_expr(2);
     yard.push_op(pow);
@@ -91,10 +91,7 @@ describe("Yard Algorithm", () => {
   it("handles postfix operators", () => {
     const yard = new Yard<Expr>();
     const fact = mkPostfix("!", (a) =>
-      Array.from({ length: a }, (_, i) => i + 1).reduce(
-        (t, x) => t * x,
-        1,
-      )
+      Array.from({ length: a }, (_, i) => i + 1).reduce((t, x) => t * x, 1),
     );
 
     yard.push_expr(4);
@@ -189,21 +186,19 @@ describe("Yard Algorithm (Extended)", () => {
     expect(yard.is_nested).toBe(false);
   });
 
-  // ✅ Detects impossible operator state (sanity guard)
+  // Detects impossible operator state (sanity guard)
   it("throws on impossible operator variant", () => {
-    const yard = new Yard<Expr>() as any;
-    yard.op_stack.push({ bogus: true });
+    const yard = new Yard<Expr>();
+    // biome-ignore lint/suspicious/noExplicitAny: testing a bogus input
+    yard.op_stack.push({ bogus: true } as any);
     expect(() => yard.eval_op()).toThrow("Impossible state.");
   });
 
-  // ✅ Postfix after prefix sequence handling (algorithmic edge)
+  // Postfix after prefix sequence handling (algorithmic edge)
   it("handles chained prefix and postfix correctly", () => {
     const neg = mkPrefix("-", (a) => -a);
     const fact = mkPostfix("!", (a) =>
-      Array.from({ length: a }, (_, i) => i + 1).reduce(
-        (t, x) => t * x,
-        1,
-      )
+      Array.from({ length: a }, (_, i) => i + 1).reduce((t, x) => t * x, 1),
     );
 
     const yard = new Yard<Expr>();

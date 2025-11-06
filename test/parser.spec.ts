@@ -131,7 +131,7 @@ test.each([
 // body expressions
 test.each([
   { expr: "a <- b" },
-  { expr: "{ a; b; c }"},
+  { expr: "{ a; b; c }" },
   { expr: "let a = b" },
   { expr: "let Some(a) = b" },
   { expr: "let assert Some(a) = b" },
@@ -139,7 +139,7 @@ test.each([
 ])("$expr matches snapshot", async ({ expr }) => {
   const [, bodyExpr] = await take_body_expression(null, lex(chars(expr)));
   expect(bodyExpr).toMatchSnapshot(`BodyExpression: ${expr}`);
-})
+});
 
 test.each([
   { decl: `fn add(x: I32, y: I32): I32 { x + y }` },
@@ -182,8 +182,8 @@ test.each([
   { expr: "fn (x: Int) { x + 1 }" },
   { expr: "fn (x, y) { x + y }" },
   { expr: "fn<t>(x: t): t { x }" },
-  { expr: "map(fn (b) b, a)"},
-  
+  { expr: "map(fn (b) b, a)" },
+
   // Prefix operators
   { expr: "!x" },
   { expr: "-42" },
@@ -194,7 +194,7 @@ test.each([
   { expr: "~.y" },
   { expr: ".-z" },
   { expr: "-.z" },
-  
+
   // Postfix operators
   { expr: "x!" },
   { expr: "x?" },
@@ -202,7 +202,7 @@ test.each([
   { expr: "x!." },
   { expr: "x.?" },
   { expr: "x?." },
-  
+
   // Dotted operators (floating point variants)
   { expr: "a .+ b" },
   { expr: "a +. b" },
@@ -216,7 +216,7 @@ test.each([
   { expr: "a -. b" },
   { expr: "a .% b" },
   { expr: "a %. b" },
-  
+
   // Bitwise operators
   { expr: "a & b" },
   { expr: "a | b" },
@@ -233,7 +233,7 @@ test.each([
   { expr: "a <<. b" },
   { expr: "a .>> b" },
   { expr: "a >>. b" },
-  
+
   // Comparison operators
   { expr: "a < b" },
   { expr: "a > b" },
@@ -253,7 +253,7 @@ test.each([
   { expr: "a ==. b" },
   { expr: "a .!= b" },
   { expr: "a !=. b" },
-  
+
   // Logical operators
   { expr: "a && b" },
   { expr: "a || b" },
@@ -264,7 +264,7 @@ test.each([
   { expr: "a ||. b" },
   { expr: "a .^^ b" },
   { expr: "a ^^. b" },
-  
+
   // Special operators
   { expr: "a ?? b" },
   { expr: "a .?? b" },
@@ -274,7 +274,7 @@ test.each([
   { expr: "a <> b" },
   { expr: "a .<> b" },
   { expr: "a <>. b" },
-  
+
   // Complex precedence
   { expr: "a + b * c ** d" },
   { expr: "a || b && c" },
@@ -282,16 +282,16 @@ test.each([
   { expr: "a + b < c * d" },
   { expr: "a |> b |> c" },
   { expr: "a ?? b ?? c" },
-  
+
   // Chained method calls
   { expr: "obj.foo().bar().baz" },
   { expr: "list.map(fn(x) { x + 1 }).filter(fn(x) { x > 0 })" },
-  
+
   // Complex nested structures
   { expr: "fn(x) { match x { Some(y) => y, None => 0 } }" },
   { expr: "if a { #{x: 1} } else { #{x: 2} }" },
   { expr: "{ let x = 1; let y = 2; x + y }" },
-  
+
   // Inf and NaN
   { expr: "inf" },
   { expr: "nan" },
@@ -308,12 +308,12 @@ test.each([
   // Nested constructors
   { expr: "Some(Pair(x, y))" },
   { expr: "Result(Ok(value))" },
-  
+
   // Complex record patterns
   { expr: "#{}" },
   { expr: "#{x, y, z}" },
   { expr: "#{point: #(x, y)}" },
-  
+
   // Mixed patterns
   { expr: "Wrapper(#{inner: value})" },
   { expr: "Nested(#(1, #{x: y}))" },
@@ -323,26 +323,26 @@ test.each([
   expect(pattern).toMatchSnapshot(`PatternExpression: ${expr}`);
 });
 
-// More type expression tests  
+// More type expression tests
 test.each([
   // Empty constructs
   { expr: "#()" },
   { expr: "#{}" },
   { expr: "() => Void" },
-  
+
   // Complex chains
   { expr: "A.B.C.D" },
   { expr: "Container<Inner<T>>.Value" },
-  
+
   // Multiple type parameters
   { expr: "Map<K, V>" },
   { expr: "Triple<A, B, C>" },
   { expr: "Fn<#(A, B), C>" },
-  
+
   // Nested function types
   { expr: "((Int) => Int) => Int" },
   { expr: "(Int, (String) => Bool) => Result" },
-  
+
   // Complex record types
   { expr: "#{pos: #(f64, f64), vel: #(f64, f64)}" },
 ])("Type: $expr matches snapshot", async ({ expr }) => {
@@ -357,10 +357,10 @@ test.each([
   { expr: "let #(x, y) = point" },
   { expr: "let #{name, age} = person" },
   { expr: "let Some(value) = option" },
-  
+
   // Nested blocks
   { expr: "{ { a; b }; c }" },
-  
+
   // Mixed body expressions
   { expr: "{ let x = 1; y <- compute(); x + y }" },
 ])("Body: $expr matches snapshot", async ({ expr }) => {
@@ -373,39 +373,57 @@ test.each([
 test.each([
   // Impl declarations
   { decl: `impl Show for Int { fn show(): String { "int" } }` },
-  { decl: `impl Eq<T> for Option<T> { fn eq(other: Option<T>): Bool { true } }` },
+  {
+    decl: `impl Eq<T> for Option<T> { fn eq(other: Option<T>): Bool { true } }`,
+  },
   { decl: `impl Default for Vec<t> { fn default(): Vec<t> { Vec() } }` },
-  
+
   // Complex function declarations
-  { decl: `fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { fn(x: a): c { f(g(x)) } }` },
-  { decl: `pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) => acc): acc { init }` },
-  
+  {
+    decl: `fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { fn(x: a): c { f(g(x)) } }`,
+  },
+  {
+    decl: `pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) => acc): acc { init }`,
+  },
+
   // Multi-parameter type declarations
   { decl: `enum Result<t, e> { Ok(t), Err(e) }` },
   { decl: `pub type Map<k, v> = #{entries: List<#(k, v)>}` },
-  
+
   { decl: `enum rec List<t_item> { Nil, Cons(t_item, List<t_item>) }` },
 
   // Complex enum variants
-  { decl: `enum Tree<t> { Leaf, Node { value: t, left: Tree<t>, right: Tree<t> } }` },
-  { decl: `pub enum Message { Quit, Move { x: i32, y: i32 }, Write(String), ChangeColor(i32, i32, i32) }` },
-  
+  {
+    decl: `enum Tree<t> { Leaf, Node { value: t, left: Tree<t>, right: Tree<t> } }`,
+  },
+  {
+    decl: `pub enum Message { Quit, Move { x: i32, y: i32 }, Write(String), ChangeColor(i32, i32, i32) }`,
+  },
+
   // Multiple trait methods
-  { decl: `trait Numeric { fn add(other: Self): Self fn mul(other: Self): Self fn zero(): Self }` },
-  
+  {
+    decl: `trait Numeric { fn add(other: Self): Self fn mul(other: Self): Self fn zero(): Self }`,
+  },
+
   // Complex imports
-  { decl: `import "std" { fn print(msg: String): Void, type String, memory "mem": 1 10 as mem }` },
+  {
+    decl: `import "std" { fn print(msg: String): Void, type String, memory "mem": 1 10 as mem }`,
+  },
   { decl: `import "core" { trait Eq, trait Ord, enum Option, enum Result }` },
-  
+
   // Functions with no return type annotation
   { decl: `fn side_effect(x: Int) { print(x) }` },
-  
+
   // Functions with complex bodies
-  { decl: `fn factorial(n: Int): Int { if n <= 1 { 1 } else { n * factorial(n - 1) } }` },
-  { decl: `fn process(data: List<Int>): Int { let sum = data.fold(0, fn(acc, x) { acc + x }); sum / data.length() }` },
+  {
+    decl: `fn factorial(n: Int): Int { if n <= 1 { 1 } else { n * factorial(n - 1) } }`,
+  },
+  {
+    decl: `fn process(data: List<Int>): Int { let sum = data.fold(0, fn(acc, x) { acc + x }); sum / data.length() }`,
+  },
 
   // builtins
-  { decl: `builtin "i32.add" as i32_add(a: I32, b: I32): I32`}
+  { decl: `builtin "i32.add" as i32_add(a: I32, b: I32): I32` },
 ])("Declaration: $decl matches snapshot", async ({ decl }) => {
   const result = await take_declaration(null, lex(chars(decl)));
   expect(result[1]).not.toBeNull();
@@ -419,11 +437,11 @@ test.each([
   { expr: "#()" },
   { expr: "#{}" },
   { expr: "MyEnum" },
-  
+
   // Deeply nested
   { expr: "a(b(c(d(e()))))" },
   { expr: "((((a))))" },
-  
+
   // Mixed operators and calls
   { expr: "foo().bar + baz().qux * 2" },
   { expr: "(a + b)(c, d)" },
