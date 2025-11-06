@@ -29,8 +29,8 @@ import {
   instantiateWithTraits,
   isAssignableTo,
   kindArity,
-  lam_type,
   lamTerm,
+  lamType,
   letTerm,
   type MuType,
   matchTerm,
@@ -1262,7 +1262,7 @@ test("Flip function", () => {
 });
 
 test("Type constructor application", () => {
-  const listCon = lam_type(
+  const listCon = lamType(
     "T",
     starKind,
     muType(
@@ -1291,7 +1291,7 @@ test("Type constructor kind mismatch", () => {
   ];
 
   // Try to apply F to something that's not kind *
-  const badApp = appType(varType("F"), lam_type("X", starKind, varType("X")));
+  const badApp = appType(varType("F"), lamType("X", starKind, varType("X")));
 
   const result = checkKind(ctx, badApp);
   const err = assertErr(result, "should fail");
@@ -1515,7 +1515,7 @@ test("Nested tuple and record patterns", () => {
 });
 
 test("simple normalization", () => {
-  const idType = lam_type("T", starKind, varType("T"));
+  const idType = lamType("T", starKind, varType("T"));
   const intType = conType("Int");
   const appliedType = appType(idType, intType);
   const normalized = normalizeType(appliedType);
@@ -1527,10 +1527,10 @@ test("simple normalization", () => {
 });
 
 test("nested beta reductions", () => {
-  const doubleApp = lam_type(
+  const doubleApp = lamType(
     "A",
     starKind,
-    lam_type("B", starKind, arrowType(varType("A"), varType("B"))),
+    lamType("B", starKind, arrowType(varType("A"), varType("B"))),
   );
   const applied = appType(appType(doubleApp, conType("Int")), conType("Bool"));
   const normalized = normalizeType(applied);
@@ -1613,10 +1613,10 @@ test("Empty record - preserved, no simplification to unit", () => {
 });
 
 test("Complex nested application", () => {
-  const constType = lam_type(
+  const constType = lamType(
     "A",
     starKind,
-    lam_type("B", starKind, varType("A")),
+    lamType("B", starKind, varType("A")),
   );
   const applied7 = appType(
     appType(constType, conType("String")),
@@ -1752,7 +1752,6 @@ test("Dictionary with wrong method type", () => {
   ];
 
   const result = typecheck(context, wrongDict);
-  console.log(result);
   const err = assertErr(result, "should fail");
   assert("type_mismatch" in err, "should be type mismatch error");
 });
@@ -1940,7 +1939,10 @@ test("Trait application with missing implementation", () => {
     ),
   );
 
-  const context: Context = [{ trait_def: showTrait }];
+  const context: Context = [
+    { trait_def: showTrait },
+    { type: { kind: starKind, name: "Bool" } },
+  ];
 
   const boolType = conType("Bool");
   // No Show implementation for Bool provided
@@ -1948,6 +1950,7 @@ test("Trait application with missing implementation", () => {
 
   const result = typecheck(context, applied);
   const err = assertErr(result, "should fail");
+  console.log(err);
   assert(
     "missing_trait_impl" in err || "wrong_number_of_dicts" in err,
     "should be missing implementation error",
@@ -2086,7 +2089,7 @@ test("Higher-kinded trait (Functor)", () => {
   };
 
   // Option functor
-  const optionCon = lam_type(
+  const optionCon = lamType(
     "T",
     starKind,
     variantType([
@@ -2236,7 +2239,7 @@ test("Trait method returning trait-constrained type", () => {
 // ============= TYPE NORMALIZATION TESTS =============
 
 test("Normalization of nested applications", () => {
-  const f = lam_type("A", starKind, lam_type("B", starKind, varType("A")));
+  const f = lamType("A", starKind, lamType("B", starKind, varType("A")));
   const applied = appType(appType(f, conType("Int")), conType("Bool"));
 
   const normalized = normalizeType(applied);
@@ -2270,8 +2273,8 @@ test("Normalization with shadowed variables", () => {
 
 test("Normalization of complex arrow types", () => {
   const complexArrow = arrowType(
-    appType(lam_type("T", starKind, varType("T")), conType("Int")),
-    appType(lam_type("T", starKind, varType("T")), conType("Bool")),
+    appType(lamType("T", starKind, varType("T")), conType("Int")),
+    appType(lamType("T", starKind, varType("T")), conType("Bool")),
   );
 
   const normalized = normalizeType(complexArrow);
@@ -2342,8 +2345,6 @@ test("Occurs check prevents infinite types", () => {
     worklist,
     subst,
   );
-  console.log("Result:", result);
-  console.log("Subst after:", subst); // Should be empty (binding rejected)
 
   const err = assertErr(result, "should fail occurs check");
   assert("cyclic" in err, "should be cyclic error");
@@ -2473,7 +2474,7 @@ test("Functor instance for Option", () => {
     ],
   };
 
-  const optionType = lam_type(
+  const optionType = lamType(
     "T",
     starKind,
     variantType([
@@ -2546,7 +2547,7 @@ test("Monad with do-notation simulation", () => {
     ],
   };
 
-  const optionType = lam_type(
+  const optionType = lamType(
     "T",
     starKind,
     variantType([
@@ -3044,9 +3045,6 @@ test("Worklist-based unification", () => {
     typesEqual(appliedA, intType),
     "applySubstitution on A should yield Int",
   );
-
-  // Ensure no errors propagated to global meta solutions (isolated subst)
-  console.log("Solved subst:", solvedSubst); // e.g., Map { "?0" => { con: "Int" }, "?1" => { con: "Int" } }
 });
 
 test("Kind constraint solving", () => {
@@ -3488,7 +3486,7 @@ test("Non-exhaustive with missing constant", () => {
 
 test("Normalization idempotence", () => {
   const type1 = arrowType(
-    appType(lam_type("T", starKind, varType("T")), conType("Int")),
+    appType(lamType("T", starKind, varType("T")), conType("Int")),
     conType("Bool"),
   );
 
@@ -3506,7 +3504,7 @@ test("Normalization of bounded forall", () => {
     "T",
     starKind,
     [{ trait: "Show", type: varType("T") }],
-    appType(lam_type("X", starKind, varType("X")), varType("T")),
+    appType(lamType("X", starKind, varType("X")), varType("T")),
   );
 
   const normalized = normalizeType(type1);
@@ -3579,8 +3577,6 @@ test("Not a function error in app", () => {
 
   const result = typecheck(context, badApp);
   const err = assertErr(result, "should fail");
-
-  console.log(err);
 
   // Expect: not_a_function error on type Int
   assert(
@@ -4148,7 +4144,10 @@ test("Kind checking bounded forall", () => {
     arrowType(varType("T"), conType("String")),
   );
 
-  const result = checkKind([], polyType);
+  const result = checkKind(
+    [{ type: { kind: starKind, name: "String" } }],
+    polyType,
+  );
   const kind = assertOk(result, "should have valid kind");
   assert("star" in kind, "bounded forall should have kind *");
 });
@@ -4725,8 +4724,8 @@ test("Trait impl with wrong number of dicts in app", () => {
 });
 
 test("Unification of lambda types", () => {
-  const lam1 = lam_type("A", starKind, varType("A"));
-  const lam2 = lam_type("X", starKind, varType("X")); // Alpha equiv
+  const lam1 = lamType("A", starKind, varType("A"));
+  const lam2 = lamType("X", starKind, varType("X")); // Alpha equiv
 
   const worklist: Worklist = [];
   const subst = new Map<string, Type>();
@@ -4734,7 +4733,7 @@ test("Unification of lambda types", () => {
   assertOk(res, "lambdas should unify via alpha");
 
   // Mismatch kinds
-  const badLam = lam_type(
+  const badLam = lamType(
     "A",
     { arrow: { from: starKind, to: starKind } },
     varType("A"),
@@ -4745,8 +4744,8 @@ test("Unification of lambda types", () => {
 });
 
 test("Unification with app types", () => {
-  const app1 = appType(lam_type("T", starKind, varType("T")), conType("Int"));
-  const app2 = appType(lam_type("X", starKind, varType("X")), conType("Int"));
+  const app1 = appType(lamType("T", starKind, varType("T")), conType("Int"));
+  const app2 = appType(lamType("X", starKind, varType("X")), conType("Int"));
 
   const worklist: Worklist = [];
   const subst = new Map<string, Type>();
@@ -4806,7 +4805,7 @@ test("Show functions for complex types/terms", () => {
     forallType(
       "A",
       starKind,
-      appType(lam_type("T", starKind, varType("T")), varType("A")),
+      appType(lamType("T", starKind, varType("T")), varType("A")),
     ),
     muType(
       "M",
@@ -4884,10 +4883,10 @@ test("Deep recursion in substitution/normalization (no stack overflow)", () => {
 });
 
 test("Higher‑kinded lam‑lam kinding", () => {
-  const ty = lam_type(
+  const ty = lamType(
     "F",
     { arrow: { from: starKind, to: starKind } },
-    lam_type("X", starKind, appType(varType("F"), varType("X"))),
+    lamType("X", starKind, appType(varType("F"), varType("X"))),
   );
   const kind = assertOk(checkKind([], ty), "should be ok kind");
   assert("arrow" in kind, "should have arrow kind");
@@ -4895,10 +4894,10 @@ test("Higher‑kinded lam‑lam kinding", () => {
 });
 
 test("Kind‑checking with shadowed lambdas", () => {
-  const ty = lam_type(
+  const ty = lamType(
     "A",
     starKind,
-    lam_type("A", starKind, arrowType(varType("A"), varType("A"))),
+    lamType("A", starKind, arrowType(varType("A"), varType("A"))),
   );
   const kind = assertOk(checkKind([], ty), "should be ok kind");
   assert("arrow" in kind, "should still be an arrow kind");
@@ -4913,20 +4912,20 @@ test("kindArity computes number of type parameters", () => {
 });
 
 test("Rank‑2 lambda kind", () => {
-  const rank2 = lam_type(
+  const rank2 = lamType(
     "F",
     { arrow: { from: starKind, to: starKind } },
-    lam_type("X", starKind, varType("X")),
+    lamType("X", starKind, varType("X")),
   );
   const res = assertOk(checkKind([], rank2), "should be ok kind");
   assert("arrow" in res, "rank‑2 kind ok");
 });
 
 test("Normalization reduces nested beta redexes", () => {
-  const doubleApp = lam_type(
+  const doubleApp = lamType(
     "A",
     starKind,
-    lam_type("B", starKind, arrowType(varType("A"), varType("B"))),
+    lamType("B", starKind, arrowType(varType("A"), varType("B"))),
   );
   const applied = appType(appType(doubleApp, conType("Int")), conType("Bool"));
   const normalized = normalizeType(applied);
@@ -4939,7 +4938,7 @@ test("Normalization reduces nested beta redexes", () => {
 
 test("Normalization avoids variable capture in nested lambdas", () => {
   const ty = appType(
-    lam_type("A", starKind, lam_type("A", starKind, varType("A"))),
+    lamType("A", starKind, lamType("A", starKind, varType("A"))),
     conType("Int"),
   );
   const norm = normalizeType(ty);
@@ -4948,14 +4947,14 @@ test("Normalization avoids variable capture in nested lambdas", () => {
 });
 
 test("Normalization is idempotent", () => {
-  const t = appType(lam_type("T", starKind, varType("T")), conType("Int"));
+  const t = appType(lamType("T", starKind, varType("T")), conType("Int"));
   const t1 = normalizeType(t);
   const t2 = normalizeType(t1);
   assert(typesEqual(t1, t2), "normalization should be idempotent");
 });
 
 test("Normalization of higher‑order constructor", () => {
-  const listCon = lam_type(
+  const listCon = lamType(
     "X",
     starKind,
     muType(
@@ -4974,12 +4973,12 @@ test("Normalization of higher‑order constructor", () => {
 test("Normalization of partially applied type constructor", () => {
   // (λF::*→*. λX::*. F X) List should normalize to λX::*. List X
   const partialApp = appType(
-    lam_type(
+    lamType(
       "F",
       { arrow: { from: starKind, to: starKind } },
-      lam_type("X", starKind, appType(varType("F"), varType("X"))),
+      lamType("X", starKind, appType(varType("F"), varType("X"))),
     ),
-    lam_type(
+    lamType(
       "T",
       starKind,
       variantType([
@@ -5003,7 +5002,7 @@ test("Normalization respects bounded forall structure", () => {
     "X",
     starKind,
     [{ trait: "Show", type: varType("X") }],
-    appType(lam_type("T", starKind, varType("T")), varType("X")),
+    appType(lamType("T", starKind, varType("T")), varType("X")),
   );
   const norm = normalizeType(t);
   assert("bounded_forall" in norm, "top‑level bounded forall preserved");
@@ -5026,7 +5025,7 @@ test("Structural mu variant has star kind", () => {
 });
 
 test("Kind mismatch between higher‑kinded and * type", () => {
-  const higher = lam_type(
+  const higher = lamType(
     "F",
     { arrow: { from: starKind, to: starKind } },
     varType("F"),

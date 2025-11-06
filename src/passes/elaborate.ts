@@ -56,8 +56,8 @@ import {
   foldTerm,
   forallType,
   type Kind,
-  lam_type,
   lamTerm,
+  lamType,
   type MatchTerm,
   muType,
   normalizeType,
@@ -1826,7 +1826,7 @@ export class ElaboratePass extends BaseVisitor {
 
     if ("lam" in type)
       // Similar to forall
-      return lam_type(
+      return lamType(
         type.lam.var,
         type.lam.kind,
         this.renameFreeVarsInType(type.lam.body, renaming),
