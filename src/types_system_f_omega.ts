@@ -1372,7 +1372,7 @@ export function substituteType(
     return subtituteMuType(inType, target, replacement, avoidInfinite);
 
   if ("tuple" in inType)
-    substituteTupleType(inType, target, replacement, avoidInfinite);
+    return substituteTupleType(inType, target, replacement, avoidInfinite);
 
   return inType;
 }

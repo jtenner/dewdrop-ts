@@ -1150,17 +1150,147 @@ test("Cons cell", () => {
   assert(typesEqual(type, listInt), "should be List Int type");
 });
 
-test("Simple tuple", () => {
+test("Tuple with type checking and projection", () => {
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+  ];
+
   const tupleTy = tupleType([conType("Int"), conType("String")]);
   const tuple = tupleTerm([
     conTerm("42", conType("Int")),
     conTerm('"hello"', conType("String")),
   ]);
 
-  const result = typecheck([{ type: { kind: starKind, name: "Int" } }], tuple);
+  // Check tuple inference
+  const result = typecheck(context, tuple);
   const type = assertOk(result, "should typecheck");
-  assert("tuple" in type, "should be tuple type");
-  assert(type.tuple.length === 2, "should have 2 elements");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+  assert(
+    typesEqual(resolved, tupleTy),
+    `should be (Int, String), got ${showType(resolved)}`,
+  );
+
+  // Check tuple projection
+  const proj0 = tupleProjectTerm(tuple, 0);
+  const proj0Type = assertOk(typecheck(context, proj0), "should project first");
+  assert(
+    typesEqual(resolveMetaVars(normalizeType(proj0Type)), conType("Int")),
+    "first element should be Int",
+  );
+
+  const proj1 = tupleProjectTerm(tuple, 1);
+  const proj1Type = assertOk(
+    typecheck(context, proj1),
+    "should project second",
+  );
+  assert(
+    typesEqual(resolveMetaVars(normalizeType(proj1Type)), conType("String")),
+    "second element should be String",
+  );
+});
+
+test("Tuple projection out of bounds", () => {
+  const context: Context = [{ type: { kind: starKind, name: "Int" } }];
+
+  const tuple = tupleTerm([conTerm("42", conType("Int"))]);
+  const badProj = tupleProjectTerm(tuple, 1);
+
+  const result = typecheck(context, badProj);
+  assert("err" in result, "should fail");
+  assert(
+    "tuple_index_out_of_bounds" in result.err,
+    `should be out of bounds error, got ${Object.keys(result.err)[0]}`,
+  );
+});
+
+test("Nested tuples", () => {
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ];
+
+  // ((1, 2), true)
+  const nested = tupleTerm([
+    tupleTerm([conTerm("1", conType("Int")), conTerm("2", conType("Int"))]),
+    conTerm("true", conType("Bool")),
+  ]);
+
+  const result = typecheck(context, nested);
+  const type = assertOk(result, "should typecheck nested tuple");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+  const expected = tupleType([
+    tupleType([conType("Int"), conType("Int")]),
+    conType("Bool"),
+  ]);
+
+  assert(
+    typesEqual(resolved, expected),
+    `should be ((Int, Int), Bool), got ${showType(resolved)}`,
+  );
+
+  // Project nested: nested.0.1 should be Int
+  const proj = tupleProjectTerm(tupleProjectTerm(nested, 0), 1);
+  const projType = assertOk(typecheck(context, proj), "should project nested");
+
+  assert(
+    typesEqual(resolveMetaVars(normalizeType(projType)), conType("Int")),
+    "nested projection should be Int",
+  );
+});
+
+test("Simple tuple swap with inference", () => {
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "String" } },
+    {
+      term: {
+        name: "fst",
+        type: forallType(
+          "A",
+          starKind,
+          forallType(
+            "B",
+            starKind,
+            arrowType(tupleType([varType("A"), varType("B")]), varType("A")),
+          ),
+        ),
+      },
+    },
+  ];
+
+  const pair = tupleTerm([
+    conTerm("42", conType("Int")),
+    conTerm('"hello"', conType("String")),
+  ]);
+
+  // fst should infer A=Int, B=String from the argument
+  const result = appTerm(varTerm("fst"), pair);
+
+  const inferredType = typecheck(context, result);
+  const type = assertOk(inferredType, "should infer first element type");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+
+  assert(
+    typesEqual(resolved, conType("Int")),
+    `should be Int, got ${showType(resolved)}`,
+  );
+});
+
+test("Unit type as empty tuple", () => {
+  const unit = tupleTerm([]);
+
+  const result = typecheck([], unit);
+  const type = assertOk(result, "should typecheck unit");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+  assert(
+    typesEqual(resolved, unitType),
+    `should be unit type, got ${showType(resolved)}`,
+  );
 });
 
 test("Tuple projection", () => {
@@ -2669,12 +2799,20 @@ test("Functor instance for Option", () => {
   assertOk(result, "should implement Functor for Option");
 });
 
-test("Monad with do-notation simulation", () => {
+test("Monad trait with Option instance", () => {
   const monadTrait: TraitDef = {
     name: "Monad",
     type_param: "M",
     kind: { arrow: { from: starKind, to: starKind } },
     methods: [
+      [
+        "pure",
+        forallType(
+          "A",
+          starKind,
+          arrowType(varType("A"), appType(varType("M"), varType("A"))),
+        ),
+      ],
       [
         "bind",
         forallType(
@@ -2696,6 +2834,7 @@ test("Monad with do-notation simulation", () => {
     ],
   };
 
+  // Option M = λT. <None: Unit | Some: T>
   const optionType = lamType(
     "T",
     starKind,
@@ -2705,13 +2844,135 @@ test("Monad with do-notation simulation", () => {
     ]),
   );
 
-  const context: Context = [{ trait_def: monadTrait }];
+  const intType = conType("Int");
 
-  // Just verify the trait structure
-  const binding = context.find((b) => "trait_def" in b);
-  assert(binding !== undefined, "monad trait should be defined");
+  // For simplicity, put bind and pure in context with concrete signatures
+  const context: Context = [
+    { trait_def: monadTrait },
+    { type: { name: "Int", kind: starKind } },
+    {
+      term: {
+        name: "optionBind",
+        type: forallType(
+          "A",
+          starKind,
+          forallType(
+            "B",
+            starKind,
+            arrowType(
+              appType(optionType, varType("A")),
+              arrowType(
+                arrowType(varType("A"), appType(optionType, varType("B"))),
+                appType(optionType, varType("B")),
+              ),
+            ),
+          ),
+        ),
+      },
+    },
+    {
+      term: {
+        name: "optionPure",
+        type: forallType(
+          "A",
+          starKind,
+          arrowType(varType("A"), appType(optionType, varType("A"))),
+        ),
+      },
+    },
+  ];
+
+  // Test: pure wraps a value
+  // pure[Int] 42 : Option Int
+  const pureInt = appTerm(
+    tyapp_term(varTerm("optionPure"), intType),
+    conTerm("42", intType),
+  );
+
+  const pureResult = typecheck(context, pureInt);
+  const pureType = assertOk(pureResult, "pure should typecheck");
+
+  const expectedOptionInt = appType(optionType, intType);
+  const resolvedPure = resolveMetaVars(normalizeType(pureType));
+
+  assert(
+    typesEqual(resolvedPure, expectedOptionInt),
+    `pure should return Option Int, got ${showType(resolvedPure)}`,
+  );
+
+  // Test: bind sequences operations
+  // optionBind[Int][Int] someValue (\x -> pure[Int] x) : Option Int
+  const someValue = injectTerm(
+    "Some",
+    conTerm("5", intType),
+    appType(optionType, intType),
+  );
+
+  const identity = lamTerm(
+    "x",
+    intType,
+    appTerm(tyapp_term(varTerm("optionPure"), intType), varTerm("x")),
+  );
+
+  const boundBind = appTerm(
+    appTerm(
+      tyapp_term(tyapp_term(varTerm("optionBind"), intType), intType),
+      someValue,
+    ),
+    identity,
+  );
+
+  const bindResult = typecheck(context, boundBind);
+  const bindType = assertOk(bindResult, "bind operation should typecheck");
+
+  const resolvedBind = resolveMetaVars(normalizeType(bindType));
+
+  assert(
+    typesEqual(resolvedBind, expectedOptionInt),
+    `bind should return Option Int, got ${showType(resolvedBind)}`,
+  );
+
+  // Test: chained binds (do-notation simulation)
+  // optionBind someValue (\x -> optionBind someValue2 (\y -> pure result))
+  const someValue2 = injectTerm(
+    "Some",
+    conTerm("10", intType),
+    appType(optionType, intType),
+  );
+
+  const innerChain = appTerm(
+    appTerm(
+      tyapp_term(tyapp_term(varTerm("optionBind"), intType), intType),
+      someValue2,
+    ),
+    lamTerm(
+      "y",
+      intType,
+      appTerm(
+        tyapp_term(varTerm("optionPure"), intType),
+        conTerm("15", intType),
+      ),
+    ),
+  );
+
+  const outerChain = appTerm(
+    appTerm(
+      tyapp_term(tyapp_term(varTerm("optionBind"), intType), intType),
+      someValue,
+    ),
+    lamTerm("x", intType, innerChain),
+  );
+
+  const chainResult = typecheck(context, outerChain);
+  const chainType = assertOk(chainResult, "chained bind should typecheck");
+
+  const resolvedChain = resolveMetaVars(normalizeType(chainType));
+
+  assert(
+    typesEqual(resolvedChain, expectedOptionInt),
+    `chained bind should return Option Int, got ${showType(resolvedChain)}`,
+  );
 });
-
 test("GADTs simulation with variants", () => {
   // Expr: Int literal or Bool literal or Add
   const exprType = muType(
@@ -2747,8 +3008,8 @@ test("GADTs simulation with variants", () => {
   assertOk(result, "should handle GADT-like structures");
 });
 
-test("Phantom types simulation", () => {
-  // SafeList tagged with length
+test("Phantom types track compile-time properties", () => {
+  // SafeList tagged with length (phantom parameter doesn't appear in values)
   const safeListType = (tag: Type, elem: Type) =>
     recordType([
       ["tag", tag],
@@ -2770,27 +3031,37 @@ test("Phantom types simulation", () => {
       ],
     ]);
 
-  const emptyTag = conType("Zero");
+  const zeroTag = conType("Zero");
+  const succTag = conType("Succ");
   const elemType = conType("Int");
 
+  const context: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Zero" } },
+    { type: { kind: starKind, name: "Succ" } },
+  ];
+
+  // Empty list tagged with Zero length
+  const listMu = muType(
+    "L",
+    variantType([
+      ["Nil", unitType],
+      [
+        "Cons",
+        recordType([
+          ["head", elemType],
+          ["tail", varType("L")],
+        ]),
+      ],
+    ]),
+  );
+
   const emptyList = recordTerm([
-    ["tag", conTerm("zero", emptyTag)],
+    ["tag", conTerm("zero", zeroTag)],
     [
       "data",
       foldTerm(
-        muType(
-          "L",
-          variantType([
-            ["Nil", unitType],
-            [
-              "Cons",
-              recordType([
-                ["head", elemType],
-                ["tail", varType("L")],
-              ]),
-            ],
-          ]),
-        ),
+        listMu,
         injectTerm(
           "Nil",
           unitValue,
@@ -2800,22 +3071,7 @@ test("Phantom types simulation", () => {
               "Cons",
               recordType([
                 ["head", elemType],
-                [
-                  "tail",
-                  muType(
-                    "L",
-                    variantType([
-                      ["Nil", unitType],
-                      [
-                        "Cons",
-                        recordType([
-                          ["head", elemType],
-                          ["tail", varType("L")],
-                        ]),
-                      ],
-                    ]),
-                  ),
-                ],
+                ["tail", listMu],
               ]),
             ],
           ]),
@@ -2824,14 +3080,96 @@ test("Phantom types simulation", () => {
     ],
   ]);
 
-  const result = typecheck(
-    [
-      { type: { kind: starKind, name: "Int" } },
-      { type: { kind: starKind, name: "Zero" } },
-    ],
-    emptyList,
+  // Verify empty list has Zero tag
+  const emptyResult = typecheck(context, emptyList);
+  const emptyType = assertOk(emptyResult, "should typecheck empty list");
+
+  const expectedEmpty = safeListType(zeroTag, elemType);
+  const resolvedEmpty = resolveMetaVars(normalizeType(emptyType));
+
+  assert(
+    typesEqual(resolvedEmpty, expectedEmpty),
+    `empty list should have Zero tag, got ${showType(resolvedEmpty)}`,
   );
-  assertOk(result, "should support phantom types");
+
+  // Non-empty list tagged with Succ length
+  const oneElemList = recordTerm([
+    ["tag", conTerm("succ", succTag)],
+    [
+      "data",
+      foldTerm(
+        listMu,
+        injectTerm(
+          "Cons",
+          recordTerm([
+            ["head", conTerm("42", elemType)],
+            [
+              "tail",
+              foldTerm(
+                listMu,
+                injectTerm(
+                  "Nil",
+                  unitValue,
+                  variantType([
+                    ["Nil", unitType],
+                    [
+                      "Cons",
+                      recordType([
+                        ["head", elemType],
+                        ["tail", listMu],
+                      ]),
+                    ],
+                  ]),
+                ),
+              ),
+            ],
+          ]),
+          variantType([
+            ["Nil", unitType],
+            [
+              "Cons",
+              recordType([
+                ["head", elemType],
+                ["tail", listMu],
+              ]),
+            ],
+          ]),
+        ),
+      ),
+    ],
+  ]);
+
+  const oneResult = typecheck(context, oneElemList);
+  const oneType = assertOk(oneResult, "should typecheck singleton list");
+
+  const expectedOne = safeListType(succTag, elemType);
+  const resolvedOne = resolveMetaVars(normalizeType(oneType));
+
+  assert(
+    typesEqual(resolvedOne, expectedOne),
+    `singleton list should have Succ tag, got ${showType(resolvedOne)}`,
+  );
+
+  // Demonstrate phantom types are actually tracked:
+  // A function that only accepts empty lists
+  const requiresEmpty = lamTerm(
+    "list",
+    safeListType(zeroTag, elemType),
+    varTerm("list"),
+  );
+
+  // Should accept empty list
+  const validApp = appTerm(requiresEmpty, emptyList);
+  const validResult = typecheck(context, validApp);
+  assertOk(validResult, "should accept empty list");
+
+  // Should reject non-empty list (different phantom tag)
+  const invalidApp = appTerm(requiresEmpty, oneElemList);
+  const invalidResult = typecheck(context, invalidApp);
+  assert(
+    "err" in invalidResult && "type_mismatch" in invalidResult.err,
+    "should reject list with wrong phantom tag",
+  );
 });
 
 // ============= ERROR BOUNDARY TESTS =============
@@ -3122,11 +3460,168 @@ test("Occurs check with metavariables", () => {
 });
 
 test("Higher-rank polymorphism simulation", () => {
+  const ctx: Context = [{ type: { kind: starKind, name: "Int" } }];
+
   // (∀a. a -> a) -> Int -> Int
   const higherRank = arrowType(
     forallType("a", starKind, arrowType(varType("a"), varType("a"))),
     arrowType(conType("Int"), conType("Int")),
   );
+
+  // λid:(∀a. a -> a). λx:Int. id[Int] x
+  const f = lamTerm(
+    "id",
+    forallType("a", starKind, arrowType(varType("a"), varType("a"))),
+    lamTerm(
+      "x",
+      conType("Int"),
+      appTerm(tyapp_term(varTerm("id"), conType("Int")), varTerm("x")),
+    ),
+  );
+
+  // Test 1: Verify f has the expected higher-rank type
+  const result = typecheck(ctx, f);
+  const res = assertOk(result, "should infer rank-2 type");
+
+  if ("ok" in result) {
+    expect(typesEqual(res, higherRank)).toBe(true);
+    console.log("Inferred type:", showType(result.ok));
+  }
+});
+
+test("Apply f to a polymorphic identity function", () => {
+  const ctx: Context = [{ type: { kind: starKind, name: "Int" } }];
+  // λid:(∀a. a -> a). λx:Int. id[Int] x
+  const f = lamTerm(
+    "id",
+    forallType("a", starKind, arrowType(varType("a"), varType("a"))),
+    lamTerm(
+      "x",
+      conType("Int"),
+      appTerm(tyapp_term(varTerm("id"), conType("Int")), varTerm("x")),
+    ),
+  );
+
+  // Test 2: Apply f to a polymorphic identity function
+  // Λa::*. λx:a. x
+  const polyId = tylamTerm(
+    "a",
+    starKind,
+    lamTerm("x", varType("a"), varTerm("x")),
+  );
+
+  // f polyId : Int -> Int
+  const app1 = appTerm(f, polyId);
+  const result2 = typecheck(ctx, app1);
+  const res = assertOk(
+    result2,
+    "should apply rank-2 function to polymorphic argument",
+  );
+
+  const expectedType = arrowType(conType("Int"), conType("Int"));
+  expect(typesEqual(res, expectedType)).toBe(true);
+});
+
+test("Apply f to a polymorphic identity function", () => {
+  const ctx: Context = [{ type: { kind: starKind, name: "Int" } }];
+  // λid:(∀a. a -> a). λx:Int. id[Int] x
+  const f = lamTerm(
+    "id",
+    forallType("a", starKind, arrowType(varType("a"), varType("a"))),
+    lamTerm(
+      "x",
+      conType("Int"),
+      appTerm(tyapp_term(varTerm("id"), conType("Int")), varTerm("x")),
+    ),
+  );
+
+  // Λa::*. λx:a. x
+  const polyId = tylamTerm(
+    "a",
+    starKind,
+    lamTerm("x", varType("a"), varTerm("x")),
+  );
+  const app1 = appTerm(f, polyId);
+  const int42 = conTerm("42", conType("Int"));
+  const app2 = appTerm(app1, int42);
+  const result3 = typecheck(ctx, app2);
+  const res = assertOk(result3, "should fully apply rank-2 function chain");
+
+  expect(typesEqual(res, conType("Int"))).toBe(true);
+});
+
+test("Check that f can use the polymorphic parameter multiple times", () => {
+  const ctx: Context = [{ type: { kind: starKind, name: "Int" } }];
+  // λid:(∀a. a -> a). λx:Int. id[Int] (id[Int] x)
+  const fTwice = lamTerm(
+    "id",
+    forallType("a", starKind, arrowType(varType("a"), varType("a"))),
+    lamTerm(
+      "x",
+      conType("Int"),
+      appTerm(
+        tyapp_term(varTerm("id"), conType("Int")),
+        appTerm(tyapp_term(varTerm("id"), conType("Int")), varTerm("x")),
+      ),
+    ),
+  );
+
+  const higherRank = arrowType(
+    forallType("a", starKind, arrowType(varType("a"), varType("a"))),
+    arrowType(conType("Int"), conType("Int")),
+  );
+
+  const result4 = typecheck(ctx, fTwice);
+  const res = assertOk(
+    result4,
+    "should handle multiple uses of rank-2 parameter",
+  );
+  expect(typesEqual(res, higherRank)).toBe(true);
+});
+
+test("Demonstrate the key property of rank-2 types", () => {
+  const int42 = conTerm("42", conType("Int"));
+
+  // The polymorphic parameter can be instantiated at different types
+  // λid:(∀a. a -> a). {int: id[Int] 42, bool: id[Bool] true}
+  const ctxWithBool: Context = [
+    { type: { kind: starKind, name: "Int" } },
+    { type: { kind: starKind, name: "Bool" } },
+  ];
+
+  const fMultiType = lamTerm(
+    "id",
+    forallType("a", starKind, arrowType(varType("a"), varType("a"))),
+    recordTerm([
+      ["int", appTerm(tyapp_term(varTerm("id"), conType("Int")), int42)],
+      [
+        "bool",
+        appTerm(
+          tyapp_term(varTerm("id"), conType("Bool")),
+          conTerm("true", conType("Bool")),
+        ),
+      ],
+    ]),
+  );
+
+  const result5 = typecheck(ctxWithBool, fMultiType);
+  const res = assertOk(
+    result5,
+    "should instantiate rank-2 parameter at multiple types",
+  );
+
+  const expectedType = arrowType(
+    forallType("a", starKind, arrowType(varType("a"), varType("a"))),
+    recordType([
+      ["int", conType("Int")],
+      ["bool", conType("Bool")],
+    ]),
+  );
+  expect(typesEqual(res, expectedType)).toBe(true);
+});
+
+test("Demonstrate the key property of rank-2 types", () => {
+  const ctx = [{ type: { kind: starKind, name: "Int" } }];
 
   const f = lamTerm(
     "id",
@@ -3138,11 +3633,17 @@ test("Higher-rank polymorphism simulation", () => {
     ),
   );
 
-  const result = typecheck([{ type: { kind: starKind, name: "Int" } }], f);
-  assertOk(result, "should handle rank-2 types");
-});
+  const higherRank = arrowType(
+    forallType("a", starKind, arrowType(varType("a"), varType("a"))),
+    arrowType(conType("Int"), conType("Int")),
+  );
 
-// ============= CONSTRAINT SOLVING TESTS =============
+  // Test 6: Verify type checking (not just inference) works with higher-rank types
+  const checkResult = checkType(ctx, f, higherRank);
+  const res = assertOk(checkResult, "should check against rank-2 type");
+
+  expect(typesEqual(res.type, higherRank)).toBe(true);
+});
 
 test("Worklist-based unification", () => {
   const worklist: Worklist = [];
@@ -3409,8 +3910,6 @@ test("Never type kinding", () => {
   assert("star" in kind, "never should have kind *");
 });
 
-// ============= LET POLYMORPHISM TESTS =============
-
 test("Let polymorphism basic", () => {
   const polyId = tylamTerm(
     "T",
@@ -3484,8 +3983,6 @@ test("Let with shadowing", () => {
   const type = assertOk(result, "should handle shadowing");
   assert(typesEqual(type, strType), "inner binding should shadow");
 });
-
-// ============= SUBSTITUTION TESTS =============
 
 test("Substitution in complex types", () => {
   const complexType = arrowType(
