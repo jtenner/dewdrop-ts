@@ -3973,21 +3973,35 @@ function extractParentFromConstructor(type: Type): Type | null {
   return null;
 }
 
-// Helper: Convert variant to its lambda form
-function createVariantLambda(vtype: Type, selfKind: Kind): Type {
+/**
+ * Convert a structural variant into a higher‑order type constructor (λ form)
+ * guided by the given `selfKind`.
+ *
+ * Example:
+ *   variant = <Left: a | Right: b>
+ *   selfKind = * → * → *
+ *   =>
+ *     λt0::* . λt1::* . <Left: t0 | Right: t1>
+ */
+export function createVariantLambda(vtype: Type, selfKind: Kind): Type {
   if (!("variant" in vtype)) return vtype;
 
-  // Collect type variables that appear in the variant
-  const typeVars = new Set<string>();
-  for (const [_, caseType] of vtype.variant)
-    for (const v of collectTypeVars(caseType)) typeVars.add(v);
+  // 1️⃣ Determine argument kinds by peeling arrows
+  const argKinds: Kind[] = [];
+  let k: Kind = selfKind;
+  while ("arrow" in k) {
+    argKinds.push(k.arrow.from);
+    k = k.arrow.to;
+  }
 
-  // Build lambda abstracting over free variables
+  // 2️⃣ Synthesize variable names: t0, t1, ...
+  const argNames = argKinds.map((_, i) => `t${i}`);
+
+  // 3️⃣ Build λ abstractions from inside out
   let res: Type = vtype;
-  const sorted = Array.from(typeVars).sort(); // Stable order
-
-  for (let i = sorted.length - 1; i >= 0; i--)
-    res = lamType(sorted[i]!, starKind, res);
+  for (let i = argNames.length - 1; i >= 0; i--) {
+    res = lamType(argNames[i]!, argKinds[i]!, res);
+  }
 
   return res;
 }

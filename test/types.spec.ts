@@ -6,6 +6,7 @@ import {
   applySubstitution,
   appTerm,
   appType,
+  arrow_kind,
   arrowType,
   boundedForallType,
   type ConType,
@@ -18,6 +19,7 @@ import {
   conPattern,
   conTerm,
   conType,
+  createVariantLambda,
   dictTerm,
   type EnumDef,
   foldTerm,
@@ -2229,7 +2231,6 @@ test("Trait application with missing implementation", () => {
 
   const result = typecheck(context, applied);
   const err = assertErr(result, "should fail");
-  console.log(err);
   assert(
     "missing_trait_impl" in err || "wrong_number_of_dicts" in err,
     "should be missing implementation error",
@@ -3483,10 +3484,7 @@ test("Higher-rank polymorphism simulation", () => {
   const result = typecheck(ctx, f);
   const res = assertOk(result, "should infer rank-2 type");
 
-  if ("ok" in result) {
-    expect(typesEqual(res, higherRank)).toBe(true);
-    console.log("Inferred type:", showType(result.ok));
-  }
+  expect(typesEqual(res, higherRank)).toBe(true);
 });
 
 test("Apply f to a polymorphic identity function", () => {
@@ -3880,13 +3878,16 @@ test("Never type is subtype of everything", () => {
 });
 
 test("Never in match branches", () => {
-  const neverType: Type = { never: null };
-  const optionInt = variantType([
+  // Define Option<Int> structurally
+  const optionInt: Type = variantType([
     ["None", unitType],
     ["Some", conType("Int")],
   ]);
 
-  // Branch that returns never is compatible with Int
+  // The term: λopt:Option<Int>. match opt { None => 0 | Some(x) => x }
+  // None branch returns Int constant
+  // Some branch returns bound variable x :: Int
+  // Both unify to Int ⇒ overall function: Option<Int> → Int
   const matchWithNever = lamTerm(
     "opt",
     optionInt,
@@ -3896,11 +3897,36 @@ test("Never in match branches", () => {
     ]),
   );
 
-  const result = typecheck(
-    [{ type: { kind: starKind, name: "Int" } }],
-    matchWithNever,
+  // Context: Int :: *
+  const ctx = [{ type: { name: "Int", kind: starKind } }];
+
+  // Typecheck the function
+  const result = typecheck(ctx, matchWithNever);
+  const inferred = assertOk(result, "matchWithNever should typecheck");
+
+  const normInferred = normalizeType(inferred);
+
+  // Expected type: Option<Int> → Int
+  const expectedType = arrowType(optionInt, conType("Int"));
+  const normExpected = normalizeType(expectedType) as ArrowType;
+
+  // 1️⃣ Verify overall type is a function
+  assert(
+    "arrow" in normInferred,
+    `Expected function type, got ${showType(normInferred)}`,
   );
-  assertOk(result, "never should unify with any branch type");
+
+  // 2️⃣ Verify domain matches Option<Int>
+  assert(
+    typesEqual(normInferred.arrow.from, normExpected.arrow.from),
+    `Expected argument type ${showType(normExpected.arrow.from)} but got ${showType(normInferred.arrow.from)}`,
+  );
+
+  // 3️⃣ Verify codomain matches Int (even if one branch had bottom ⊥)
+  assert(
+    typesEqual(normInferred.arrow.to, normExpected.arrow.to),
+    `Expected return type ${showType(normExpected.arrow.to)} but got ${showType(normInferred.arrow.to)}`,
+  );
 });
 
 test("Never type kinding", () => {
@@ -4419,6 +4445,7 @@ test("Mutual recursion with mu types", () => {
 });
 
 test("List concatenation function type", () => {
+  // Define recursive List<Int> type: μL.<Nil: {}, Cons: {head: Int, tail: L}>
   const listInt = muType(
     "L",
     variantType([
@@ -4433,22 +4460,42 @@ test("List concatenation function type", () => {
     ]),
   );
 
-  // concat: List -> List -> List
+  // Expected type of concat: List<Int> → List<Int> → List<Int>
   const concatType = arrowType(listInt, arrowType(listInt, listInt));
 
-  const concat = lamTerm(
-    "xs",
-    listInt,
-    lamTerm(
-      "ys",
-      listInt,
-      varTerm("ys"), // Simplified implementation
-    ),
+  // Simplified implementation: λxs:List. λys:List. ys
+  const concat = lamTerm("xs", listInt, lamTerm("ys", listInt, varTerm("ys")));
+
+  // Type context includes Int :: *
+  const ctx: Context = [{ type: { name: "Int", kind: starKind } }];
+
+  // Typecheck the concat term
+  const result = typecheck(ctx, concat);
+  const inferred = assertOk(result, "Concat term should typecheck");
+
+  // Normalize for comparison (unfold any μ, β-reduction)
+  const normExpected = normalizeType(concatType);
+  const normInferred = normalizeType(inferred);
+
+  // Verify it inferred a function type
+  assert(
+    "arrow" in normInferred,
+    `Expected function type, got ${showType(normInferred)}`,
   );
 
-  const result = typecheck([{ type: { kind: starKind, name: "Int" } }], concat);
-  const type = assertOk(result, "should typecheck");
-  assert("arrow" in type, "should be function type");
+  // Assert full type equality
+  const equal = typesEqual(normExpected, normInferred);
+  assert(
+    equal,
+    `Expected concat type ${showType(normExpected)} but got ${showType(normInferred)}`,
+  );
+
+  // Optionally, verify round-trip normalization (sanity check)
+  const finalNorm = normalizeType(normInferred);
+  assert(
+    typesEqual(finalNorm, normExpected),
+    "Normalization should not change type equivalence",
+  );
 });
 
 test("Nested mu types", () => {
@@ -4985,32 +5032,78 @@ test("Check mode for fold against mu", () => {
   );
 });
 
-test("Fresh meta-var creation and solving", () => {
+test("Fresh meta-var creation, uniqueness, and solving behavior", () => {
+  // Create two fresh meta-variables ?0 and ?1
   const meta1 = freshMetaVar(); // { var: "?0" }
   const meta2 = freshMetaVar(); // { var: "?1" }
 
-  assert("var" in meta1 && meta1.var.startsWith("?"), "should create meta");
+  // Both should be meta variables starting with "?"
+  assert(
+    "var" in meta1 && meta1.var.startsWith("?"),
+    "meta1 should be meta-var",
+  );
+  assert(
+    "var" in meta2 && meta2.var.startsWith("?"),
+    "meta2 should be meta-var",
+  );
+
+  // They must be distinct
+  assert(
+    meta1.var !== meta2.var,
+    `Expected unique metas, got ${meta1.var} and ${meta2.var}`,
+  );
+
+  // Both should be recorded in metaKind with kind *
   assert(
     metaKind.has(meta1.var) && "star" in metaKind.get(meta1.var)!,
-    "should assign * kind",
+    `metaKind should assign * kind for ${meta1.var}`,
+  );
+  assert(
+    metaKind.has(meta2.var) && "star" in metaKind.get(meta2.var)!,
+    `metaKind should assign * kind for ${meta2.var}`,
   );
 
+  // Solve meta1 := Int
   const intType = conType("Int");
   const solveRes1 = solveMetaVar(meta1.var, intType);
-  assertOk(solveRes1, "should solve meta");
+  assertOk(solveRes1, "should solve meta1");
 
-  // Global lookup
+  // After solving, global substitution should include meta1, but not meta2
   const globalSubst = getMetaSubstitution();
+  assert(globalSubst.has(meta1.var), "global subst should contain meta1");
   assert(
-    globalSubst.has(meta1.var) &&
-      typesEqual(globalSubst.get(meta1.var)!, intType),
-    "should be in global subst",
+    !globalSubst.has(meta2.var),
+    "global subst should NOT contain meta2 (unsolved)",
   );
 
-  // Solve same meta twice (conflict)
-  const solveRes2 = solveMetaVar(meta1.var, conType("String"));
-  const conflictErr = assertErr(solveRes2, "should conflict on re-solve");
-  assert("type_mismatch" in conflictErr, "should report mismatch");
+  // Value in substitution must equal Int
+  const solved = globalSubst.get(meta1.var)!;
+  assert(
+    typesEqual(solved, intType),
+    `Expected Int in global subst for ${meta1.var}, got ${JSON.stringify(solved)}`,
+  );
+
+  // Solving meta2 := String should not affect meta1
+  const stringType = conType("String");
+  const solveRes2 = solveMetaVar(meta2.var, stringType);
+  assertOk(solveRes2, "should solve meta2 independently");
+  const updated = getMetaSubstitution();
+  assert(
+    typesEqual(updated.get(meta1.var)!, intType),
+    "meta1 binding should remain unchanged",
+  );
+  assert(
+    typesEqual(updated.get(meta2.var)!, stringType),
+    "meta2 binding should be String",
+  );
+
+  // Attempt to re-solve meta1 with conflicting type should fail
+  const conflictRes = solveMetaVar(meta1.var, conType("String"));
+  const conflictErr = assertErr(conflictRes, "should conflict on re-solve");
+  assert(
+    "type_mismatch" in conflictErr,
+    "should report type_mismatch when re-solving with incompatible type",
+  );
 });
 
 test("Meta-var in unification with conflict", () => {
@@ -5032,6 +5125,34 @@ test("Meta-var in unification with conflict", () => {
     "type_mismatch" in conflict &&
       typesEqual(conflict.type_mismatch.expected, intType),
     "should keep first binding",
+  );
+});
+
+test("createVariantLambda builds kind-aware λ-type constructor and applies correctly", () => {
+  // Structural Either variant
+  const eitherVariant = variantType([
+    ["Left", varType("a")],
+    ["Right", varType("b")],
+  ]);
+
+  // Desired kind: * → * → *
+  const eitherKind = arrow_kind(starKind, arrow_kind(starKind, starKind));
+
+  // Create λ-type constructor
+  const ctor = createVariantLambda(eitherVariant, eitherKind);
+
+  // Structure check
+  assert("lam" in ctor, "should be a λ-type");
+  assert("lam" in ctor.lam.body, "should nest a second λ-type");
+
+  // Apply it (β-reduction)
+  const applied = appType(appType(ctor, varType("a")), varType("b"));
+  const normalized = normalizeType(applied);
+
+  // Expect it equals the original variant <Left: a | Right: b>
+  assert(
+    typesEqual(normalized, eitherVariant),
+    `applying λtype should yield original variant, got ${showType(normalized)}`,
   );
 });
 
