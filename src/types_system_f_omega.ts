@@ -981,8 +981,6 @@ export function checkTraitImplementation(
   trait: string,
   type: Type,
 ): Result<TypingError, Term> {
-  console.log(`Checking implementation for ${trait} on ${showType(type)}`);
-
   const normalizedType = normalizeType(type, ctx);
 
   // First, look for exact match
@@ -993,14 +991,7 @@ export function checkTraitImplementation(
       typesEqual(b.trait_impl.type, normalizedType),
   );
 
-  if (impl && "trait_impl" in impl) {
-    console.log(
-      `Found exact match for ${trait} on ${showType(normalizedType)}`,
-    );
-    return ok(impl.trait_impl.dict);
-  }
-
-  console.log(`Searching for polymorphic implementations of ${trait}...`);
+  if (impl && "trait_impl" in impl) return ok(impl.trait_impl.dict);
 
   const polymorphicImpls = ctx.filter(
     (b) => "trait_impl" in b && b.trait_impl.trait === trait,
@@ -1010,21 +1001,15 @@ export function checkTraitImplementation(
     if ("trait_impl" in polyImpl && polyImpl.trait_impl.dict) {
       const implType = polyImpl.trait_impl.type;
 
-      console.log(`Trying polymorphic impl for type: ${showType(implType)}`);
-
-      // Key insight: Fully normalize BOTH types by beta-reducing all applications
+      // Fully normalize BOTH types by beta-reducing all applications
       // This turns ((λt.λu.variant) l) r) into <variant with l, r>
       // and λt.λu.variant into λt.λu.variant (stays as is)
 
       const normalizedImpl = normalizeType(implType, ctx);
       const normalizedTarget = normalizeType(normalizedType, ctx);
 
-      console.log(`  Fully normalized impl: ${showType(normalizedImpl)}`);
-      console.log(`  Fully normalized target: ${showType(normalizedTarget)}`);
-
       // Now instantiate the impl (replaces any forall-bound vars with metas)
       const instImplTy = instantiate(normalizedImpl);
-      console.log(`  Instantiated impl: ${showType(instImplTy)}`);
 
       // For the target, if it's a lambda that needs to be applied to match the impl's level,
       // apply it to fresh metas
@@ -1042,7 +1027,6 @@ export function checkTraitImplementation(
           );
         }
         matchingTarget = acc;
-        console.log(`  Applied target to metas: ${showType(matchingTarget)}`);
       }
 
       // Try to unify
@@ -1052,7 +1036,6 @@ export function checkTraitImplementation(
       const unifyRes = unifyTypes(instImplTy, matchingTarget, worklist, subst);
 
       if ("ok" in unifyRes) {
-        console.log(`  Unification succeeded, solving constraints...`);
         const solveRes = solveConstraints(worklist, subst);
 
         if ("ok" in solveRes) {
@@ -1062,20 +1045,12 @@ export function checkTraitImplementation(
             solveRes.ok,
             instantiatedDict,
           );
-          console.log(
-            `  Match found! Dict: ${showTerm(finalDict).slice(0, 80)}...`,
-          );
           return ok(finalDict);
-        } else {
-          console.log(`  Constraint solving failed`);
         }
-      } else {
-        console.log(`  Unification failed`);
       }
     }
   }
 
-  console.log(`No implementation found for ${trait} on ${showType(type)}`);
   return err({ missing_trait_impl: { trait, type } } as TypingError);
 }
 
@@ -1130,9 +1105,6 @@ export function checkExhaustive(
   ctx: Context,
 ): Result<TypingError, null> {
   const normType = normalizeType(type, ctx);
-  console.log(
-    `Checking exhaustive for ${showType(normType)} with ${patterns.length} patterns`,
-  );
 
   // Nominal check
   if ("app" in normType && "con" in normType.app.func) {
@@ -1145,9 +1117,6 @@ export function checkExhaustive(
       return err({ not_a_variant: type }); // Triggered if no binding
     }
     const def = enumBinding.enum;
-    console.log(
-      `Found enum ${conName}: ${def.params.length} params, variants: ${def.variants.map(([l]) => l).join(", ")}`,
-    );
 
     if (spineArgs.length !== def.params.length) {
       return err({
@@ -1159,29 +1128,21 @@ export function checkExhaustive(
     const coveredLabels = new Set<string>();
 
     for (const pattern of patterns) {
-      if ("wildcard" in pattern || "var" in pattern) {
-        console.log("Wildcard/var covers all");
-        return ok(null);
-      }
+      if ("wildcard" in pattern || "var" in pattern) return ok(null);
       const patLabels = extractPatternLabels(pattern);
-      for (const label of patLabels) {
-        coveredLabels.add(label);
-      }
+      for (const label of patLabels) coveredLabels.add(label);
     }
 
     const missing = [...allLabels].filter((l) => !coveredLabels.has(l)).sort();
-    if (missing.length > 0) {
-      console.error(`Missing cases: ${missing.join(", ")}`);
-      return err({ missing_case: { label: missing[0]! } }); // Report first
-    }
+    // Report first
+    if (missing.length > 0)
+      return err({ missing_case: { label: missing[0]! } });
 
-    console.log("Exhaustive: All labels covered");
     return ok(null);
   }
 
   // Structural fallback (unchanged, with log)
   if ("variant" in normType) {
-    console.log("Using structural exhaustive");
     const variantLabels = new Set(normType.variant.map(([l]) => l));
     const coveredLabels = new Set<string>();
     for (const pattern of patterns) {
@@ -1195,7 +1156,6 @@ export function checkExhaustive(
   }
 
   // Non-variant types (e.g., primitives, arrows): Always exhaustive (no cases needed)
-  console.log("Non-variant type: Exhaustive by default");
   return ok(null);
 }
 
@@ -1218,13 +1178,9 @@ export function checkPattern(
     }
 
     const normType = normalizeType(type);
-    console.log(
-      `Checking variant pattern ${pattern.variant.label} on ${showType(normType)}`,
-    );
 
     // Structural
     if ("variant" in normType) {
-      console.log("Using structural variant match");
       const caseType = normType.variant.find(
         ([t]) => t === pattern.variant.label,
       );
@@ -1277,14 +1233,9 @@ export function checkPattern(
       }
       fieldType = normalizeType(fieldType);
 
-      console.log(`Pattern ${label} field: ${showType(fieldType)}`);
-
       return checkPattern(pattern.variant.pattern, fieldType, ctx);
     }
 
-    console.error(
-      "Pattern is variant but type is neither variant nor nominal enum",
-    );
     return err({ not_a_variant: type });
   }
 
@@ -1425,9 +1376,6 @@ function checkRecordPattern(
     bindings.push(...subResult.ok);
   }
 
-  console.log(
-    `Record pattern matched: ${patternLabels.join(", ")} against ${typeLabels.join(", ")}`,
-  );
   return ok(bindings);
 }
 
@@ -1648,12 +1596,7 @@ export function checkKind(
     const binding = context.find(
       (b) => "type" in b && b.type.name === type.con,
     );
-    if (binding && "type" in binding) {
-      console.log(
-        `Lookup kind for ${type.con}: ${showKind(binding.type.kind)}`,
-      );
-      return ok(binding.type.kind);
-    }
+    if (binding && "type" in binding) return ok(binding.type.kind);
 
     // Fallback: Primitives default to *
     if (primitiveTypes.has(type.con)) return ok(starKind);
@@ -2138,9 +2081,8 @@ export function unifyTypes(
     "mu" in right &&
     "var" in right.mu.body &&
     right.mu.body.var === right.mu.var
-  ) {
+  )
     return err({ cyclic: right.mu.var });
-  }
 
   if (isBottom(left) && isBottom(normalizeType(right))) return ok(null);
 
@@ -2150,21 +2092,15 @@ export function unifyTypes(
     if ("err" in rightKind || !isStarKind(rightKind.ok))
       return err({ type_mismatch: { expected: right, actual: left } });
 
-    console.log(`Subtyping bottom: ⊥ <: ${showType(right)} (OK)`);
     return ok(null);
   }
 
-  if (isBottom(right)) {
+  if (isBottom(right))
     // Unification is asymmetric: left ~ ⊥ only if left is also ⊥
     // (since non-bottom types are not subtypes of bottom)
-    if (!isBottom(left)) {
-      console.log(
-        `Unification failure: non-bottom ${showType(left)} cannot unify with bottom ${showType(right)}`,
-      );
-      return err({ type_mismatch: { expected: right, actual: left } });
-    }
-    return ok(null);
-  }
+    return isBottom(left)
+      ? ok(null)
+      : err({ type_mismatch: { expected: right, actual: left } });
 
   const leftRigid = "var" in left && !isMetaVar(left);
   const rightRigid = "var" in right && !isMetaVar(right);
@@ -2266,10 +2202,6 @@ export function unifyTypes(
 
   // Special case: Bottom-domain functions (⊥ → α ~ τ₁ → τ₂)
   if ("arrow" in left && "arrow" in right && isBottom(left.arrow.from)) {
-    console.log(
-      `Unifying bottom-domain: ⊥ → ${showType(left.arrow.to)} ~ ${showType(right.arrow.from)} → ${showType(right.arrow.to)}`,
-    );
-
     // Bottom domain matches anything, so only unify codomains
     worklist.push(typeEq(left.arrow.to, right.arrow.to));
 
@@ -2280,10 +2212,6 @@ export function unifyTypes(
 
   // Symmetric case: functions with bottom domain on right
   if ("arrow" in left && "arrow" in right && isBottom(right.arrow.from)) {
-    console.log(
-      `Unifying bottom-domain: ${showType(left.arrow.from)} → ${showType(left.arrow.to)} ~ ⊥ → ${showType(right.arrow.to)}`,
-    );
-
     // Only unify codomains, ignore domains
     worklist.push(typeEq(left.arrow.to, right.arrow.to));
     return ok(null);
@@ -2592,7 +2520,6 @@ export function unifyVariable(
       return err({ cyclic: varName });
     }
     // Don't bind var := ⊥ - just succeed (subtyping will handle later)
-    console.log(`Unifying var ${varName} ~ ⊥ (subtyping OK, no bind)`);
     return ok(null);
   }
 
@@ -2780,14 +2707,11 @@ export function checkType(
 
     // Special handling for bottom domain: when checking λx:⊥.e against ⊥ → τ_expected,
     // we can use any well-formed type for x since ⊥ never receives values
-    if (isBottom(expectedType.arrow.from)) {
-      // Create a fresh type variable for the parameter (any * kind will do)
-      // The exact type doesn't matter since this branch is unreachable
-      effectiveFromType = freshMetaVar(); // or { var: `_${term.lam.arg}` }
-      console.log(
-        `Checking bottom-domain lambda: using effective type ${showType(effectiveFromType)} for param ${term.lam.arg}`,
-      );
-    }
+
+    // If it's a bottom type, create a fresh type variable for the parameter
+    // (any * kind will do) The exact type doesn't matter since this branch is
+    // unreachable or { var: `_${term.lam.arg}` }
+    if (isBottom(expectedType.arrow.from)) effectiveFromType = freshMetaVar();
 
     const extendedContext: Context = [
       ...context,
@@ -3230,26 +3154,13 @@ function inferMatchType(ctx: Context, term: MatchTerm) {
 
   const patterns = term.match.cases.map((c) => c[0]);
   const exhaustCheck = checkExhaustive(patterns, normalizedScrutinee, ctx);
-  if ("err" in exhaustCheck) {
-    console.log(
-      `Exhaustive check failed for ${showType(normalizedScrutinee)}:`,
-      exhaustCheck.err,
-    );
-    return exhaustCheck;
-  }
-  console.log(`Exhaustive OK for ${showType(normalizedScrutinee)}`);
+  if ("err" in exhaustCheck) return exhaustCheck;
 
   let commonType: Type | null = null;
 
   for (const [pat, bod] of term.match.cases) {
     const patternResult = checkPattern(pat, normalizedScrutinee, ctx); // Now handles nominal
-    if ("err" in patternResult) {
-      console.log(
-        `Pattern check failed for ${showPattern(pat)} on ${showType(normalizedScrutinee)}:`,
-        patternResult.err,
-      );
-      return patternResult;
-    }
+    if ("err" in patternResult) return patternResult;
 
     const extendedCtx = [...ctx, ...patternResult.ok];
 
@@ -3321,10 +3232,6 @@ function inferInjectType(
 ): Result<TypingError, Type> {
   const variantType = normalizeType(term.inject.variant_type); // e.g., app({con: "Option"}, {var: "t"})
 
-  console.log(
-    `Inferring injection: ${term.inject.label}(${showTerm(term.inject.value)}) as ${showType(variantType)}`,
-  );
-
   // Case 1: Nominal enum (app with con head, e.g., Option<t>, Either<l, r>)
   if ("app" in variantType || "con" in variantType) {
     const head = "con" in variantType ? variantType : getSpineHead(variantType);
@@ -3374,10 +3281,6 @@ function inferInjectType(
       }
       expectedFieldType = normalizeType(expectedFieldType); // Beta-reduce if needed
 
-      console.log(
-        `Instantiated field for ${label}: ${showType(expectedFieldType)}`,
-      );
-
       // Check the injected value against the field type
       // Handles single value, unit (zero fields), or tuple (multi-fields)
       const valueCheck = checkInjectValue(
@@ -3385,16 +3288,8 @@ function inferInjectType(
         expectedFieldType,
         ctx,
       );
-      if ("err" in valueCheck) {
-        console.error(`Value check failed for ${label}:`, valueCheck.err);
-        return valueCheck;
-      }
 
-      // Success: Return the full nominal variant type
-      console.log(
-        `Injection ${label} succeeded: value ${showType(valueCheck.ok.valueType)} <: ${showType(expectedFieldType)}`,
-      );
-      return ok(variantType);
+      return "err" in valueCheck ? valueCheck : ok(variantType);
     }
   }
 
@@ -3419,14 +3314,11 @@ function inferInjectType(
       expectedFieldType,
       ctx,
     );
-    if ("err" in valueCheck) return valueCheck;
 
-    console.log(`Structural injection ${term.inject.label} succeeded`);
-    return ok(variantType);
+    return "err" in valueCheck ? valueCheck : ok(variantType);
   }
 
   // Neither nominal nor structural: Fail
-  console.error(`Inject into non-variant type: ${showType(variantType)}`);
   return err({ not_a_variant: variantType });
 }
 
@@ -3987,7 +3879,6 @@ function inferAppType(context: Context, term: AppTerm) {
     const callee = term.app.callee;
 
     if ("con" in callee) {
-      console.log(showTerm(callee));
       const conField = callee.con;
       if (conField && typeof conField === "object" && "type" in conField) {
         // e.g. con_term("42", Int)
@@ -4022,9 +3913,6 @@ function inferAppType(context: Context, term: AppTerm) {
       const freshVar = freshMetaVar();
       body = substituteType(body.forall.var, freshVar, body.forall.body);
     }
-
-    console.log(`App callee after inst: ${showType(instantiatedCallee)}`);
-    console.log(`App arg inferred: ${showType(argInferred.ok)}`);
 
     if (!("arrow" in body)) return err({ not_a_function: instantiatedCallee });
 
@@ -4639,18 +4527,16 @@ export function computeStrippedKind(
       // Strip: move to func (e.g., from Either l r → Either l)
       current = current.app.func;
       stripped++;
-      console.log(`Stripped impl param ${arg.var}; now: ${showType(current)}`);
-    } else {
-      // Non-strippable (e.g., concrete or non-impl-var): stop
-      break;
-    }
+
+      // Otherwise non-strippable (e.g., concrete or non-impl-var): stop
+    } else break;
   }
 
   // Final kind of stripped (e.g., app(con "Either", l) : * → *)
   const finalKindRes = checkKind(ctx, current);
-  if ("err" in finalKindRes) return err(finalKindRes.err);
-
-  return ok({ stripped, kind: finalKindRes.ok });
+  return "err" in finalKindRes
+    ? finalKindRes
+    : ok({ stripped, kind: finalKindRes.ok });
 }
 
 export function stripAppsByArity(

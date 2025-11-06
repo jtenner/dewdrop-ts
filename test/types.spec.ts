@@ -28,6 +28,7 @@ import {
   injectTerm,
   instantiateWithTraits,
   isAssignableTo,
+  kindArity,
   lam_type,
   lamTerm,
   letTerm,
@@ -41,6 +42,7 @@ import {
   recordPattern,
   recordTerm,
   recordType,
+  showKind,
   showTerm,
   showType,
   solveConstraints,
@@ -1512,53 +1514,51 @@ test("Nested tuple and record patterns", () => {
   assertOk(result, "should typecheck");
 });
 
-test("type normalization", () => {
-  // Test 1: Beta-reduction of type application
+test("simple normalization", () => {
   const idType = lam_type("T", starKind, varType("T"));
   const intType = conType("Int");
   const appliedType = appType(idType, intType);
-
   const normalized = normalizeType(appliedType);
   const expected = intType;
-
   assert(
     typesEqual(normalized, expected),
-    `Test 1 failed: Expected ${showType(expected)} but got ${showType(normalized)}`,
+    `Expected ${showType(expected)} but got ${showType(normalized)}`,
   );
+});
 
-  // Test 2: Nested beta-reductions
+test("nested beta reductions", () => {
   const doubleApp = lam_type(
     "A",
     starKind,
     lam_type("B", starKind, arrowType(varType("A"), varType("B"))),
   );
   const applied = appType(appType(doubleApp, conType("Int")), conType("Bool"));
-
-  const normalized2 = normalizeType(applied);
-  const expected2 = arrowType(conType("Int"), conType("Bool"));
-
+  const normalized = normalizeType(applied);
+  const expected = arrowType(conType("Int"), conType("Bool"));
   assert(
-    typesEqual(normalized2, expected2),
-    `Test 2 failed: Expected ${showType(expected2)} but got ${showType(normalized2)}`,
+    typesEqual(normalized, expected),
+    `Expected ${showType(expected)} but got ${showType(normalized)}`,
   );
+});
 
-  // Test 3: Trivial forall (unused type variable) - preserved, no elimination
+test("Trivial forall (unused type variable) - preserved, no elimination", () => {
   const trivialForall = forallType("X", starKind, conType("Int"));
 
-  const normalized3 = normalizeType(trivialForall);
+  const normalized = normalizeType(trivialForall);
   // Expected: Forall is preserved (no automatic elimination in normalizeType)
-  const expected3 = trivialForall;
+  const expected = trivialForall;
 
   assert(
-    typesEqual(normalized3, expected3),
-    `Test 3 failed: Expected ${showType(expected3)} but got ${showType(normalized3)}`,
+    typesEqual(normalized, expected),
+    `Expected ${showType(expected)} but got ${showType(normalized)}`,
   );
   assert(
-    "forall" in normalized3,
-    `Test 3 failed: Normalized type should preserve forall structure`,
+    "forall" in normalized,
+    `Normalized type should preserve forall structure`,
   );
+});
 
-  // Test 4: Mu types should NOT unfold during normalization
+test("Mu types should NOT unfold during normalization", () => {
   const listType = muType(
     "L",
     variantType([
@@ -1567,51 +1567,52 @@ test("type normalization", () => {
     ]),
   );
 
-  const normalized4 = normalizeType(listType);
-
-  // It should still be a mu type after normalization
+  const normalized = normalizeType(listType);
   assert(
-    "mu" in normalized4,
+    "mu" in normalized,
     `Test 4 failed: Mu type should not unfold during normalization`,
   );
   assert(
-    typesEqual(normalized4, listType),
+    typesEqual(normalized, listType),
     `Test 4 failed: Mu type should remain unchanged`,
   );
+});
 
-  // Test 5: Single-element tuple - preserved, no simplification
+test("Single-element tuple - preserved, no simplification", () => {
   const singleTuple = tupleType([conType("Int")]);
-  const normalized5 = normalizeType(singleTuple);
+  const normalized = normalizeType(singleTuple);
   // Expected: Remains a tuple (no simplification to Int in normalizeType)
-  const expected5 = singleTuple;
+  const expected = singleTuple;
 
   assert(
-    typesEqual(normalized5, expected5),
-    `Test 5 failed: Expected ${showType(expected5)} but got ${showType(normalized5)}`,
+    typesEqual(normalized, expected),
+    `Expected ${showType(expected)} but got ${showType(normalized)}`,
   );
   assert(
-    "tuple" in normalized5 && normalized5.tuple.length === 1,
-    `Test 5 failed: Normalized type should preserve single-element tuple structure`,
+    "tuple" in normalized && normalized.tuple.length === 1,
+    `Normalized type should preserve single-element tuple structure`,
   );
+});
 
-  // Test 6: Empty record - preserved, no simplification to unit
+test("Empty record - preserved, no simplification to unit", () => {
   // Note: In this system, records and tuples (unitType = empty tuple) are distinct;
   // no automatic conversion in normalizeType.
   const emptyRecord = recordType([]);
-  const normalized6 = normalizeType(emptyRecord);
+  const normalized = normalizeType(emptyRecord);
   // Expected: Remains an empty record (no conversion to unitType)
-  const expected6 = emptyRecord;
+  const expected = emptyRecord;
 
   assert(
-    typesEqual(normalized6, expected6),
-    `Test 6 failed: Expected ${showType(expected6)} but got ${showType(normalized6)}`,
+    typesEqual(normalized, expected),
+    `Expected ${showType(expected)} but got ${showType(normalized)}`,
   );
   assert(
-    "record" in normalized6 && normalized6.record.length === 0,
-    `Test 6 failed: Normalized type should preserve empty record structure`,
+    "record" in normalized && normalized.record.length === 0,
+    `Normalized type should preserve empty record structure`,
   );
+});
 
-  // Test 7: Complex nested application
+test("Complex nested application", () => {
   const constType = lam_type(
     "A",
     starKind,
@@ -1627,25 +1628,26 @@ test("type normalization", () => {
 
   assert(
     typesEqual(normalized7, expected7),
-    `Test 7 failed: Expected ${showType(expected7)} but got ${showType(normalized7)}`,
+    `Expected ${showType(expected7)} but got ${showType(normalized7)}`,
   );
+});
 
-  // Test 8: Normalization preserves used forall variables
+test("Normalization preserves used forall variables", () => {
   const usedForall = forallType(
     "T",
     starKind,
     arrowType(varType("T"), varType("T")),
   );
 
-  const normalized8 = normalizeType(usedForall);
+  const normalized = normalizeType(usedForall);
 
   assert(
-    "forall" in normalized8,
-    `Test 8 failed: Forall with used variable should be preserved`,
+    "forall" in normalized,
+    `Forall with used variable should be preserved`,
   );
   assert(
-    typesEqual(normalized8, usedForall),
-    `Test 8 failed: Used forall should remain unchanged`,
+    typesEqual(normalized, usedForall),
+    `Used forall should remain unchanged`,
   );
 });
 
@@ -4879,4 +4881,181 @@ test("Deep recursion in substitution/normalization (no stack overflow)", () => {
   // Normalize deep (no apps, so unchanged)
   const normDeep = normalizeType(deepArrow);
   assert(typesEqual(normDeep, deepArrow), "deep should normalize idempotently");
+});
+
+test("Higher‑kinded lam‑lam kinding", () => {
+  const ty = lam_type(
+    "F",
+    { arrow: { from: starKind, to: starKind } },
+    lam_type("X", starKind, appType(varType("F"), varType("X"))),
+  );
+  const kind = assertOk(checkKind([], ty), "should be ok kind");
+  assert("arrow" in kind, "should have arrow kind");
+  assert("arrow" in kind.arrow.to, "should be *→*→*");
+});
+
+test("Kind‑checking with shadowed lambdas", () => {
+  const ty = lam_type(
+    "A",
+    starKind,
+    lam_type("A", starKind, arrowType(varType("A"), varType("A"))),
+  );
+  const kind = assertOk(checkKind([], ty), "should be ok kind");
+  assert("arrow" in kind, "should still be an arrow kind");
+});
+
+test("kindArity computes number of type parameters", () => {
+  const k = {
+    arrow: { from: starKind, to: { arrow: { from: starKind, to: starKind } } },
+  };
+  const arity = kindArity(k);
+  expect(arity).toBe(2);
+});
+
+test("Rank‑2 lambda kind", () => {
+  const rank2 = lam_type(
+    "F",
+    { arrow: { from: starKind, to: starKind } },
+    lam_type("X", starKind, varType("X")),
+  );
+  const res = assertOk(checkKind([], rank2), "should be ok kind");
+  assert("arrow" in res, "rank‑2 kind ok");
+});
+
+test("Normalization reduces nested beta redexes", () => {
+  const doubleApp = lam_type(
+    "A",
+    starKind,
+    lam_type("B", starKind, arrowType(varType("A"), varType("B"))),
+  );
+  const applied = appType(appType(doubleApp, conType("Int")), conType("Bool"));
+  const normalized = normalizeType(applied);
+  const expected = arrowType(conType("Int"), conType("Bool"));
+  assert(
+    typesEqual(normalized, expected),
+    `expected ${showType(expected)} but got ${showType(normalized)}`,
+  );
+});
+
+test("Normalization avoids variable capture in nested lambdas", () => {
+  const ty = appType(
+    lam_type("A", starKind, lam_type("A", starKind, varType("A"))),
+    conType("Int"),
+  );
+  const norm = normalizeType(ty);
+  // Result should be λA. A (outer A shadowed)
+  assert("lam" in norm, "should remain a lambda after reduction");
+});
+
+test("Normalization is idempotent", () => {
+  const t = appType(lam_type("T", starKind, varType("T")), conType("Int"));
+  const t1 = normalizeType(t);
+  const t2 = normalizeType(t1);
+  assert(typesEqual(t1, t2), "normalization should be idempotent");
+});
+
+test("Normalization of higher‑order constructor", () => {
+  const listCon = lam_type(
+    "X",
+    starKind,
+    muType(
+      "L",
+      variantType([
+        ["Nil", unitType],
+        ["Cons", tupleType([varType("X"), varType("L")])],
+      ]),
+    ),
+  );
+  const listInt = appType(listCon, conType("Int"));
+  const norm = normalizeType(listInt);
+  assert("mu" in norm, "list constructor should normalize to a mu type");
+});
+
+test("Normalization of partially applied type constructor", () => {
+  // (λF::*→*. λX::*. F X) List should normalize to λX::*. List X
+  const partialApp = appType(
+    lam_type(
+      "F",
+      { arrow: { from: starKind, to: starKind } },
+      lam_type("X", starKind, appType(varType("F"), varType("X"))),
+    ),
+    lam_type(
+      "T",
+      starKind,
+      variantType([
+        ["Nil", unitType],
+        ["Cons", tupleType([varType("T"), varType("T")])],
+      ]),
+    ),
+  );
+
+  const normalized = normalizeType(partialApp);
+
+  // Should reduce outer lambda but keep inner one
+  assert(
+    "lam" in normalized,
+    "should normalize to a lambda (partially applied)",
+  );
+});
+
+test("Normalization respects bounded forall structure", () => {
+  const t = boundedForallType(
+    "X",
+    starKind,
+    [{ trait: "Show", type: varType("X") }],
+    appType(lam_type("T", starKind, varType("T")), varType("X")),
+  );
+  const norm = normalizeType(t);
+  assert("bounded_forall" in norm, "top‑level bounded forall preserved");
+  assert(
+    typesEqual(norm.bounded_forall.body, varType("X")),
+    "body β‑reduced correctly",
+  );
+});
+
+test("Structural mu variant has star kind", () => {
+  const nat = muType(
+    "N",
+    variantType([
+      ["Zero", unitType],
+      ["Succ", varType("N")],
+    ]),
+  );
+  const kind = assertOk(checkKind([], nat), "should be ok kind");
+  assert("star" in kind, "mu variant should be kind *");
+});
+
+test("Kind mismatch between higher‑kinded and * type", () => {
+  const higher = lam_type(
+    "F",
+    { arrow: { from: starKind, to: starKind } },
+    varType("F"),
+  );
+  const applied = appType(higher, higher);
+  const res = checkKind([], applied);
+  const err = assertErr(res, "should be error kind");
+  assert("kind_mismatch" in err, "should report kind mismatch");
+});
+
+test("showKind prints nested arrows", () => {
+  const kind = {
+    arrow: { from: starKind, to: { arrow: { from: starKind, to: starKind } } },
+  };
+  const s = showKind(kind);
+  expect(s).toContain("→");
+});
+
+test("Normalization preserves composite types", () => {
+  const t = arrowType(
+    forallType("A", starKind, varType("A")),
+    muType("L", arrowType(varType("L"), varType("L"))),
+  );
+  const n = normalizeType(t);
+  assert(typesEqual(t, n), "no structural change expected");
+});
+
+test("Normalization retains unused forall quantifier", () => {
+  const t = forallType("X", starKind, conType("Int"));
+  const n = normalizeType(t);
+  assert("forall" in n, "should preserve forall with unused variable");
 });

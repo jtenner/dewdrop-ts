@@ -117,10 +117,6 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
     if (checker.errors.length > 0) {
       for (const error of checker.errors) {
         console.error(error);
-        if ("kind_mismatch" in error) {
-          console.log("actual:", showKind(error.kind_mismatch.actual));
-          console.log("expected:", showKind(error.kind_mismatch.expected));
-        }
       }
       process.exit(1);
     }
