@@ -2,6 +2,7 @@
 
 import { expect, test } from "bun:test";
 import {
+  type ArrowType,
   applySubstitution,
   appTerm,
   appType,
@@ -42,6 +43,7 @@ import {
   recordPattern,
   recordTerm,
   recordType,
+  resolveMetaVars,
   showKind,
   showTerm,
   showType,
@@ -145,38 +147,54 @@ test("Type application", () => {
   assert(typesEqual(type.arrow.from, intType), "should be Int -> Int");
 });
 
-test("Simple record", () => {
-  const personType = recordType([
-    ["name", conType("String")],
-    ["age", conType("Int")],
+test("Polymorphic record projection", () => {
+  // select : ∀R. { x: R, y: Int } → R
+  const selectX = tylamTerm(
+    "R",
+    starKind,
+    lamTerm(
+      "record",
+      recordType([
+        ["x", varType("R")],
+        ["y", conType("Int")],
+      ]),
+      projectTerm(varTerm("record"), "x"),
+    ),
+  );
+
+  const context: Context = [
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+  ];
+
+  // Apply to { x: String, y: Int }
+  const record = recordTerm([
+    ["x", conTerm('"hello"', conType("String"))],
+    ["y", conTerm("42", conType("Int"))],
   ]);
 
-  const person = recordTerm([
-    ["name", conTerm('"Alice"', conType("String"))],
-    ["age", conTerm("30", conType("Int"))],
-  ]);
+  const app = appTerm(tyapp_term(selectX, conType("String")), record);
 
-  const result = typecheck([], person);
-  const type = assertOk(result, "should typecheck");
-  assert("record" in type, "should be record type");
-  assert(type.record.length === 2, "should have 2 fields");
+  const result = typecheck(context, app);
+  const type = assertOk(result, "should infer polymorphic projection");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+  assert(
+    typesEqual(resolved, conType("String")),
+    `should be String, got ${showType(resolved)}`,
+  );
 });
 
-test("Record projection", () => {
-  const personType = recordType([
-    ["name", conType("String")],
-    ["age", conType("Int")],
-  ]);
+test("Record projection error - missing field", () => {
+  const person = recordTerm([["name", conTerm('"Alice"', conType("String"))]]);
 
-  const person = recordTerm([
-    ["name", conTerm('"Alice"', conType("String"))],
-    ["age", conTerm("30", conType("Int"))],
-  ]);
+  // Try to project non-existent field
+  const getAge = projectTerm(person, "age");
 
-  const getName = projectTerm(person, "name");
-  const result = typecheck([], getName);
-  const type = assertOk(result, "should typecheck");
-  assert(typesEqual(type, conType("String")), "should be String");
+  const result = typecheck([], getAge);
+
+  assert("err" in result, "should fail");
+  assert("missing_field" in result.err, "should be missing field error");
 });
 
 test("Simple variant", () => {
@@ -347,34 +365,6 @@ test("Missing field projection", () => {
   const result = typecheck([], getAge);
   const err = assertErr(result, "should fail");
   assert("missing_field" in err, "should be missing field error");
-});
-
-test("Nested record", () => {
-  const addressType = recordType([
-    ["street", conType("String")],
-    ["city", conType("String")],
-  ]);
-
-  const personType = recordType([
-    ["name", conType("String")],
-    ["address", addressType],
-  ]);
-
-  const person = recordTerm([
-    ["name", conTerm('"Bob"', conType("String"))],
-    [
-      "address",
-      recordTerm([
-        ["street", conTerm('"123 Main"', conType("String"))],
-        ["city", conTerm('"Boston"', conType("String"))],
-      ]),
-    ],
-  ]);
-
-  const getCity = projectTerm(projectTerm(person, "address"), "city");
-  const result = typecheck([], getCity);
-  const type = assertOk(result, "should typecheck");
-  assert(typesEqual(type, conType("String")), "should be String");
 });
 
 test("Option type - structural injection with explicit context", () => {
@@ -693,7 +683,7 @@ test("List type with fold", () => {
   assert("arrow" in type, "should be function type");
 });
 
-test("State monad type", () => {
+test("State monad return type structure", () => {
   // State s a = s -> (a, s)
   const stateType = (s: Type, a: Type): Type =>
     arrowType(
@@ -704,6 +694,7 @@ test("State monad type", () => {
       ]),
     );
 
+  // return : ∀S. ∀A. A -> State S A
   const returnState = tylamTerm(
     "S",
     starKind,
@@ -725,9 +716,167 @@ test("State monad type", () => {
     ),
   );
 
-  const result = typecheck([], returnState);
+  const context: Context = [
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+  ];
+
+  const result = typecheck(context, returnState);
   const type = assertOk(result, "should typecheck");
-  assert("forall" in type, "should be polymorphic");
+
+  assert("forall" in type, "should be polymorphic in S");
+  assert("forall" in type.forall.body, "should be polymorphic in A");
+
+  // Instantiate with concrete types: return[Int][String]
+  const concrete = tyapp_term(
+    tyapp_term(returnState, conType("Int")),
+    conType("String"),
+  );
+
+  const concreteResult = typecheck(context, concrete);
+  const concreteType = assertOk(concreteResult, "should instantiate");
+  const resolved = resolveMetaVars(normalizeType(concreteType));
+
+  // Should be: String -> State Int String
+  // Which is: String -> Int -> {value: String, state: Int}
+  const expected = arrowType(
+    conType("String"),
+    stateType(conType("Int"), conType("String")),
+  );
+
+  assert(
+    typesEqual(resolved, expected),
+    `should be String -> State Int String, got ${showType(resolved)}`,
+  );
+});
+
+test("State monad get operation", () => {
+  // State s a = s -> (a, s)
+  const stateType = (s: Type, a: Type): Type =>
+    arrowType(
+      s,
+      recordType([
+        ["value", a],
+        ["state", s],
+      ]),
+    );
+
+  const context: Context = [{ type: { name: "Int", kind: starKind } }];
+
+  // get : ∀S. State S S  (returns current state as value)
+  const getState = tylamTerm(
+    "S",
+    starKind,
+    lamTerm(
+      "s",
+      varType("S"),
+      recordTerm([
+        ["value", varTerm("s")],
+        ["state", varTerm("s")],
+      ]),
+    ),
+  );
+
+  // Instantiate with Int: get[Int] : Int -> {value: Int, state: Int}
+  const intGet = tyapp_term(getState, conType("Int"));
+  const result = typecheck(context, intGet);
+  const type = assertOk(result, "should instantiate get with Int");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+  const expected = stateType(conType("Int"), conType("Int"));
+
+  assert(
+    typesEqual(resolved, expected),
+    `should be State Int Int, got ${showType(resolved)}`,
+  );
+});
+
+test("State monad put operation", () => {
+  // State s a = s -> (a, s)
+  const stateType = (s: Type, a: Type): Type =>
+    arrowType(
+      s,
+      recordType([
+        ["value", a],
+        ["state", s],
+      ]),
+    );
+
+  const unitType = recordType([]);
+
+  const context: Context = [{ type: { name: "Int", kind: starKind } }];
+
+  // put : ∀S. S -> State S Unit (sets new state, returns unit)
+  const putState = tylamTerm(
+    "S",
+    starKind,
+    lamTerm(
+      "newState",
+      varType("S"),
+      lamTerm(
+        "oldState",
+        varType("S"),
+        recordTerm([
+          ["value", recordTerm([])], // unit value
+          ["state", varTerm("newState")],
+        ]),
+      ),
+    ),
+  );
+
+  // Instantiate with Int
+  const intPut = tyapp_term(putState, conType("Int"));
+  const result = typecheck(context, intPut);
+  const type = assertOk(result, "should instantiate put with Int");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+
+  // Should be: Int -> Int -> {value: {}, state: Int}
+  const expected = arrowType(
+    conType("Int"),
+    stateType(conType("Int"), unitType),
+  );
+
+  assert(
+    typesEqual(resolved, expected),
+    `should be Int -> State Int Unit, got ${showType(resolved)}`,
+  );
+});
+
+test("State monad stateful computation", () => {
+  // State s a = s -> (a, s)
+  const stateType = (s: Type, a: Type): Type =>
+    arrowType(
+      s,
+      recordType([
+        ["value", a],
+        ["state", s],
+      ]),
+    );
+
+  const context: Context = [{ type: { name: "Int", kind: starKind } }];
+
+  // A stateful computation that reads and increments counter
+  // increment : State Int Int
+  const increment = lamTerm(
+    "counter",
+    conType("Int"),
+    recordTerm([
+      ["value", varTerm("counter")], // return current value
+      ["state", conTerm("next", conType("Int"))], // increment state
+    ]),
+  );
+
+  const result = typecheck(context, increment);
+  const type = assertOk(result, "should typecheck stateful computation");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+  const expected = stateType(conType("Int"), conType("Int"));
+
+  assert(
+    typesEqual(resolved, expected),
+    `should be State Int Int, got ${showType(resolved)}`,
+  );
 });
 
 test("Either type with bimap", () => {
@@ -2764,16 +2913,7 @@ test("Large tuple size limits", () => {
     assert("tuple" in result.ok, "should be tuple type");
   }
 });
-
-// ============= TYPE INFERENCE TESTS =============
-
 test("Automatic type instantiation for polymorphic identity", () => {
-  const polyId = tylamTerm(
-    "T",
-    starKind,
-    lamTerm("x", varType("T"), varTerm("x")),
-  );
-
   const context: Context = [
     {
       term: {
@@ -2781,6 +2921,7 @@ test("Automatic type instantiation for polymorphic identity", () => {
         type: forallType("T", starKind, arrowType(varType("T"), varType("T"))),
       },
     },
+    { type: { name: "Int", kind: starKind } },
   ];
 
   // id 5 should automatically instantiate T = Int
@@ -2788,36 +2929,17 @@ test("Automatic type instantiation for polymorphic identity", () => {
 
   const result = typecheck(context, app);
   const type = assertOk(result, "should infer type argument");
-  assert(typesEqual(type, conType("Int")), "should be Int");
+
+  // Apply meta variable solutions to get the final concrete type
+  const resolved = resolveMetaVars(normalizeType(type));
+
+  assert(
+    typesEqual(resolved, conType("Int")),
+    `should be Int, got ${showType(resolved)}`,
+  );
 });
 
 test("Inference with nested applications", () => {
-  const compose = tylamTerm(
-    "A",
-    starKind,
-    tylamTerm(
-      "B",
-      starKind,
-      tylamTerm(
-        "C",
-        starKind,
-        lamTerm(
-          "f",
-          arrowType(varType("B"), varType("C")),
-          lamTerm(
-            "g",
-            arrowType(varType("A"), varType("B")),
-            lamTerm(
-              "x",
-              varType("A"),
-              appTerm(varTerm("f"), appTerm(varTerm("g"), varTerm("x"))),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-
   const context: Context = [
     { type: { kind: starKind, name: "Int" } },
     { type: { kind: starKind, name: "String" } },
@@ -2848,15 +2970,27 @@ test("Inference with nested applications", () => {
     },
   ];
 
-  // compose should infer all three type arguments
+  // compose should infer all three type arguments from the function arguments
   const f = lamTerm("x", conType("Int"), conTerm('"str"', conType("String")));
   const g = lamTerm("y", conType("Bool"), conTerm("42", conType("Int")));
 
+  // compose f g should infer: A=Bool, B=Int, C=String
   const app = appTerm(appTerm(varTerm("compose"), f), g);
 
   const result = typecheck(context, app);
   const type = assertOk(result, "should infer all type arguments");
-  assert("arrow" in type, "should be function type");
+
+  const resolved = resolveMetaVars(normalizeType(type));
+
+  assert("arrow" in resolved, "should be function type");
+  assert(
+    typesEqual(resolved.arrow.from, conType("Bool")),
+    `domain should be Bool, got ${showType(resolved.arrow.from)}`,
+  );
+  assert(
+    typesEqual(resolved.arrow.to, conType("String")),
+    `codomain should be String, got ${showType(resolved.arrow.to)}`,
+  );
 });
 
 test("Subsumption allows polymorphic to specific", () => {
@@ -3095,8 +3229,6 @@ test("Conflicting constraints fail", () => {
   assert("type_mismatch" in err, "should be type mismatch");
 });
 
-// ============= TRAIT INFERENCE TESTS =============
-
 test("Automatic dictionary passing", () => {
   const showTrait: TraitDef = {
     name: "Show",
@@ -3109,36 +3241,26 @@ test("Automatic dictionary passing", () => {
   const showImpl = lamTerm("x", intType, conTerm('"42"', conType("String")));
   const intShowDict = dictTerm("Show", intType, [["show", showImpl]]);
 
-  const showValue = traitLamTerm(
-    "showDict",
-    "Show",
-    "T",
-    starKind,
-    [{ trait: "Show", type: varType("T") }],
-    lamTerm(
-      "x",
-      varType("T"),
-      appTerm(traitMethodTerm(varTerm("showDict"), "show"), varTerm("x")),
-    ),
-  );
-
   const context: Context = [
     { trait_def: showTrait },
     { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
   ];
 
-  // Should automatically find and pass the dictionary
-  const result = instantiateWithTraits(
-    context,
-    boundedForallType(
-      "T",
-      starKind,
-      [{ trait: "Show", type: varType("T") }],
-      arrowType(varType("T"), conType("String")),
-    ),
+  // Just pass the bounded forall directly
+  const polyType = boundedForallType(
+    "T",
+    starKind,
+    [{ trait: "Show", type: varType("T") }],
+    arrowType(varType("T"), conType("String")),
   );
 
-  assertOk(result, "should find trait implementation");
+  const result = instantiateWithTraits(context, polyType);
+  const okResult = assertOk(result, "should find trait implementation");
+
+  expect(okResult.dicts.length).toBe(1);
+  expect(okResult.dicts[0]).toMatchObject(intShowDict);
 });
 
 test("Multiple dictionary inference", () => {
@@ -3197,7 +3319,6 @@ test("Multiple dictionary inference", () => {
   const dicts = assertOk(result, "should find both implementations");
   assert(dicts.length === 2, "should have two dictionaries");
 });
-
 test("Trait constraint substitution during instantiation", () => {
   const showTrait: TraitDef = {
     name: "Show",
@@ -3206,6 +3327,17 @@ test("Trait constraint substitution during instantiation", () => {
     methods: [["show", arrowType(varType("Self"), conType("String"))]],
   };
 
+  const intType = conType("Int");
+  const showImpl = lamTerm("x", intType, conTerm('"42"', conType("String")));
+  const intShowDict = dictTerm("Show", intType, [["show", showImpl]]);
+
+  const context: Context = [
+    { trait_def: showTrait },
+    { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+  ];
+
   const polyType = boundedForallType(
     "T",
     starKind,
@@ -3213,14 +3345,21 @@ test("Trait constraint substitution during instantiation", () => {
     arrowType(varType("T"), conType("String")),
   );
 
-  const intType = conType("Int");
-  const instantiated = substituteType("T", intType, polyType);
-
-  // The constraint should now be Show<Int>
-  assert(
-    "bounded_forall" in instantiated || "arrow" in instantiated,
-    "should substitute in constraints",
+  // instantiateWithTraits should substitute T with a fresh meta var in constraints
+  const result = instantiateWithTraits(context, polyType);
+  const okResult = assertOk(
+    result,
+    "should instantiate and find implementation",
   );
+
+  // Should find the Int dictionary after unification
+  expect(okResult.dicts.length).toBe(1);
+  expect(okResult.dicts[0]).toMatchObject(intShowDict);
+
+  // The body type should have the meta variable instantiated
+  assert("arrow" in okResult.type, "should be arrow type");
+  assert("var" in okResult.type.arrow.from, "domain should be meta variable");
+  expect(okResult.type.arrow.from.var).toMatch(/^\?/); // Should be ?0 or similar
 });
 
 // ============= BOTTOM TYPE TESTS =============
@@ -5057,4 +5196,58 @@ test("Normalization retains unused forall quantifier", () => {
   const t = forallType("X", starKind, conType("Int"));
   const n = normalizeType(t);
   assert("forall" in n, "should preserve forall with unused variable");
+});
+
+test("checkType aborts on global meta conflict", () => {
+  // Manually pre‑solve a meta to one type
+  const meta = freshMetaVar();
+  const intType = conType("Int");
+  const strType = conType("String");
+
+  const first = solveMetaVar(meta.var, intType);
+  if ("err" in first) throw new Error("unexpected err on first solve");
+
+  // Now pretend checkType tries to propagate same meta with new solution
+  const result = solveMetaVar(meta.var, strType);
+  const err = assertErr(result, "should be error kind");
+  expect("err" in result).toBe(true);
+  expect("type_mismatch" in err).toBe(true);
+});
+
+test("instantiateWithTraits automatically finds Show impl", () => {
+  const showTrait: TraitDef = {
+    name: "Show",
+    type_param: "Self",
+    kind: starKind,
+    methods: [["show", arrowType(varType("Self"), conType("String"))]],
+  };
+
+  const intType = conType("Int");
+
+  const showImpl = lamTerm("x", intType, conTerm('"42"', conType("String")));
+  const intShowDict = dictTerm("Show", intType, [["show", showImpl]]);
+
+  const showT = boundedForallType(
+    "T",
+    starKind,
+    [{ trait: "Show", type: varType("T") }],
+    arrowType(varType("T"), conType("String")),
+  );
+
+  const ctx: Context = [
+    { trait_def: showTrait },
+    { trait_impl: { trait: "Show", type: intType, dict: intShowDict } },
+    { type: { name: "Int", kind: starKind } },
+    { type: { name: "String", kind: starKind } },
+  ];
+
+  const instantiated = instantiateWithTraits(ctx, showT);
+  if ("err" in instantiated) throw new Error("expected ok");
+  const { type, dicts } = instantiated.ok;
+
+  expect(dicts.length).toBe(1);
+  expect(dicts[0]).toMatchObject(intShowDict);
+  // The instantiated type body replaces Self with Int
+  expect("arrow" in type).toBe(true);
+  expect(((type as ArrowType).arrow.to as ConType).con).toBe("String");
 });

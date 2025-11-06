@@ -328,7 +328,7 @@ export const metaKind = new Map<string, Kind>();
 export const isMetaVar = (type: Type): type is VarType =>
   "var" in type && metaKind.has(type.var);
 
-export function freshMetaVar(): Type {
+export function freshMetaVar(): VarType {
   const varType = { var: `?${mvarCount++}` };
   metaKind.set(varType.var, starKind);
   return varType;
@@ -342,10 +342,8 @@ export function solveMetaVar(
 ): Result<TypingError, null> {
   if (metaVarSolutions.has(parseInt(metaVar.slice(1), 10))) {
     const existing = metaVarSolutions.get(parseInt(metaVar.slice(1), 10))!;
-    if (!typesEqual(existing, solution)) {
-      console.error("type mismatch", new Error().stack);
+    if (!typesEqual(existing, solution))
       return err({ type_mismatch: { expected: existing, actual: solution } });
-    }
   } else {
     metaVarSolutions.set(parseInt(metaVar.slice(1), 10), solution);
   }
@@ -1097,10 +1095,8 @@ export function checkExhaustive(
     const spineArgs = getSpineArgs(normType);
 
     const enumBinding = ctx.find((b) => "enum" in b && b.enum.name === conName);
-    if (!enumBinding || !("enum" in enumBinding)) {
-      console.error(`No enum for ${conName} in exhaustive ctx`);
+    if (!enumBinding || !("enum" in enumBinding))
       return err({ not_a_variant: type }); // Triggered if no binding
-    }
     const def = enumBinding.enum;
 
     if (spineArgs.length !== def.params.length)
@@ -1324,21 +1320,11 @@ function checkRecordPattern(
   const bindings: Context = [];
   for (const [label, subPattern] of patternRecord) {
     const fieldEntry = typeRecord.find(([l]) => l === label);
-    if (!fieldEntry) {
-      // This shouldn't happen after label check, but safety
-      console.error(`Field not found: ${label} (logic error)`);
-      return err({ missing_field: { record: type, label } });
-    }
+    if (!fieldEntry) return err({ missing_field: { record: type, label } });
 
     const fieldType = fieldEntry[1];
     const subResult = checkPattern(subPattern, fieldType, context);
-    if ("err" in subResult) {
-      console.error(
-        `Subpattern check failed for field ${label}:`,
-        subResult.err,
-      );
-      return subResult;
-    }
+    if ("err" in subResult) return subResult;
 
     // Collect bindings (e.g., vars from subPattern bound to fieldType slices)
     bindings.push(...subResult.ok);
@@ -2197,7 +2183,6 @@ export function unifyTypes(
   if ("tuple" in left && "tuple" in right)
     return unifyTupleTypes(left, right, worklist, subst);
 
-  console.error("type mismatch", new Error().stack);
   return err({ type_mismatch: { expected: left, actual: right } });
 }
 
@@ -2207,10 +2192,8 @@ function unifyTupleTypes(
   worklist: Worklist,
   _subst: Substitution,
 ) {
-  if (left.tuple.length !== right.tuple.length) {
-    console.error("type mismatch", new Error().stack);
+  if (left.tuple.length !== right.tuple.length)
     return err({ type_mismatch: { expected: left, actual: right } });
-  }
 
   // Unify all element types
   for (let i = 0; i < left.tuple.length; i++)
@@ -2244,16 +2227,12 @@ function unifyVariants(
   const rightLabels = rightCases.map(first).sort();
 
   // Must have same labels
-  if (leftLabels.length !== rightLabels.length) {
-    console.error("type mismatch", new Error().stack);
+  if (leftLabels.length !== rightLabels.length)
     return err({ type_mismatch: { expected: left, actual: right } });
-  }
 
   for (let i = 0; i < leftLabels.length; i++) {
-    if (leftLabels[i] !== rightLabels[i]) {
-      console.error("type mismatch", new Error().stack);
+    if (leftLabels[i] !== rightLabels[i])
       return err({ type_mismatch: { expected: left, actual: right } });
-    }
   }
 
   // Unify all case types
@@ -2302,16 +2281,12 @@ function unifyRecordTypes(
   }
 
   // Must have same labels
-  if (leftLabels.length !== rightLabels.length) {
-    console.error("type mismatch", new Error().stack);
+  if (leftLabels.length !== rightLabels.length)
     return err({ type_mismatch: { expected: left, actual: right } });
-  }
 
   for (let i = 0; i < leftLabels.length; i++) {
-    if (leftLabels[i] !== rightLabels[i]) {
-      console.error("type mismatch", new Error().stack);
+    if (leftLabels[i] !== rightLabels[i])
       return err({ type_mismatch: { expected: left, actual: right } });
-    }
   }
 
   // Unify all field types
@@ -2419,19 +2394,15 @@ function unifyBoundedForallTypes(
   if (
     left.bounded_forall.constraints.length !==
     right.bounded_forall.constraints.length
-  ) {
-    console.error("type mismatch", new Error().stack);
+  )
     return err({ type_mismatch: { expected: left, actual: right } });
-  }
 
   for (let i = 0; i < left.bounded_forall.constraints.length; i++) {
     const lc = left.bounded_forall.constraints[i]!;
     const rc = right.bounded_forall.constraints[i]!;
 
-    if (lc.trait !== rc.trait) {
-      console.error("type mismatch", new Error().stack);
+    if (lc.trait !== rc.trait)
       return err({ type_mismatch: { expected: left, actual: right } });
-    }
 
     const renamedConstraintType = alphaRename(
       right.bounded_forall.var,
@@ -2459,11 +2430,9 @@ export function unifyVariable(
 ): Result<TypingError, null> {
   if (subst.has(varName)) {
     const existing = subst.get(varName)!;
-    if (!typesEqual(existing, type)) {
-      console.error("type mismatch", new Error().stack);
-      return err({ type_mismatch: { expected: existing, actual: type } });
-    }
-    return ok(null);
+    return typesEqual(existing, type)
+      ? ok(null)
+      : err({ type_mismatch: { expected: existing, actual: type } });
   }
 
   // var ~ var (tautology)
@@ -2472,9 +2441,7 @@ export function unifyVariable(
   if (isBottom(type)) {
     // Find var's binding kind (if bound in context, but since subst doesn't have kinds, assume *)
     // Check occurs to avoid cycles, but allow ⊥ <: var
-    if (occursCheck(varName, type)) {
-      return err({ cyclic: varName });
-    }
+    if (occursCheck(varName, type)) return err({ cyclic: varName });
     // Don't bind var := ⊥ - just succeed (subtyping will handle later)
     return ok(null);
   }
@@ -2486,9 +2453,8 @@ export function unifyVariable(
       "mu" in type &&
       "var" in type.mu.body &&
       type.mu.body.var === type.mu.var
-    ) {
+    )
       return err({ cyclic: type.mu.var }); // Report the mu variable
-    }
     return err({ cyclic: varName });
   }
 
@@ -2497,10 +2463,7 @@ export function unifyVariable(
 }
 
 export function unifyKinds(left: Kind, right: Kind): Result<TypingError, null> {
-  if (kindsEqual(left, right)) {
-    return ok(null);
-  }
-  console.error(new Error().stack);
+  if (kindsEqual(left, right)) return ok(null);
   return err({ kind_mismatch: { expected: left, actual: right } });
 }
 
@@ -2658,15 +2621,34 @@ export function checkType(
 
   // Lambda: check against arrow type
   if ("lam" in term && "arrow" in expectedType) {
-    // Determine the effective domain type for the lambda parameter
-    let effectiveFromType = expectedType.arrow.from;
+    // Unify the lambda's declared parameter type with the expected domain
+    const worklist: Worklist = [];
+    const subst = new Map<string, Type>();
+    const domainUnify = unifyTypes(
+      term.lam.type,
+      expectedType.arrow.from,
+      worklist,
+      subst,
+    );
+    if ("err" in domainUnify) return domainUnify;
 
-    // Special handling for bottom domain: when checking λx:⊥.e against ⊥ → τ_expected,
-    // we can use any well-formed type for x since ⊥ never receives values
+    const solveRes = solveConstraints(worklist, subst);
+    if ("err" in solveRes) return solveRes;
 
-    // If it's a bottom type, create a fresh type variable for the parameter
-    // (any * kind will do) The exact type doesn't matter since this branch is
-    // unreachable or { var: `_${term.lam.arg}` }
+    // Populate global meta variable solutions
+    for (const [varName, soln] of solveRes.ok.entries()) {
+      if (metaKind.has(varName)) {
+        const globalSolve = solveMetaVar(varName, soln);
+        if ("err" in globalSolve) return globalSolve;
+      }
+    }
+
+    // Apply substitution to get the resolved domain type
+    let effectiveFromType = applySubstitution(
+      solveRes.ok,
+      expectedType.arrow.from,
+    );
+
     if (isBottom(expectedType.arrow.from)) effectiveFromType = freshMetaVar();
 
     const extendedContext: Context = [
@@ -2677,18 +2659,15 @@ export function checkType(
     const bodyCheckRes = checkType(
       extendedContext,
       term.lam.body,
-      expectedType.arrow.to,
+      applySubstitution(solveRes.ok, expectedType.arrow.to),
     );
     if ("err" in bodyCheckRes) return bodyCheckRes;
 
-    // Merge body subst with current empty substitution
-    const mergedSubst = mergeSubsts(new Map(), bodyCheckRes.ok.subst);
+    const mergedSubst = mergeSubsts(solveRes.ok, bodyCheckRes.ok.subst);
 
-    // If we used an effective type for bottom domain, we need to reconstruct the expected type
-    let finalType: Type = expectedType;
+    let finalType: Type = applySubstitution(mergedSubst, expectedType);
     if (isBottom(expectedType.arrow.from))
-      // Reconstruct: ⊥ → τ where τ was checked
-      finalType = arrowType(neverType, expectedType.arrow.to);
+      finalType = arrowType(neverType, (finalType as ArrowType).arrow.to);
 
     return ok({ type: finalType, subst: mergedSubst });
   }
@@ -2696,15 +2675,13 @@ export function checkType(
   // Type lambda: check against forall (unchanged)
   if ("tylam" in term && "forall" in expectedType) {
     // Verify kinds match
-    if (!kindsEqual(term.tylam.kind, expectedType.forall.kind)) {
-      console.error(new Error().stack);
+    if (!kindsEqual(term.tylam.kind, expectedType.forall.kind))
       return err({
         kind_mismatch: {
           expected: expectedType.forall.kind,
           actual: term.tylam.kind,
         },
       });
-    }
 
     const extendedContext: Context = [
       ...context,
@@ -2731,37 +2708,31 @@ export function checkType(
   // Trait lambda: check against bounded forall
   if ("trait_lam" in term && "bounded_forall" in expectedType) {
     // Verify kinds match
-    if (!kindsEqual(term.trait_lam.kind, expectedType.bounded_forall.kind)) {
-      console.error(new Error().stack);
+    if (!kindsEqual(term.trait_lam.kind, expectedType.bounded_forall.kind))
       return err({
         kind_mismatch: {
           expected: expectedType.bounded_forall.kind,
           actual: term.trait_lam.kind,
         },
       });
-    }
 
     // Check constraints match
     if (
       term.trait_lam.constraints.length !==
       expectedType.bounded_forall.constraints.length
-    ) {
-      console.error("type mismatch", new Error().stack);
+    )
       return err({
         type_mismatch: { expected: expectedType, actual: expectedType },
       });
-    }
 
     for (let i = 0; i < term.trait_lam.constraints.length; i++) {
       const termConstraint = term.trait_lam.constraints[i]!;
       const expectedConstraint = expectedType.bounded_forall.constraints[i]!;
 
-      if (termConstraint.trait !== expectedConstraint.trait) {
-        console.error("type mismatch", new Error().stack);
+      if (termConstraint.trait !== expectedConstraint.trait)
         return err({
           type_mismatch: { expected: expectedType, actual: expectedType },
         });
-      }
 
       // Alpha-rename constraint types
       const renamedConstraintType = alphaRename(
@@ -2770,15 +2741,13 @@ export function checkType(
         expectedConstraint.type,
       );
 
-      if (!typesEqual(termConstraint.type, renamedConstraintType)) {
-        console.error("type mismatch", new Error().stack);
+      if (!typesEqual(termConstraint.type, renamedConstraintType))
         return err({
           type_mismatch: {
             expected: renamedConstraintType,
             actual: termConstraint.type,
           },
         });
-      }
     }
 
     const extendedContext: Context = [
@@ -2824,15 +2793,13 @@ export function checkType(
     if (
       termLabels.length !== typeLabels.length ||
       !termLabels.every((l, i) => l === typeLabels[i])
-    ) {
-      console.error("type mismatch", new Error().stack);
+    )
       return err({
         type_mismatch: {
           expected: expectedType,
           actual: { record: term.record.map(([l, _]) => [l, unitType]) },
         },
       });
-    }
 
     // Check each field
     for (const [label, fieldTerm] of term.record) {
@@ -2849,15 +2816,13 @@ export function checkType(
 
   // Tuple: check element by element
   if ("tuple" in term && "tuple" in expectedType) {
-    if (term.tuple.length !== expectedType.tuple.length) {
-      console.error("type mismatch", new Error().stack);
+    if (term.tuple.length !== expectedType.tuple.length)
       return err({
         type_mismatch: {
           expected: expectedType,
           actual: { tuple: term.tuple.map(() => unitType) },
         },
       });
-    }
 
     for (let i = 0; i < term.tuple.length; i++) {
       const elementResult = checkType(
@@ -2969,8 +2934,7 @@ export function checkType(
   for (const [varName, soln] of finalSubst.entries()) {
     if (metaKind.has(varName)) {
       const globalSolve = solveMetaVar(varName, soln);
-      if ("err" in globalSolve)
-        console.error("Failed to propagate meta:", globalSolve.err);
+      if ("err" in globalSolve) return globalSolve;
     }
   }
 
@@ -3065,12 +3029,10 @@ function inferFoldType(ctx: Context, term: FoldTerm) {
   const muKind = checkKind(ctx, term.fold.type);
   if ("err" in muKind) return muKind;
 
-  if (!("mu" in term.fold.type)) {
-    console.error("type mismatch", new Error().stack);
+  if (!("mu" in term.fold.type))
     return err({
       type_mismatch: { expected: term.fold.type, actual: term.fold.type },
     });
-  }
 
   const unfoldedType = substituteType(
     term.fold.type.mu.var,
@@ -3082,15 +3044,13 @@ function inferFoldType(ctx: Context, term: FoldTerm) {
   const termType = inferType(ctx, term.fold.term);
   if ("err" in termType) return termType;
 
-  if (!isAssignableTo(termType.ok, unfoldedType)) {
-    console.error("type mismatch", new Error().stack);
+  if (!isAssignableTo(termType.ok, unfoldedType))
     return err({
       type_mismatch: {
         expected: unfoldedType,
         actual: termType.ok,
       },
     });
-  }
 
   return ok(term.fold.type);
 }
@@ -3160,13 +3120,7 @@ function inferMatchType(ctx: Context, term: MatchTerm) {
       if ("err" in subsumesRes) {
         // If neither direction works, fall back to unification (strict equality) and error
         const unifyRes = unifyTypes(commonType, instBodyType, worklist, subst);
-        if ("err" in unifyRes) {
-          console.error(
-            `Match arm type mismatch: Cannot unify ${showType(commonType)} with ${showType(instBodyType)}`,
-          );
-          console.error(`Arm body: ${showTerm(bod)}`);
-          return unifyRes;
-        }
+        if ("err" in unifyRes) return unifyRes;
       }
 
       const solveRes = solveConstraints(worklist, subst);
@@ -3198,30 +3152,22 @@ function inferInjectType(
       const enumBinding = ctx.find(
         (b) => "enum" in b && b.enum.name === conName,
       );
-      if (!enumBinding || !("enum" in enumBinding)) {
-        console.error(`No enum definition for ${conName}`);
+      if (!enumBinding || !("enum" in enumBinding))
         return err({ not_a_variant: variantType });
-      }
       const def = enumBinding.enum; // {name: "Option", params: ["t"], variants: [["Some", {var: "t"}]]}
 
       // Check arity: Spine args must match param count
-      if (spineArgs.length !== def.params.length) {
-        console.error(
-          `Arity mismatch for ${conName}: expected ${def.params.length}, got ${spineArgs.length}`,
-        );
+      if (spineArgs.length !== def.params.length)
         return err({
           kind_mismatch: { expected: def.kind, actual: starKind },
         });
-      }
 
       const label = term.inject.label; // "Some" or "Left"
       const variantEntry = def.variants.find(([l]) => l === label); // Lookup by label
-      if (!variantEntry) {
-        console.error(`Invalid label ${label} for enum ${conName}`);
+      if (!variantEntry)
         return err({
           invalid_variant_label: { variant: variantType, label },
         });
-      }
 
       // Instantiate the field scheme with spine args
       // Field scheme is unbound (e.g., {var: "t"} or {tuple: [{var: "t1"}, {var: "t2"}]} for multi-field)
@@ -3254,15 +3200,13 @@ function inferInjectType(
     const caseEntry = variantType.variant.find(
       ([l]) => l === term.inject.label,
     );
-    if (!caseEntry) {
-      console.error(`Invalid structural label ${term.inject.label}`);
+    if (!caseEntry)
       return err({
         invalid_variant_label: {
           variant: variantType,
           label: term.inject.label,
         },
       });
-    }
 
     const expectedFieldType = caseEntry[1]; // e.g., {var: "t"}
     const valueCheck = checkInjectValue(
@@ -3424,10 +3368,8 @@ function inferTraitMethodType(ctx: Context, term: TraitMethodTerm) {
         (b) => "trait_def" in b && b.trait_def.name === dictBinding.dict.trait,
       );
 
-      if (!traitDef || !("trait_def" in traitDef)) {
-        console.error(new Error().stack);
+      if (!traitDef || !("trait_def" in traitDef))
         return err({ unbound: dictBinding.dict.trait });
-      }
 
       // Find the method in the trait def
       const method = traitDef.trait_def.methods.find(
@@ -3463,10 +3405,8 @@ function inferTraitMethodType(ctx: Context, term: TraitMethodTerm) {
       (b) => "trait_def" in b && b.trait_def.name === dict.trait,
     );
 
-    if (!traitDef || !("trait_def" in traitDef)) {
-      console.error(new Error().stack);
+    if (!traitDef || !("trait_def" in traitDef))
       return err({ unbound: dict.trait });
-    }
 
     // Find the method
     const methodImpl = dict.methods.find(
@@ -3496,29 +3436,25 @@ function inferTraitAppType(ctx: Context, term: TraitAppTerm) {
   const termType = inferType(ctx, term.trait_app.term);
   if ("err" in termType) return termType;
 
-  if (!("bounded_forall" in termType.ok)) {
-    console.error("type mismatch", new Error().stack);
+  if (!("bounded_forall" in termType.ok))
     return err({
       type_mismatch: {
         expected: termType.ok,
         actual: term.trait_app.type,
       },
     });
-  }
 
   // Check that the type argument has the expected kind
   const argKind = checkKind(ctx, term.trait_app.type);
   if ("err" in argKind) return argKind;
   const bounded_forall = termType.ok.bounded_forall;
-  if (!kindsEqual(bounded_forall.kind, argKind.ok)) {
-    console.error(new Error().stack);
+  if (!kindsEqual(bounded_forall.kind, argKind.ok))
     return err({
       kind_mismatch: {
         expected: termType.ok.bounded_forall.kind,
         actual: argKind.ok,
       },
     });
-  }
 
   // Substitute type variable in constraints
   const instantiatedConstraints = termType.ok.bounded_forall.constraints.map(
@@ -3554,15 +3490,13 @@ function inferTraitAppType(ctx: Context, term: TraitAppTerm) {
       if (
         providedDict.dict.trait !== constraint.trait ||
         !typesEqual(providedDict.dict.type, constraint.type)
-      ) {
-        console.error("type mismatch", new Error().stack);
+      )
         return err({
           type_mismatch: {
             expected: { con: `Dict<${constraint.trait}>` },
             actual: dictType.ok,
           },
         });
-      }
     }
   }
 
@@ -3601,10 +3535,8 @@ function inferTraitLamType(ctx: Context, term: TraitLamTerm) {
     (b) => "trait_def" in b && b.trait_def.name === term.trait_lam.trait,
   );
 
-  if (!traitDef || !("trait_def" in traitDef)) {
-    console.error(new Error().stack);
+  if (!traitDef || !("trait_def" in traitDef))
     return err({ unbound: term.trait_lam.trait });
-  }
 
   const bodyType = inferType(extendedContext, term.trait_lam.body);
   if ("err" in bodyType) return bodyType;
@@ -3624,10 +3556,8 @@ function inferDictType(ctx: Context, term: DictTerm) {
     (b) => "trait_def" in b && b.trait_def.name === term.dict.trait,
   );
 
-  if (!traitDef || !("trait_def" in traitDef)) {
-    console.error(new Error().stack);
+  if (!traitDef || !("trait_def" in traitDef))
     return err({ unbound: term.dict.trait });
-  }
 
   const dictType = term.dict.type;
   const typeKindResult = checkKind(ctx, dictType); // Full kind for basic well-formedness
@@ -3639,18 +3569,13 @@ function inferDictType(ctx: Context, term: DictTerm) {
   const { kind: partialKind, stripped: strippedArity } = strippedResult.ok;
 
   const expectedKind = traitDef.trait_def.kind;
-  if (!kindsEqual(expectedKind, partialKind)) {
-    console.error(new Error().stack);
-    console.error(showTraitDef(traitDef.trait_def));
-    console.error(showKind(expectedKind));
-    console.error(showKind(partialKind));
+  if (!kindsEqual(expectedKind, partialKind))
     return err({
       kind_mismatch: {
         expected: expectedKind,
         actual: partialKind, // Now * → *, not *
       },
     });
-  }
 
   // Arity validation only for concrete types (kind *); skip for HKT constructors (arrow kind)
   const fullKindStar = isStarKind(typeKindResult.ok);
@@ -3755,28 +3680,24 @@ function inferTyappType(ctx: Context, term: TyAppTerm) {
   const termType = inferType(ctx, term.tyapp.term);
   if ("err" in termType) return termType;
 
-  if (!("forall" in termType.ok)) {
-    console.error("type mismatch", new Error().stack);
+  if (!("forall" in termType.ok))
     return err({
       type_mismatch: {
         expected: termType.ok,
         actual: term.tyapp.type,
       },
     });
-  }
 
   const argKind = checkKind(ctx, term.tyapp.type);
   if ("err" in argKind) return argKind;
 
-  if (!kindsEqual(termType.ok.forall.kind, argKind.ok)) {
-    console.error(new Error().stack);
+  if (!kindsEqual(termType.ok.forall.kind, argKind.ok))
     return err({
       kind_mismatch: {
         expected: termType.ok.forall.kind,
         actual: argKind.ok,
       },
     });
-  }
 
   const substituted = substituteType(
     termType.ok.forall.var,
@@ -4075,10 +3996,8 @@ function inferLamType(ctx: Context, term: LamTerm) {
   const argKind = checkKind(ctx, term.lam.type);
   if ("err" in argKind) return argKind;
 
-  if (!isStarKind(argKind.ok)) {
-    console.error(new Error().stack);
+  if (!isStarKind(argKind.ok))
     return err({ kind_mismatch: { expected: starKind, actual: argKind.ok } });
-  }
 
   const extendedContext: Context = [
     { term: { name: term.lam.arg, type: term.lam.type } },
@@ -4106,7 +4025,6 @@ function inferVarType(ctx: Context, term: VarTerm) {
       ),
     );
 
-  console.error(new Error().stack);
   return err({ unbound: term.var });
 }
 
@@ -4270,20 +4188,18 @@ export function normalizeType(
   }
 
   // Recurse on compounds
-  if ("arrow" in ty) {
+  if ("arrow" in ty)
     return arrowType(
       normalizeType(ty.arrow.from, context, newSeen),
       normalizeType(ty.arrow.to, context, newSeen),
     );
-  }
 
-  if ("forall" in ty) {
+  if ("forall" in ty)
     return forallType(
       ty.forall.var,
       ty.forall.kind,
       normalizeType(ty.forall.body, context, newSeen),
     );
-  }
 
   if ("bounded_forall" in ty)
     return boundedForallType(
@@ -4324,12 +4240,33 @@ export function normalizeType(
 
   return ty; // Fallback
 }
-
 export function instantiateWithTraits(
   ctx: Context,
   ty: Type,
 ): Result<TypingError, { type: Type; dicts: Term[] }> {
-  return ok({ type: ty, dicts: [] });
+  // Only bother for bounded forall
+  if (!("bounded_forall" in ty)) return ok({ type: ty, dicts: [] });
+
+  const bound = ty.bounded_forall;
+
+  // Instantiate the type variable with a fresh meta variable
+  const fresh = freshMetaVar();
+
+  // Substitute fresh into constraints BEFORE checking
+  const instantiatedConstraints = bound.constraints.map((c) => ({
+    trait: c.trait,
+    type: substituteType(bound.var, fresh, c.type),
+  }));
+
+  // Now check constraints with the instantiated type
+  const dictsResult = checkTraitConstraints(ctx, instantiatedConstraints);
+  if ("err" in dictsResult) return dictsResult;
+
+  // Substitute fresh into body
+  const body = substituteType(bound.var, fresh, bound.body);
+
+  // Return the substituted type plus the dict terms we found
+  return ok({ type: body, dicts: dictsResult.ok });
 }
 
 // When you encounter a polymorphic value in application position:
