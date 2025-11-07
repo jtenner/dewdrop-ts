@@ -254,9 +254,9 @@ export type TypeDeclaration = {
 
 export type LetDeclaration = {
   let_dec: {
+    assert: boolean;
     pub: boolean;
-    id: NameIdentifier;
-    guard: TypeExpression | null;
+    pattern: PatternExpression;
     value: Expression;
   };
 };
@@ -2251,21 +2251,21 @@ const take_let_declaration = async (
   tokens: TokenIter,
 ): Promise<ParseResult<LetDeclaration>> => {
   let success_token: Result<ParseError, Token>;
-  let id: Result<ParseError, NameIdentifier>;
-  let guard: Result<ParseError, TypeExpression> | null = null;
+  let pattern: Result<ParseError, PatternExpression>;
   let value: Result<ParseError, Expression>;
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "let");
   if ("err" in success_token) return [next_token, success_token];
 
-  [next_token, id] = await take_name(next_token, tokens);
-  if ("err" in id) return [next_token, id];
+  [next_token, success_token] = await take_keyword(
+    next_token,
+    tokens,
+    "assert",
+  );
+  const assert = "ok" in success_token;
 
-  [next_token, success_token] = await take_symbol(next_token, tokens, ":");
-  if ("ok" in success_token) {
-    [next_token, guard] = await take_type_expression(next_token, tokens);
-    if ("err" in guard) return [next_token, guard];
-  }
+  [next_token, pattern] = await take_pattern_expression(next_token, tokens);
+  if ("err" in pattern) return [next_token, pattern];
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "=");
   if ("err" in success_token) return [next_token, success_token];
@@ -2277,8 +2277,8 @@ const take_let_declaration = async (
     next_token,
     ok({
       let_dec: {
-        guard: guard?.ok ?? null,
-        id: id.ok,
+        assert,
+        pattern: pattern.ok,
         pub: false,
         value: value.ok,
       },
@@ -2569,9 +2569,8 @@ export function showDeclaration(decl: Declaration): string {
     return `${pub ? "pub " : ""}type ${showToken(id)}${p} = ${showTypeExpression(value)}`;
   }
   if ("let_dec" in decl) {
-    const { pub, id, guard, value } = decl.let_dec;
-    const g = guard ? `: ${showTypeExpression(guard)}` : "";
-    return `${pub ? "pub " : ""}let ${showToken(id)}${g} = ${showExpression(value)}`;
+    const { pub, pattern, assert, value } = decl.let_dec;
+    return `${pub ? "pub " : ""}${assert ? "assert " : ""}let ${showPatternExpression(pattern)} = ${showExpression(value)}`;
   }
   if ("trait" in decl) {
     const { pub, id, type_params, fns } = decl.trait;

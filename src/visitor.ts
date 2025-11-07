@@ -12,6 +12,7 @@ import type {
   ConstructorPatternExpression,
   Declaration,
   EnumDeclaration,
+  EnumImport,
   EnumVariant,
   Expression,
   ExpressionBodyExpression,
@@ -64,141 +65,559 @@ import type {
   TypeExpression,
   TypeImport,
 } from "./parser.js";
-import type {
-  AppTerm,
-  AppType,
-  ArrowType,
-  Binding,
-  ConPattern,
-  Constraint,
-  ConTerm,
-  ConType,
-  Context,
-  FoldTerm,
-  ForallType,
-  InjectTerm,
-  Kind,
-  LamTerm,
-  LamType,
-  LetTerm,
-  MatchTerm,
-  MuType,
-  Pattern,
-  ProjectTerm,
-  RecordPattern,
-  RecordTerm,
-  RecordType,
-  Term,
-  TermBinding,
-  TuplePattern,
-  TupleProjectTerm,
-  TupleTerm,
-  TupleType,
-  TyAppTerm,
-  TyLamTerm,
-  Type,
-  TypeBinding,
-  TypingError,
-  UnfoldTerm,
-  VariantPattern,
-  VariantType,
-  VarPattern,
-  VarTerm,
-  VarType,
-  WildcardPattern,
-} from "./types_system_f_omega.js";
 
 // Visitor interface with transform capability
 export interface ASTVisitor {
   // Module
-  visitModule?(node: Module): Module;
+  visitModule(node: Module): Module;
 
   // Declarations
-  visitFnDeclaration?(node: FnDeclaration): Declaration;
-  visitEnumDeclaration?(node: EnumDeclaration): Declaration;
-  visitImportDeclaration?(node: ImportDeclaration): Declaration;
-  visitTypeDeclaration?(node: TypeDeclaration): Declaration;
-  visitLetDeclaration?(node: LetDeclaration): Declaration;
-  visitTraitDeclaration?(node: TraitDeclaration): Declaration;
-  visitImplDeclaration?(node: ImplDeclaration): Declaration;
-  visitBuiltinDeclaration?(node: BuiltinDeclaration): Declaration;
+  visitFnDeclaration(node: FnDeclaration): Declaration;
+  visitEnumDeclaration(node: EnumDeclaration): Declaration;
+  visitImportDeclaration(node: ImportDeclaration): Declaration;
+  visitTypeDeclaration(node: TypeDeclaration): Declaration;
+  visitLetDeclaration(node: LetDeclaration): Declaration;
+  visitTraitDeclaration(node: TraitDeclaration): Declaration;
+  visitImplDeclaration(node: ImplDeclaration): Declaration;
+  visitBuiltinDeclaration(node: BuiltinDeclaration): Declaration;
 
   // Type Expressions
-  visitNameTypeExpression?(node: NameIdentifier): TypeExpression;
-  visitSelectTypeExpression?(node: SelectTypeExpression): TypeExpression;
-  visitApplicationTypeExpression?(
+  visitSelectTypeExpression(node: SelectTypeExpression): TypeExpression;
+  visitApplicationTypeExpression(
     node: ApplicationTypeExpression,
   ): TypeExpression;
-  visitFnTypeExpression?(node: FnTypeExpression): TypeExpression;
-  visitRecordTypeExpression?(node: RecordTypeExpression): TypeExpression;
-  visitTupleTypeExpression?(node: TupleTypeExpression): TypeExpression;
+  visitFnTypeExpression(node: FnTypeExpression): TypeExpression;
+  visitRecordTypeExpression(node: RecordTypeExpression): TypeExpression;
+  visitTupleTypeExpression(node: TupleTypeExpression): TypeExpression;
 
   // Body Expressions
-  visitArrowKindBodyExpression?(node: ArrowKindBodyExpression): BodyExpression;
-  visitLetBindBodyExpression?(node: LetBindBodyExpression): BodyExpression;
-  visitAssignBodyExpression?(node: AssignBodyExpression): BodyExpression;
-  visitExpressionBodyExpression?(
-    node: ExpressionBodyExpression,
-  ): BodyExpression;
+  visitArrowKindBodyExpression(node: ArrowKindBodyExpression): BodyExpression;
+  visitLetBindBodyExpression(node: LetBindBodyExpression): BodyExpression;
+  visitAssignBodyExpression(node: AssignBodyExpression): BodyExpression;
+  visitExpressionBodyExpression(node: ExpressionBodyExpression): BodyExpression;
 
   // Expressions
-  visitCallExpression?(node: CallExpression): Expression;
-  visitBlockExpression?(node: BlockExpression): Expression;
-  visitIfExpression?(node: IfExpression): Expression;
-  visitSelectExpression?(node: SelectExpression): Expression;
-  visitMatchExpression?(node: MatchExpression): Expression;
-  visitFloatExpression?(node: FloatExpression): Expression;
-  visitIntExpression?(node: IntExpression): Expression;
-  visitBoolExpression?(node: BoolExpression): Expression;
-  visitPrefixExpression?(node: PrefixExpression): Expression;
-  visitPostfixExpression?(node: PostfixExpression): Expression;
-  visitInfixExpression?(node: InfixExpression): Expression;
-  visitStringExpression?(node: StringToken): Expression;
-  visitFnExpression?(node: FnExpression): Expression;
-  visitRecordExpression?(node: RecordExpression): Expression;
-  visitTupleExpression?(node: TupleExpression): Expression;
-  visitSelfExpression?(node: SelfExpression): Expression;
+  visitCallExpression(node: CallExpression): Expression;
+  visitBlockExpression(node: BlockExpression): Expression;
+  visitIfExpression(node: IfExpression): Expression;
+  visitSelectExpression(node: SelectExpression): Expression;
+  visitMatchExpression(node: MatchExpression): Expression;
+  visitFloatExpression(node: FloatExpression): Expression;
+  visitIntExpression(node: IntExpression): Expression;
+  visitBoolExpression(node: BoolExpression): Expression;
+  visitPrefixExpression(node: PrefixExpression): Expression;
+  visitPostfixExpression(node: PostfixExpression): Expression;
+  visitInfixExpression(node: InfixExpression): Expression;
+  visitStringExpression(node: StringToken): Expression;
+  visitFnExpression(node: FnExpression): Expression;
+  visitRecordExpression(node: RecordExpression): Expression;
+  visitTupleExpression(node: TupleExpression): Expression;
+  visitSelfExpression(node: SelfExpression): Expression;
 
   // Pattern Expressions
-  visitNamePatternExpression?(node: NameIdentifier): PatternExpression;
-  visitConstructorPatternExpression?(
+  visitConstructorPatternExpression(
     node: ConstructorPatternExpression,
   ): PatternExpression;
-  visitIntPatternExpression?(node: IntPatternExpression): PatternExpression;
-  visitFloatPatternExpression?(node: FloatPatternExpression): PatternExpression;
-  visitStringPatternExpression?(
+  visitIntPatternExpression(node: IntPatternExpression): PatternExpression;
+  visitFloatPatternExpression(node: FloatPatternExpression): PatternExpression;
+  visitStringPatternExpression(
     node: StringPatternExpression,
   ): PatternExpression;
-  visitRecordPatternExpression?(
+  visitRecordPatternExpression(
     node: RecordPatternExpression,
   ): PatternExpression;
-  visitTuplePatternExpression?(node: TuplePatternExpression): PatternExpression;
+  visitTuplePatternExpression(node: TuplePatternExpression): PatternExpression;
 
   // Other nodes
-  visitMatchArm?(node: MatchArm): MatchArm;
-  visitEnumVariant?(node: EnumVariant): EnumVariant;
-  visitImport?(node: Import): Import;
-  visitFn?(node: Fn): Fn;
-  visitTraitFn?(node: TraitFn): TraitFn;
-  visitFnParam?(node: FnParam): FnParam;
-  visitNamedTypeExpression?(node: NamedTypeExpression): NamedTypeExpression;
+  visitMatchArm(node: MatchArm): MatchArm;
+  visitEnumVariant(node: EnumVariant): EnumVariant;
+  visitImport(node: Import): Import;
+  visitFn(node: Fn): Fn;
+  visitTraitFn(node: TraitFn): TraitFn;
+  visitFnParam(node: FnParam): FnParam;
+  visitNamedTypeExpression(node: NamedTypeExpression): NamedTypeExpression;
 
-  visitTypeImport?(node: TypeImport): Import;
-  visitFnImport?(node: FnImport): Import;
-  visitGlobalImport?(node: GlobalImport): Import;
-  visitTableImport?(node: TableImport): Import;
-  visitStarImport?(node: StarImport): Import;
-  visitMemoryImport?(node: MemoryImport): Import;
-  visitNameImport?(node: NameImport): Import;
-  visitTraitImport?(node: TraitImport): Import;
+  visitTypeImport(node: TypeImport): Import;
+  visitFnImport(node: FnImport): Import;
+  visitGlobalImport(node: GlobalImport): Import;
+  visitTableImport(node: TableImport): Import;
+  visitStarImport(node: StarImport): Import;
+  visitMemoryImport(node: MemoryImport): Import;
+  visitNameImport(node: NameImport): Import;
+  visitTraitImport(node: TraitImport): Import;
   visitConstructorImport(node: ConstructorImport): Import;
+  visitFnSignature(node: FnSignature): FnSignature;
+  visitTypeIdentifier(node: TypeToken): TypeToken;
+  visitNameIdentifier(node: NameToken): NameToken;
+  visitString(node: StringToken): StringToken;
+  visitInt(node: Int): Int;
+}
 
-  visitFnSignature?(node: FnSignature): FnSignature;
+export interface ASTWalker {
+  // Module
+  walkModule(node: Module): void;
 
-  visitTypeIdentifier?(node: TypeToken): TypeToken;
-  visitNameIdentifier?(node: NameToken): NameToken;
-  visitString?(node: StringToken): StringToken;
-  visitInt?(node: Int): Int;
+  // Declarations
+  walkFnDeclaration(node: FnDeclaration): void;
+  walkEnumDeclaration(node: EnumDeclaration): void;
+  walkImportDeclaration(node: ImportDeclaration): void;
+  walkTypeDeclaration(node: TypeDeclaration): void;
+  walkLetDeclaration(node: LetDeclaration): void;
+  walkTraitDeclaration(node: TraitDeclaration): void;
+  walkImplDeclaration(node: ImplDeclaration): void;
+  walkBuiltinDeclaration(node: BuiltinDeclaration): void;
+
+  // Type Expressions
+  walkTypeExpression(node: TypeExpression): void;
+  walkSelectTypeExpression(node: SelectTypeExpression): void;
+  walkApplicationTypeExpression(node: ApplicationTypeExpression): void;
+  walkFnTypeExpression(node: FnTypeExpression): void;
+  walkRecordTypeExpression(node: RecordTypeExpression): void;
+  walkTupleTypeExpression(node: TupleTypeExpression): void;
+
+  // Body Expressions
+  walkBodyExpression(node: BodyExpression): void;
+  walkArrowKindBodyExpression(node: ArrowKindBodyExpression): void;
+  walkLetBindBodyExpression(node: LetBindBodyExpression): void;
+  walkAssignBodyExpression(node: AssignBodyExpression): void;
+  walkExpressionBodyExpression(node: ExpressionBodyExpression): void;
+
+  // Expressions
+  walkExpression(node: Expression): void;
+  walkCallExpression(node: CallExpression): void;
+  walkBlockExpression(node: BlockExpression): void;
+  walkIfExpression(node: IfExpression): void;
+  walkSelectExpression(node: SelectExpression): void;
+  walkMatchExpression(node: MatchExpression): void;
+  walkFloatExpression(node: FloatExpression): void;
+  walkIntExpression(node: IntExpression): void;
+  walkBoolExpression(node: BoolExpression): void;
+  walkPrefixExpression(node: PrefixExpression): void;
+  walkPostfixExpression(node: PostfixExpression): void;
+  walkInfixExpression(node: InfixExpression): void;
+  walkStringExpression(node: StringToken): void;
+  walkFnExpression(node: FnExpression): void;
+  walkRecordExpression(node: RecordExpression): void;
+  walkTupleExpression(node: TupleExpression): void;
+  walkSelfExpression(node: SelfExpression): void;
+
+  // Pattern Expressions
+  walkPatternExpression(node: PatternExpression): void;
+  walkConstructorPatternExpression(node: ConstructorPatternExpression): void;
+  walkIntPatternExpression(node: IntPatternExpression): void;
+  walkFloatPatternExpression(node: FloatPatternExpression): void;
+  walkStringPatternExpression(node: StringPatternExpression): void;
+  walkRecordPatternExpression(node: RecordPatternExpression): void;
+  walkTuplePatternExpression(node: TuplePatternExpression): void;
+
+  // Other nodes
+  walkMatchArm(node: MatchArm): void;
+  walkEnumVariant(node: EnumVariant): void;
+  walkImport(node: Import): void;
+  walkFn(node: Fn): void;
+  walkTraitFn(node: TraitFn): void;
+  walkFnParam(node: FnParam): void;
+  walkNamedTypeExpression(node: NamedTypeExpression): void;
+
+  walkTypeImport(node: TypeImport): void;
+  walkFnImport(node: FnImport): void;
+  walkEnumImport(node: EnumImport): void;
+  walkGlobalImport(node: GlobalImport): void;
+  walkTableImport(node: TableImport): void;
+  walkStarImport(node: StarImport): void;
+  walkMemoryImport(node: MemoryImport): void;
+  walkNameImport(node: NameImport): void;
+  walkTraitImport(node: TraitImport): void;
+  walkConstructorImport(node: ConstructorImport): void;
+  walkFnSignature(node: FnSignature): void;
+  walkTypeIdentifier(node: TypeToken): void;
+  walkNameIdentifier(node: NameToken): void;
+  walkString(node: StringToken): void;
+  walkInt(node: Int): void;
+}
+
+export class BaseWalker implements ASTWalker {
+  // Module
+  walkModule(node: Module): void {
+    for (const decl of node.module) {
+      this.walkDeclaration(decl);
+    }
+  }
+
+  // Declarations
+  walkDeclaration(node: Declaration) {
+    if ("builtin" in node) this.walkBuiltinDeclaration(node);
+    else if ("enum" in node) this.walkEnumDeclaration(node);
+    else if ("fn" in node) this.walkFnDeclaration(node);
+    else if ("impl" in node) this.walkImplDeclaration(node);
+    else if ("import_dec" in node) this.walkImportDeclaration(node);
+    else if ("let_dec" in node) this.walkLetDeclaration(node);
+    else if ("trait" in node) this.walkTraitDeclaration(node);
+    else if ("type_dec" in node) this.walkTypeDeclaration(node);
+    else throw new Error("Invalid declaration kind?");
+  }
+  walkFnDeclaration(node: FnDeclaration): void {
+    this.walkFn(node.fn.fn);
+  }
+  walkEnumDeclaration(node: EnumDeclaration): void {
+    this.walkTypeIdentifier(node.enum.id);
+    for (const t of node.enum.type_params) {
+      this.walkNameIdentifier(t);
+    }
+    for (const v of node.enum.variants) {
+      this.walkEnumVariant(v);
+    }
+  }
+  walkImportDeclaration(node: ImportDeclaration): void {
+    for (const i of node.import_dec.imports) {
+      this.walkImport(i);
+    }
+  }
+  walkTypeDeclaration(node: TypeDeclaration): void {
+    this.walkTypeIdentifier(node.type_dec.id);
+    for (const p of node.type_dec.params) {
+      this.walkNameIdentifier(p);
+    }
+    this.walkTypeExpression(node.type_dec.value);
+  }
+  walkLetDeclaration(node: LetDeclaration): void {
+    this.walkPatternExpression(node.let_dec.pattern);
+    this.walkExpression(node.let_dec.value);
+  }
+  walkTraitDeclaration(node: TraitDeclaration): void {
+    this.walkTypeIdentifier(node.trait.id);
+    for (const p of node.trait.type_params) {
+      this.walkNameIdentifier(p);
+    }
+    for (const tfn of node.trait.fns) {
+      this.walkTraitFn(tfn);
+    }
+  }
+  walkImplDeclaration(node: ImplDeclaration): void {
+    this.walkTypeIdentifier(node.impl.name);
+    for (const tp of node.impl.type_params) {
+      this.walkTypeExpression(tp);
+    }
+    this.walkTypeExpression(node.impl.for);
+    for (const fn of node.impl.fns) {
+      this.walkFn(fn);
+    }
+  }
+  walkBuiltinDeclaration(node: BuiltinDeclaration): void {
+    this.walkString(node.builtin.name);
+    for (const p of node.builtin.params) {
+      this.walkFnParam(p);
+    }
+    this.walkTypeExpression(node.builtin.return_type);
+    this.walkNameIdentifier(node.builtin.alias);
+  }
+
+  // Type Expressions
+  walkTypeExpression(node: TypeExpression): void {
+    if ("app" in node) this.walkApplicationTypeExpression(node);
+    else if ("fn" in node) this.walkFnTypeExpression(node);
+    else if ("name" in node) this.walkNameIdentifier(node);
+    else if ("record" in node) this.walkRecordTypeExpression(node);
+    else if ("select" in node) this.walkSelectTypeExpression(node);
+    else if ("tuple" in node) this.walkTupleTypeExpression(node);
+    else if ("type" in node) this.walkTypeIdentifier(node);
+    else throw new Error("Invalid Type Expression?");
+  }
+  walkSelectTypeExpression(node: SelectTypeExpression): void {
+    this.walkTypeExpression(node.select.root);
+    if ("name" in node.select.name) this.walkNameIdentifier(node.select.name);
+    else this.walkTypeIdentifier(node.select.name);
+  }
+  walkApplicationTypeExpression(node: ApplicationTypeExpression): void {
+    this.walkTypeExpression(node.app.callee);
+
+    for (const tp of node.app.args) {
+      this.walkTypeExpression(tp);
+    }
+  }
+  walkFnTypeExpression(node: FnTypeExpression): void {
+    for (const a of node.fn.args) {
+      this.walkTypeExpression(a);
+    }
+
+    this.walkTypeExpression(node.fn.ret);
+  }
+  walkRecordTypeExpression(node: RecordTypeExpression): void {
+    for (const { ty } of node.record) {
+      this.walkTypeExpression(ty);
+    }
+  }
+  walkTupleTypeExpression(node: TupleTypeExpression): void {
+    for (const t of node.tuple) {
+      this.walkTypeExpression(t);
+    }
+  }
+
+  // Body Expressions
+  walkBodyExpression(node: BodyExpression): void {
+    if ("arrow_bind" in node) this.walkArrowKindBodyExpression(node);
+    else if ("assign" in node) this.walkAssignBodyExpression(node);
+    else if ("expression" in node) this.walkExpressionBodyExpression(node);
+    else if ("let_bind" in node) this.walkLetBindBodyExpression(node);
+    else throw new Error("Invalid body expression");
+  }
+
+  walkArrowKindBodyExpression(node: ArrowKindBodyExpression): void {
+    this.walkNameIdentifier(node.arrow_bind.name);
+    this.walkExpression(node.arrow_bind.expression);
+  }
+  walkLetBindBodyExpression(node: LetBindBodyExpression): void {
+    this.walkPatternExpression(node.let_bind.pattern);
+    this.walkExpression(node.let_bind.expression);
+  }
+  walkAssignBodyExpression(node: AssignBodyExpression): void {
+    this.walkNameIdentifier(node.assign.name);
+    this.walkExpression(node.assign.expression);
+  }
+  walkExpressionBodyExpression(node: ExpressionBodyExpression): void {
+    this.walkExpression(node.expression);
+  }
+
+  // Expressions
+  walkExpression(node: Expression): void {
+    if ("call" in node) this.walkCallExpression(node);
+    else if ("block" in node) this.walkBlockExpression(node);
+    else if ("bool" in node) this.walkBoolExpression(node);
+    else if ("float" in node) this.walkFloatExpression(node);
+    else if ("fn" in node) this.walkFnExpression(node);
+    else if ("if_expr" in node) this.walkIfExpression(node);
+    else if ("infix" in node) this.walkInfixExpression(node);
+    else if ("int" in node) this.walkIntExpression(node);
+    else if ("match" in node) this.walkMatchExpression(node);
+    else if ("name" in node) this.walkNameIdentifier(node);
+    else if ("postfix" in node) this.walkPostfixExpression(node);
+    else if ("prefix" in node) this.walkPrefixExpression(node);
+    else if ("record" in node) this.walkRecordExpression(node);
+    else if ("select" in node) this.walkSelectExpression(node);
+    else if ("self" in node) this.walkSelfExpression(node);
+    else if ("string" in node) this.walkString(node);
+    else if ("tuple" in node) this.walkTupleExpression(node);
+    else if ("type" in node) this.walkTypeIdentifier(node);
+    else throw new Error("Invalid Expression?");
+  }
+  walkCallExpression(node: CallExpression): void {
+    this.walkExpression(node.call[0]);
+    for (const arg of node.call[1]) {
+      this.walkExpression(arg);
+    }
+  }
+  walkBlockExpression(node: BlockExpression): void {
+    for (const b of node.block) {
+      this.walkBodyExpression(b);
+    }
+  }
+  walkIfExpression(node: IfExpression): void {
+    this.walkExpression(node.if_expr.cond);
+    this.walkExpression(node.if_expr.if_body);
+    if (node.if_expr.else_body) this.walkExpression(node.if_expr.else_body);
+  }
+  walkSelectExpression(node: SelectExpression): void {
+    this.walkExpression(node.select[0]);
+    this.walkNameIdentifier(node.select[1]);
+  }
+  walkMatchExpression(node: MatchExpression): void {
+    this.walkExpression(node.match[0]);
+    for (const ma of node.match[1]) {
+      this.walkMatchArm(ma);
+    }
+  }
+  walkFloatExpression(_node: FloatExpression): void {}
+  walkIntExpression(_node: IntExpression): void {}
+  walkBoolExpression(_node: BoolExpression): void {}
+  walkPrefixExpression(node: PrefixExpression): void {
+    this.walkExpression(node.prefix.operand);
+  }
+  walkPostfixExpression(node: PostfixExpression): void {
+    this.walkExpression(node.postfix.operand);
+  }
+  walkInfixExpression(node: InfixExpression): void {
+    this.walkExpression(node.infix.left);
+    this.walkExpression(node.infix.right);
+  }
+  walkStringExpression(_node: StringToken): void {}
+  walkFnExpression(node: FnExpression): void {
+    if (node.fn.name) this.walkNameIdentifier(node.fn.name);
+    for (const tp of node.fn.type_params) {
+      this.walkNameIdentifier(tp);
+    }
+    for (const p of node.fn.params) {
+      this.walkFnParam(p);
+    }
+    if (node.fn.return_type) this.walkTypeExpression(node.fn.return_type);
+    this.walkExpression(node.fn.body);
+  }
+  walkRecordExpression(node: RecordExpression): void {
+    for (const [, t] of node.record) {
+      this.walkExpression(t);
+    }
+  }
+  walkTupleExpression(node: TupleExpression): void {
+    for (const t of node.tuple) {
+      this.walkExpression(t);
+    }
+  }
+  walkSelfExpression(_node: SelfExpression): void {}
+
+  // Pattern Expressions
+  walkPatternExpression(node: PatternExpression): void {
+    if ("constr" in node) this.walkConstructorPatternExpression(node);
+    else if ("float" in node) this.walkFloatPatternExpression(node);
+    else if ("int" in node) this.walkIntPatternExpression(node);
+    else if ("name" in node) this.walkNameIdentifier(node);
+    else if ("record" in node) this.walkRecordPatternExpression(node);
+    else if ("string" in node) this.walkStringPatternExpression(node);
+    else if ("tuple" in node) this.walkTuplePatternExpression(node);
+    else throw new Error("Invalid pattern?");
+  }
+  walkConstructorPatternExpression(node: ConstructorPatternExpression): void {
+    this.walkTypeIdentifier(node.constr.type);
+    for (const p of node.constr.patterns) {
+      this.walkPatternExpression(p);
+    }
+  }
+  walkIntPatternExpression(_node: IntPatternExpression): void {}
+  walkFloatPatternExpression(_node: FloatPatternExpression): void {}
+  walkStringPatternExpression(_node: StringPatternExpression): void {}
+  walkRecordPatternExpression(node: RecordPatternExpression): void {
+    for (const [, p] of node.record) {
+      this.walkPatternExpression(p);
+    }
+  }
+  walkTuplePatternExpression(node: TuplePatternExpression): void {
+    for (const p of node.tuple) {
+      this.walkPatternExpression(p);
+    }
+  }
+
+  // Other nodes
+  walkMatchArm(node: MatchArm): void {
+    this.walkPatternExpression(node.pattern);
+    if (node.guard) this.walkExpression(node.guard);
+    this.walkExpression(node.body);
+  }
+  walkEnumVariant(node: EnumVariant): void {
+    if ("fields" in node) {
+      this.walkTypeIdentifier(node.fields.id);
+      for (const f of node.fields.fields as NamedTypeExpression[]) {
+        this.walkNamedTypeExpression(f);
+      }
+    } else if ("values" in node) {
+      this.walkTypeIdentifier(node.values.id);
+      for (const t of node.values.values) {
+        this.walkTypeExpression(t);
+      }
+    }
+  }
+
+  walkFn(node: Fn): void {
+    if (node.name) this.walkNameIdentifier(node.name);
+    for (const tp of node.type_params) {
+      this.walkNameIdentifier(tp);
+    }
+    for (const p of node.params) {
+      this.walkFnParam(p);
+    }
+    if (node.return_type) this.walkTypeExpression(node.return_type);
+    this.walkExpression(node.body);
+  }
+  walkTraitFn(node: TraitFn): void {
+    this.walkNameIdentifier(node.name);
+    for (const tp of node.type_params) {
+      this.walkNameIdentifier(tp);
+    }
+    for (const nte of node.params) {
+      this.walkNamedTypeExpression(nte);
+    }
+    this.walkTypeExpression(node.return_type);
+  }
+  walkFnParam(node: FnParam): void {
+    this.walkNameIdentifier(node.name);
+    if (node.guard) this.walkTypeExpression(node.guard);
+  }
+  walkNamedTypeExpression(node: NamedTypeExpression): void {
+    this.walkNameIdentifier(node.name);
+    this.walkTypeExpression(node.ty);
+  }
+
+  walkImport(node: Import): void {
+    if ("constr" in node) this.walkConstructorImport(node);
+    else if ("enum" in node) this.walkEnumImport(node);
+    else if ("fn" in node) this.walkFnImport(node);
+    else if ("global" in node) this.walkGlobalImport(node);
+    else if ("memory" in node) this.walkMemoryImport(node);
+    else if ("name" in node) this.walkNameImport(node);
+    else if ("star" in node) this.walkStarImport(node);
+    else if ("table" in node) this.walkTableImport(node);
+    else if ("trait" in node) this.walkTraitImport(node);
+    else if ("type" in node) this.walkTypeImport(node);
+    else throw new Error("Invalid import?");
+  }
+  walkEnumImport(node: EnumImport): void {
+    this.walkTypeIdentifier(node.enum.name);
+    if (node.enum.alias) this.walkTypeIdentifier(node.enum.alias);
+  }
+  walkTypeImport(node: TypeImport): void {
+    this.walkTypeIdentifier(node.type.name);
+    if (node.type.alias) this.walkTypeIdentifier(node.type.name);
+  }
+  walkFnImport(node: FnImport): void {
+    if ("name" in node.fn.name) this.walkNameIdentifier(node.fn.name);
+    else this.walkString(node.fn.name);
+    this.walkFnSignature(node.fn.signature);
+    if (node.fn.alias) this.walkNameIdentifier(node.fn.alias);
+  }
+  walkGlobalImport(node: GlobalImport): void {
+    if ("name" in node.global.name) this.walkNameIdentifier(node.global.name);
+    else this.walkString(node.global.name);
+    this.walkTypeExpression(node.global.global_type);
+    if (node.global.alias) this.walkNameIdentifier(node.global.alias);
+  }
+  walkTableImport(node: TableImport): void {
+    if ("name" in node.table.name) this.walkNameIdentifier(node.table.name);
+    else this.walkString(node.table.name);
+    this.walkTypeExpression(node.table.table_type);
+    if (node.table.min) this.walkInt(node.table.min);
+    if (node.table.max) this.walkInt(node.table.max);
+    if (node.table.alias) this.walkNameIdentifier(node.table.alias);
+  }
+  walkStarImport(node: StarImport): void {
+    this.walkTypeIdentifier(node.star);
+  }
+  walkMemoryImport(node: MemoryImport): void {
+    if ("name" in node.memory.name) this.walkNameIdentifier(node.memory.name);
+    else this.walkString(node.memory.name);
+    if (node.memory.min) this.walkInt(node.memory.min);
+    if (node.memory.max) this.walkInt(node.memory.max);
+    if (node.memory.alias) this.walkNameIdentifier(node.memory.alias);
+  }
+  walkNameImport(node: NameImport): void {
+    this.walkNameIdentifier(node.name.name);
+    if (node.name.alias) this.walkNameIdentifier(node.name.alias);
+  }
+  walkTraitImport(node: TraitImport): void {
+    this.walkTypeIdentifier(node.trait.name);
+    if (node.trait.alias) this.walkTypeIdentifier(node.trait.alias);
+  }
+  walkConstructorImport(node: ConstructorImport): void {
+    this.walkTypeIdentifier(node.constr.name);
+    if (node.constr.alias) this.walkTypeIdentifier(node.constr.alias);
+  }
+  walkFnSignature(node: FnSignature): void {
+    for (const p of node.param_types) {
+      this.walkFnParam(p);
+    }
+    this.walkTypeExpression(node.return_type);
+  }
+
+  walkTypeIdentifier(_node: TypeToken): void {}
+  walkNameIdentifier(_node: NameToken): void {}
+  walkString(_node: StringToken): void {}
+  walkInt(_node: Int): void {}
 }
 
 // Default visitor that recursively visits and reconstructs the tree
@@ -268,8 +687,8 @@ export class BaseVisitor implements ASTVisitor {
     return {
       type_dec: {
         pub: node.type_dec.pub,
-        id: node.type_dec.id,
-        params: node.type_dec.params,
+        id: this.visitTypeIdentifier(node.type_dec.id),
+        params: node.type_dec.params.map((t) => this.visitNameIdentifier(t)),
         value: this.visitTypeExpression(node.type_dec.value),
       },
     };
@@ -278,11 +697,9 @@ export class BaseVisitor implements ASTVisitor {
   visitLetDeclaration(node: LetDeclaration): Declaration {
     return {
       let_dec: {
+        assert: node.let_dec.assert,
         pub: node.let_dec.pub,
-        id: node.let_dec.id,
-        guard: node.let_dec.guard
-          ? this.visitTypeExpression(node.let_dec.guard)
-          : null,
+        pattern: this.visitPatternExpression(node.let_dec.pattern),
         value: this.visitExpression(node.let_dec.value),
       },
     };
@@ -292,8 +709,10 @@ export class BaseVisitor implements ASTVisitor {
     return {
       trait: {
         pub: node.trait.pub,
-        id: node.trait.id,
-        type_params: node.trait.type_params,
+        id: this.visitTypeIdentifier(node.trait.id),
+        type_params: node.trait.type_params.map((t) =>
+          this.visitNameIdentifier(t),
+        ),
         fns: node.trait.fns.map((f) => this.visitTraitFn(f)),
       },
     };
@@ -302,7 +721,7 @@ export class BaseVisitor implements ASTVisitor {
   visitImplDeclaration(node: ImplDeclaration): Declaration {
     return {
       impl: {
-        name: node.impl.name,
+        name: this.visitTypeIdentifier(node.impl.name),
         type_params: node.impl.type_params.map((t) =>
           this.visitTypeExpression(t),
         ),
@@ -327,7 +746,10 @@ export class BaseVisitor implements ASTVisitor {
     return {
       select: {
         root: this.visitTypeExpression(node.select.root),
-        name: node.select.name,
+        name:
+          "name" in node.select.name
+            ? this.visitNameIdentifier(node.select.name)
+            : this.visitTypeIdentifier(node.select.name),
       },
     };
   }
@@ -366,7 +788,7 @@ export class BaseVisitor implements ASTVisitor {
 
   visitNamedTypeExpression(node: NamedTypeExpression): NamedTypeExpression {
     return {
-      name: node.name,
+      name: this.visitNameIdentifier(node.name),
       ty: this.visitTypeExpression(node.ty),
     };
   }
@@ -382,7 +804,7 @@ export class BaseVisitor implements ASTVisitor {
   visitArrowKindBodyExpression(node: ArrowKindBodyExpression): BodyExpression {
     return {
       arrow_bind: {
-        name: node.arrow_bind.name,
+        name: this.visitNameIdentifier(node.arrow_bind.name),
         expression: this.visitExpression(node.arrow_bind.expression),
       },
     };
@@ -401,7 +823,7 @@ export class BaseVisitor implements ASTVisitor {
   visitAssignBodyExpression(node: AssignBodyExpression): BodyExpression {
     return {
       assign: {
-        name: node.assign.name,
+        name: this.visitNameIdentifier(node.assign.name),
         expression: this.visitExpression(node.assign.expression),
       },
     };
@@ -550,16 +972,26 @@ export class BaseVisitor implements ASTVisitor {
 
   visitPatternExpression(node: PatternExpression): PatternExpression {
     if ("constr" in node) return this.visitConstructorPatternExpression(node);
-    if ("int" in node) return node;
-    if ("float" in node) return node;
-    if ("string" in node) return node;
+    if ("int" in node) return this.visitIntPatternExpression(node);
+    if ("float" in node) return this.visitFloatPatternExpression(node);
+    if ("string" in node) return this.visitStringPatternExpression(node);
     if ("record" in node) return this.visitRecordPatternExpression(node);
     if ("tuple" in node) return this.visitTuplePatternExpression(node);
-    if ("name" in node) return this.visitNamePatternExpression(node);
+    if ("name" in node) return this.visitNameIdentifier(node);
     return node; // NameIdentifier
   }
 
-  visitNamePatternExpression(node: NameIdentifier): PatternExpression {
+  visitStringPatternExpression(
+    node: StringPatternExpression,
+  ): PatternExpression {
+    return node;
+  }
+
+  visitFloatPatternExpression(node: FloatPatternExpression): PatternExpression {
+    return node;
+  }
+
+  visitIntPatternExpression(node: IntPatternExpression): PatternExpression {
     return node;
   }
 
@@ -568,7 +1000,7 @@ export class BaseVisitor implements ASTVisitor {
   ): PatternExpression {
     return {
       constr: {
-        type: node.constr.type,
+        type: this.visitTypeIdentifier(node.constr.type),
         patterns: node.constr.patterns.map((p) =>
           this.visitPatternExpression(p),
         ),
@@ -751,7 +1183,7 @@ export class BaseVisitor implements ASTVisitor {
 
   visitFnParam(node: FnParam): FnParam {
     return {
-      name: node.name,
+      name: this.visitNameIdentifier(node.name),
       guard: node.guard ? this.visitTypeExpression(node.guard) : null,
     };
   }
@@ -776,451 +1208,5 @@ export class BaseVisitor implements ASTVisitor {
   }
   visitInt(node: Int): Int {
     return node;
-  }
-}
-
-// Visitor interface with transform capability
-export interface TypeSystemVisitor {
-  // Kinds
-  visitStarKind?(node: { star: null }): Kind;
-  visitArrowKind?(node: { arrow: { from: Kind; to: Kind } }): Kind;
-
-  // Types
-  visitVarType?(node: VarType): Type;
-  visitArrowType?(node: ArrowType): Type;
-  visitForallType?(node: ForallType): Type;
-  visitAppType?(node: AppType): Type;
-  visitLamType?(node: LamType): Type;
-  visitConType?(node: ConType): Type;
-  visitRecordType?(node: RecordType): Type;
-  visitVariantType?(node: VariantType): Type;
-  visitMuType?(node: MuType): Type;
-  visitTupleType?(node: TupleType): Type;
-
-  // Terms
-  visitVarTerm?(node: VarTerm): Term;
-  visitLamTerm?(node: LamTerm): Term;
-  visitAppTerm?(node: AppTerm): Term;
-  visitTyLamTerm?(node: TyLamTerm): Term;
-  visitTyAppTerm?(node: TyAppTerm): Term;
-  visitConTerm?(node: ConTerm): Term;
-  visitRecordTerm?(node: RecordTerm): Term;
-  visitProjectTerm?(node: ProjectTerm): Term;
-  visitInjectTerm?(node: InjectTerm): Term;
-  visitMatchTerm?(node: MatchTerm): Term;
-  visitFoldTerm?(node: FoldTerm): Term;
-  visitUnfoldTerm?(node: UnfoldTerm): Term;
-  visitTupleTerm?(node: TupleTerm): Term;
-  visitTupleProjectTerm?(node: TupleProjectTerm): Term;
-
-  // Patterns
-  visitVarPattern?(node: VarPattern): Pattern;
-  visitWildcardPattern?(node: WildcardPattern): Pattern;
-  visitConPattern?(node: ConPattern): Pattern;
-  visitRecordPattern?(node: RecordPattern): Pattern;
-  visitVariantPattern?(node: VariantPattern): Pattern;
-  visitTuplePattern?(node: TuplePattern): Pattern;
-
-  // Context and Bindings
-  visitTermBinding?(node: TermBinding): Binding;
-  visitTypeBinding?(node: TypeBinding): Binding;
-  visitContext?(node: Context): Context;
-
-  // Errors (optional - for error transformations)
-  visitTypeError?(node: TypingError): TypingError;
-
-  // Constraints (optional - for constraint transformations)
-  visitConstraint?(node: Constraint): Constraint;
-}
-
-// Default visitor that recursively visits and reconstructs the tree
-export class BaseTypeSystemVisitor implements TypeSystemVisitor {
-  // Kinds
-  visitKind(node: Kind): Kind {
-    if ("star" in node) return this.visitStarKind(node);
-    if ("arrow" in node) return this.visitArrowKind(node);
-    throw new Error("Unknown kind type");
-  }
-
-  visitStarKind(node: { star: null }): Kind {
-    return node;
-  }
-
-  visitArrowKind(node: { arrow: { from: Kind; to: Kind } }): Kind {
-    return {
-      arrow: {
-        from: this.visitKind(node.arrow.from),
-        to: this.visitKind(node.arrow.to),
-      },
-    };
-  }
-
-  // Types
-  visitType(node: Type): Type {
-    if ("var" in node) return this.visitVarType(node);
-    if ("arrow" in node) return this.visitArrowType(node);
-    if ("forall" in node) return this.visitForallType(node);
-    if ("app" in node) return this.visitAppType(node);
-    if ("lam" in node) return this.visitLamType(node);
-    if ("con" in node) return this.visitConType(node);
-    if ("record" in node) return this.visitRecordType(node);
-    if ("variant" in node) return this.visitVariantType(node);
-    if ("mu" in node) return this.visitMuType(node);
-    if ("tuple" in node) return this.visitTupleType(node);
-    throw new Error("Unknown type");
-  }
-
-  visitVarType(node: VarType): Type {
-    return node;
-  }
-
-  visitArrowType(node: ArrowType): Type {
-    return {
-      arrow: {
-        from: this.visitType(node.arrow.from),
-        to: this.visitType(node.arrow.to),
-      },
-    };
-  }
-
-  visitForallType(node: ForallType): Type {
-    return {
-      forall: {
-        var: node.forall.var,
-        kind: this.visitKind(node.forall.kind),
-        body: this.visitType(node.forall.body),
-      },
-    };
-  }
-
-  visitAppType(node: AppType): Type {
-    return {
-      app: {
-        func: this.visitType(node.app.func),
-        arg: this.visitType(node.app.arg),
-      },
-    };
-  }
-
-  visitLamType(node: LamType): Type {
-    return {
-      lam: {
-        var: node.lam.var,
-        kind: this.visitKind(node.lam.kind),
-        body: this.visitType(node.lam.body),
-      },
-    };
-  }
-
-  visitConType(node: ConType): Type {
-    return node;
-  }
-
-  visitRecordType(node: RecordType): Type {
-    return {
-      record: node.record.map(
-        ([label, type]) => [label, this.visitType(type)] as [string, Type],
-      ),
-    };
-  }
-
-  visitVariantType(node: VariantType): Type {
-    return {
-      variant: node.variant.map(
-        ([label, type]) => [label, this.visitType(type)] as [string, Type],
-      ),
-    };
-  }
-
-  visitMuType(node: MuType): Type {
-    return {
-      mu: {
-        var: node.mu.var,
-        body: this.visitType(node.mu.body),
-      },
-    };
-  }
-
-  visitTupleType(node: TupleType): Type {
-    return {
-      tuple: node.tuple.map((t) => this.visitType(t)),
-    };
-  }
-
-  // Terms
-  visitTerm(node: Term): Term {
-    if ("var" in node) return this.visitVarTerm(node);
-    if ("lam" in node) return this.visitLamTerm(node);
-    if ("app" in node) return this.visitAppTerm(node);
-    if ("tylam" in node) return this.visitTyLamTerm(node);
-    if ("tyapp" in node) return this.visitTyAppTerm(node);
-    if ("con" in node) return this.visitConTerm(node);
-    if ("record" in node) return this.visitRecordTerm(node);
-    if ("project" in node) return this.visitProjectTerm(node);
-    if ("inject" in node) return this.visitInjectTerm(node);
-    if ("match" in node) return this.visitMatchTerm(node);
-    if ("fold" in node) return this.visitFoldTerm(node);
-    if ("unfold" in node) return this.visitUnfoldTerm(node);
-    if ("tuple" in node) return this.visitTupleTerm(node);
-    if ("tuple_project" in node) return this.visitTupleProjectTerm(node);
-    if ("let" in node) return this.visitLetTerm(node);
-    throw new Error("Unknown term");
-  }
-
-  visitVarTerm(node: VarTerm): Term {
-    return node;
-  }
-
-  visitLamTerm(node: LamTerm): Term {
-    return {
-      lam: {
-        arg: node.lam.arg,
-        type: this.visitType(node.lam.type),
-        body: this.visitTerm(node.lam.body),
-      },
-    };
-  }
-
-  visitAppTerm(node: AppTerm): Term {
-    return {
-      app: {
-        callee: this.visitTerm(node.app.callee),
-        arg: this.visitTerm(node.app.arg),
-      },
-    };
-  }
-
-  visitTyLamTerm(node: TyLamTerm): Term {
-    return {
-      tylam: {
-        var: node.tylam.var,
-        kind: this.visitKind(node.tylam.kind),
-        body: this.visitTerm(node.tylam.body),
-      },
-    };
-  }
-
-  visitTyAppTerm(node: TyAppTerm): Term {
-    return {
-      tyapp: {
-        term: this.visitTerm(node.tyapp.term),
-        type: this.visitType(node.tyapp.type),
-      },
-    };
-  }
-
-  visitConTerm(node: ConTerm): Term {
-    return {
-      con: {
-        name: node.con.name,
-        type: this.visitType(node.con.type),
-      },
-    };
-  }
-
-  visitRecordTerm(node: RecordTerm): Term {
-    return {
-      record: node.record.map(
-        ([label, term]) => [label, this.visitTerm(term)] as [string, Term],
-      ),
-    };
-  }
-
-  visitProjectTerm(node: ProjectTerm): Term {
-    return {
-      project: {
-        record: this.visitTerm(node.project.record),
-        label: node.project.label,
-      },
-    };
-  }
-
-  visitInjectTerm(node: InjectTerm): Term {
-    return {
-      inject: {
-        label: node.inject.label,
-        value: this.visitTerm(node.inject.value),
-        variant_type: this.visitType(node.inject.variant_type),
-      },
-    };
-  }
-
-  visitMatchTerm(node: MatchTerm): Term {
-    return {
-      match: {
-        scrutinee: this.visitTerm(node.match.scrutinee),
-        cases: node.match.cases.map(
-          ([pattern, term]) =>
-            [this.visitPattern(pattern), this.visitTerm(term)] as [
-              Pattern,
-              Term,
-            ],
-        ),
-      },
-    };
-  }
-
-  visitFoldTerm(node: FoldTerm): Term {
-    return {
-      fold: {
-        type: this.visitType(node.fold.type),
-        term: this.visitTerm(node.fold.term),
-      },
-    };
-  }
-
-  visitUnfoldTerm(node: UnfoldTerm): Term {
-    return {
-      unfold: this.visitTerm(node.unfold),
-    };
-  }
-
-  visitTupleTerm(node: TupleTerm): Term {
-    return {
-      tuple: node.tuple.map((t) => this.visitTerm(t)),
-    };
-  }
-
-  visitTupleProjectTerm(node: TupleProjectTerm): Term {
-    return {
-      tuple_project: {
-        tuple: this.visitTerm(node.tuple_project.tuple),
-        index: node.tuple_project.index,
-      },
-    };
-  }
-
-  visitLetTerm(node: LetTerm): Term {
-    return {
-      let: {
-        name: node.let.name,
-        body: this.visitTerm(node.let.body),
-        value: this.visitTerm(node.let.value),
-      },
-    };
-  }
-
-  // Patterns
-  visitPattern(node: Pattern): Pattern {
-    if ("var" in node) return this.visitVarPattern(node);
-    if ("wildcard" in node) return this.visitWildcardPattern(node);
-    if ("con" in node) return this.visitConPattern(node);
-    if ("record" in node) return this.visitRecordPattern(node);
-    if ("variant" in node) return this.visitVariantPattern(node);
-    if ("tuple" in node) return this.visitTuplePattern(node);
-    throw new Error("Unknown pattern");
-  }
-
-  visitVarPattern(node: VarPattern): Pattern {
-    return node;
-  }
-
-  visitWildcardPattern(node: WildcardPattern): Pattern {
-    return node;
-  }
-
-  visitConPattern(node: ConPattern): Pattern {
-    return {
-      con: {
-        name: node.con.name,
-        type: this.visitType(node.con.type),
-      },
-    };
-  }
-
-  visitRecordPattern(node: RecordPattern): Pattern {
-    return {
-      record: node.record.map(
-        ([label, pattern]) =>
-          [label, this.visitPattern(pattern)] as [string, Pattern],
-      ),
-    };
-  }
-
-  visitVariantPattern(node: VariantPattern): Pattern {
-    return {
-      variant: {
-        label: node.variant.label,
-        pattern: this.visitPattern(node.variant.pattern),
-      },
-    };
-  }
-
-  visitTuplePattern(node: TuplePattern): Pattern {
-    return {
-      tuple: node.tuple.map((p) => this.visitPattern(p)),
-    };
-  }
-
-  // Context and Bindings
-  visitBinding(node: Binding): Binding {
-    if ("term" in node) return this.visitTermBinding(node);
-    if ("type" in node) return this.visitTypeBinding(node);
-    throw new Error("Unknown binding type");
-  }
-
-  visitTermBinding(node: TermBinding): Binding {
-    return {
-      term: {
-        name: node.term.name,
-        type: this.visitType(node.term.type),
-      },
-    };
-  }
-
-  visitTypeBinding(node: TypeBinding): Binding {
-    return {
-      type: {
-        name: node.type.name,
-        kind: this.visitKind(node.type.kind),
-      },
-    };
-  }
-
-  visitContext(node: Context): Context {
-    return node.map((binding) => this.visitBinding(binding));
-  }
-
-  // Optional: Error and Constraint visitors
-  visitTypeError(node: TypingError): TypingError {
-    return node; // Base implementation doesn't transform errors
-  }
-
-  visitConstraint(node: Constraint): Constraint {
-    if ("type_eq" in node) {
-      return {
-        type_eq: {
-          left: this.visitType(node.type_eq.left),
-          right: this.visitType(node.type_eq.right),
-        },
-      };
-    }
-    if ("kind_eq" in node) {
-      return {
-        kind_eq: {
-          left: this.visitKind(node.kind_eq.left),
-          right: this.visitKind(node.kind_eq.right),
-        },
-      };
-    }
-    if ("has_kind" in node) {
-      return {
-        has_kind: {
-          ty: this.visitType(node.has_kind.ty),
-          kind: this.visitKind(node.has_kind.kind),
-          context: this.visitContext(node.has_kind.context),
-        },
-      };
-    }
-    if ("has_type" in node) {
-      return {
-        has_type: {
-          term: this.visitTerm(node.has_type.term),
-          ty: this.visitType(node.has_type.ty),
-          context: this.visitContext(node.has_type.context),
-        },
-      };
-    }
-    throw new Error("Unknown constraint type");
   }
 }
