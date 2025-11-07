@@ -5,9 +5,10 @@
       "name": "dewdrop-ts",
       "dependencies": {
         "binaryen": "^124.0.0",
+        "system-f-omega": "^0.0.1",
       },
       "devDependencies": {
-        "@biomejs/biome": "^2.3.3",
+        "@biomejs/biome": "^2.3.4",
         "@types/bun": "latest",
         "ts-macros": "^2.6.2",
         "ts-patch": "^3.3.0",
@@ -85,6 +86,8 @@
     "supports-color": ["supports-color@7.2.0", "", { "dependencies": { "has-flag": "^4.0.0" } }, "sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw=="],
 
     "supports-preserve-symlinks-flag": ["supports-preserve-symlinks-flag@1.0.0", "", {}, "sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w=="],
+
+    "system-f-omega": ["system-f-omega@0.0.1", "", {}, "sha512-qBF+MNQt1ULmZVt2XMjbOoHvQsuT8EYd8uUXl1XzRvfZ+1o36toiMjhxKDUGrFPfm7MA3gFcxGGPCItQjo34kQ=="],
 
     "ts-macros": ["ts-macros@2.6.2", "", { "dependencies": { "yargs-parser": "^21.1.1" }, "peerDependencies": { "typescript": "5.2.x || 5.3.x || 5.4.x || 5.5.x || 5.6.x" }, "bin": { "ts-macros": "dist/cli/index.js" } }, "sha512-ZzEn268Td/efdvgFptYS2Hh4k8fEihF9P2QFqwX9OzEwAhdWq0oyhD0nUH6xh+mXklPKQiGQySS2NyW79tG5eA=="],
 

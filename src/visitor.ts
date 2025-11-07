@@ -65,6 +65,7 @@ import type {
   TypeExpression,
   TypeImport,
 } from "./parser.js";
+import type { ASTNode, CompilerContext, Scope } from "./util.js";
 
 // Visitor interface with transform capability
 export interface ASTVisitor {
@@ -82,6 +83,7 @@ export interface ASTVisitor {
   visitBuiltinDeclaration(node: BuiltinDeclaration): Declaration;
 
   // Type Expressions
+  visitTypeExpression(node: TypeExpression): TypeExpression;
   visitSelectTypeExpression(node: SelectTypeExpression): TypeExpression;
   visitApplicationTypeExpression(
     node: ApplicationTypeExpression,
@@ -91,12 +93,14 @@ export interface ASTVisitor {
   visitTupleTypeExpression(node: TupleTypeExpression): TypeExpression;
 
   // Body Expressions
+  visitBodyExpression(node: BodyExpression): BodyExpression;
   visitArrowKindBodyExpression(node: ArrowKindBodyExpression): BodyExpression;
   visitLetBindBodyExpression(node: LetBindBodyExpression): BodyExpression;
   visitAssignBodyExpression(node: AssignBodyExpression): BodyExpression;
   visitExpressionBodyExpression(node: ExpressionBodyExpression): BodyExpression;
 
   // Expressions
+  visitExpression(node: Expression): Expression;
   visitCallExpression(node: CallExpression): Expression;
   visitBlockExpression(node: BlockExpression): Expression;
   visitIfExpression(node: IfExpression): Expression;
@@ -115,6 +119,7 @@ export interface ASTVisitor {
   visitSelfExpression(node: SelfExpression): Expression;
 
   // Pattern Expressions
+  visitPatternExpression(node: PatternExpression): PatternExpression;
   visitConstructorPatternExpression(
     node: ConstructorPatternExpression,
   ): PatternExpression;
@@ -131,12 +136,12 @@ export interface ASTVisitor {
   // Other nodes
   visitMatchArm(node: MatchArm): MatchArm;
   visitEnumVariant(node: EnumVariant): EnumVariant;
-  visitImport(node: Import): Import;
   visitFn(node: Fn): Fn;
   visitTraitFn(node: TraitFn): TraitFn;
   visitFnParam(node: FnParam): FnParam;
   visitNamedTypeExpression(node: NamedTypeExpression): NamedTypeExpression;
 
+  visitImport(node: Import): Import;
   visitTypeImport(node: TypeImport): Import;
   visitFnImport(node: FnImport): Import;
   visitGlobalImport(node: GlobalImport): Import;
@@ -146,6 +151,7 @@ export interface ASTVisitor {
   visitNameImport(node: NameImport): Import;
   visitTraitImport(node: TraitImport): Import;
   visitConstructorImport(node: ConstructorImport): Import;
+
   visitFnSignature(node: FnSignature): FnSignature;
   visitTypeIdentifier(node: TypeToken): TypeToken;
   visitNameIdentifier(node: NameToken): NameToken;
@@ -236,7 +242,25 @@ export interface ASTWalker {
   walkInt(node: Int): void;
 }
 
-export class BaseWalker implements ASTWalker {
+export type IDMode = "expression" | "type" | "pattern";
+
+type UnboundError = { unbound: { name: string; scope: Scope } };
+export type CompilerError = UnboundError;
+
+export class BaseContext {
+  constructor(public context: CompilerContext) {}
+  idMode: IDMode = "expression";
+  errors: CompilerError[] = [];
+  getScope(node: ASTNode): Scope | null {
+    return this.context.scopes.get(node) ?? null;
+  }
+
+  setScope(node: ASTNode, scope: Scope) {
+    this.context.scopes.set(node, scope);
+  }
+}
+
+export class BaseWalker extends BaseContext implements ASTWalker {
   // Module
   walkModule(node: Module): void {
     for (const decl of node.module) {
@@ -314,6 +338,8 @@ export class BaseWalker implements ASTWalker {
 
   // Type Expressions
   walkTypeExpression(node: TypeExpression): void {
+    const previous = this.idMode;
+    this.idMode = "type";
     if ("app" in node) this.walkApplicationTypeExpression(node);
     else if ("fn" in node) this.walkFnTypeExpression(node);
     else if ("name" in node) this.walkNameIdentifier(node);
@@ -322,6 +348,7 @@ export class BaseWalker implements ASTWalker {
     else if ("tuple" in node) this.walkTupleTypeExpression(node);
     else if ("type" in node) this.walkTypeIdentifier(node);
     else throw new Error("Invalid Type Expression?");
+    this.idMode = previous;
   }
   walkSelectTypeExpression(node: SelectTypeExpression): void {
     this.walkTypeExpression(node.select.root);
@@ -380,6 +407,8 @@ export class BaseWalker implements ASTWalker {
 
   // Expressions
   walkExpression(node: Expression): void {
+    const previous = this.idMode;
+    this.idMode = "expression";
     if ("call" in node) this.walkCallExpression(node);
     else if ("block" in node) this.walkBlockExpression(node);
     else if ("bool" in node) this.walkBoolExpression(node);
@@ -399,6 +428,7 @@ export class BaseWalker implements ASTWalker {
     else if ("tuple" in node) this.walkTupleExpression(node);
     else if ("type" in node) this.walkTypeIdentifier(node);
     else throw new Error("Invalid Expression?");
+    this.idMode = previous;
   }
   walkCallExpression(node: CallExpression): void {
     this.walkExpression(node.call[0]);
@@ -465,6 +495,8 @@ export class BaseWalker implements ASTWalker {
 
   // Pattern Expressions
   walkPatternExpression(node: PatternExpression): void {
+    const previous = this.idMode;
+    this.idMode = "pattern";
     if ("constr" in node) this.walkConstructorPatternExpression(node);
     else if ("float" in node) this.walkFloatPatternExpression(node);
     else if ("int" in node) this.walkIntPatternExpression(node);
@@ -473,6 +505,7 @@ export class BaseWalker implements ASTWalker {
     else if ("string" in node) this.walkStringPatternExpression(node);
     else if ("tuple" in node) this.walkTuplePatternExpression(node);
     else throw new Error("Invalid pattern?");
+    this.idMode = previous;
   }
   walkConstructorPatternExpression(node: ConstructorPatternExpression): void {
     this.walkTypeIdentifier(node.constr.type);
@@ -621,7 +654,7 @@ export class BaseWalker implements ASTWalker {
 }
 
 // Default visitor that recursively visits and reconstructs the tree
-export class BaseVisitor implements ASTVisitor {
+export class BaseVisitor extends BaseContext implements ASTVisitor {
   visitModule(node: Module): Module {
     return {
       module: node.module.map((decl) => this.visitDeclaration(decl)),

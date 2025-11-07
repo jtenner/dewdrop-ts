@@ -11,6 +11,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "binaryen": "^124.0.0"
+    "binaryen": "^124.0.0",
+    "system-f-omega": "^0.0.1"
   }
 }
