@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import type {
+  BodyExpression,
   Declaration,
   EnumDeclaration,
   EnumVariant,
@@ -16,7 +17,8 @@ import type {
   TypeDeclaration,
   TypeExpression,
 } from "./parser.js";
-import type { Term, Type } from "system-f-omega";
+import type { Pattern, Term, Type } from "system-f-omega";
+import type { ModuleEntry, ModuleGraph } from "./graph.js";
 
 export type FileEntry = {
   absolute: string;
@@ -51,10 +53,13 @@ export type ASTNode =
   | Module
   | Declaration
   | Expression
+  | EnumVariant
+  | BodyExpression
   | TypeExpression
   | PatternExpression
   | Import
   | TraitFn
+  | Fn
   | FnParam;
 export type BuiltinScopeElement = { builtin: Builtin };
 export type EnumScopeElement = { enum: EnumDeclaration };
@@ -63,6 +68,7 @@ export type FnScopeElement = { fn: Fn };
 export type SelfScopeElement = { self: null };
 export type SelfTypeScopeElement = { selftype: TypeExpression };
 export type TraitDeclarationScopeElement = { trait: TraitDeclaration };
+export type TraitFnScopeElement = { trait_fn: TraitFn };
 export type TypeScopeElement = { type: TypeDeclaration };
 export type TypeVarScopeElement = { typevar: NameIdentifier };
 export type UnresolvedImportScopeElement = { unresolved: Import };
@@ -76,6 +82,7 @@ export type ScopeElement =
   | SelfScopeElement
   | SelfTypeScopeElement
   | TraitDeclarationScopeElement
+  | TraitFnScopeElement
   | TypeScopeElement
   | TypeVarScopeElement
   | UnresolvedImportScopeElement
@@ -106,9 +113,12 @@ export const getTerm = (name: string, scope: Scope) => {
 };
 
 export type CompilerContext = {
-  modules: Map<string, Module>;
-  scopes: Map<ASTNode, Scope>;
+  builtins: Map<string, Builtin>;
+  globalModule: ModuleEntry;
   globalScope: Scope;
+  modules: ModuleGraph;
+  scopes: Map<ASTNode, Scope>;
   terms: Map<ASTNode, Term>;
   types: Map<ASTNode, Type>;
+  patterns: Map<ASTNode, Pattern>;
 };

@@ -1,3 +1,4 @@
+import type { ModuleEntry } from "./graph.js";
 import type { NameToken, StringToken, TypeToken } from "./lexer.js";
 import type {
   ApplicationTypeExpression,
@@ -242,15 +243,18 @@ export interface ASTWalker {
   walkInt(node: Int): void;
 }
 
-export type IDMode = "expression" | "type" | "pattern";
+export type IDMode = "ambient" | "expression" | "type" | "pattern";
 
-type UnboundError = { unbound: { name: string; scope: Scope } };
-export type CompilerError = UnboundError;
+export type UnboundError = { unbound: { name: string; scope: Scope } };
+export type InvalidNameError = { invalid_name: ASTNode };
+export type CompilerError = UnboundError | InvalidNameError;
 
-export class BaseContext {
+export abstract class BaseContext {
   constructor(public context: CompilerContext) {}
-  idMode: IDMode = "expression";
+  idMode: IDMode = "ambient";
   errors: CompilerError[] = [];
+  abstract visit(module: ModuleEntry): ModuleEntry;
+
   getScope(node: ASTNode): Scope | null {
     return this.context.scopes.get(node) ?? null;
   }
@@ -261,6 +265,11 @@ export class BaseContext {
 }
 
 export class BaseWalker extends BaseContext implements ASTWalker {
+  override visit(module: ModuleEntry) {
+    this.walkModule(module.module!);
+    return module;
+  }
+
   // Module
   walkModule(node: Module): void {
     for (const decl of node.module) {
@@ -471,15 +480,7 @@ export class BaseWalker extends BaseContext implements ASTWalker {
   }
   walkStringExpression(_node: StringToken): void {}
   walkFnExpression(node: FnExpression): void {
-    if (node.fn.name) this.walkNameIdentifier(node.fn.name);
-    for (const tp of node.fn.type_params) {
-      this.walkNameIdentifier(tp);
-    }
-    for (const p of node.fn.params) {
-      this.walkFnParam(p);
-    }
-    if (node.fn.return_type) this.walkTypeExpression(node.fn.return_type);
-    this.walkExpression(node.fn.body);
+    this.walkFn(node.fn);
   }
   walkRecordExpression(node: RecordExpression): void {
     for (const [, t] of node.record) {
@@ -548,6 +549,8 @@ export class BaseWalker extends BaseContext implements ASTWalker {
   }
 
   walkFn(node: Fn): void {
+    const current = this.idMode;
+    this.idMode = "ambient";
     if (node.name) this.walkNameIdentifier(node.name);
     for (const tp of node.type_params) {
       this.walkNameIdentifier(tp);
@@ -557,8 +560,12 @@ export class BaseWalker extends BaseContext implements ASTWalker {
     }
     if (node.return_type) this.walkTypeExpression(node.return_type);
     this.walkExpression(node.body);
+    this.idMode = current;
   }
+
   walkTraitFn(node: TraitFn): void {
+    const current = this.idMode;
+    this.idMode = "ambient";
     this.walkNameIdentifier(node.name);
     for (const tp of node.type_params) {
       this.walkNameIdentifier(tp);
@@ -567,6 +574,7 @@ export class BaseWalker extends BaseContext implements ASTWalker {
       this.walkNamedTypeExpression(nte);
     }
     this.walkTypeExpression(node.return_type);
+    this.idMode = current;
   }
   walkFnParam(node: FnParam): void {
     this.walkNameIdentifier(node.name);
@@ -655,6 +663,11 @@ export class BaseWalker extends BaseContext implements ASTWalker {
 
 // Default visitor that recursively visits and reconstructs the tree
 export class BaseVisitor extends BaseContext implements ASTVisitor {
+  override visit(entry: ModuleEntry) {
+    entry.module = this.visitModule(entry.module!);
+    return entry;
+  }
+
   visitModule(node: Module): Module {
     return {
       module: node.module.map((decl) => this.visitDeclaration(decl)),
