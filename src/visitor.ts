@@ -1,3 +1,4 @@
+import type { TypingError } from "system-f-omega";
 import type { ModuleEntry } from "./graph.js";
 import type { NameToken, StringToken, TypeToken } from "./lexer.js";
 import type {
@@ -247,7 +248,8 @@ export type IDMode = "ambient" | "expression" | "type" | "pattern";
 
 export type UnboundError = { unbound: { name: string; scope: Scope } };
 export type InvalidNameError = { invalid_name: ASTNode };
-export type CompilerError = UnboundError | InvalidNameError;
+export type TypeError = { type_error: TypingError };
+export type CompilerError = TypeError | UnboundError | InvalidNameError;
 
 export abstract class BaseContext {
   constructor(public context: CompilerContext) {}

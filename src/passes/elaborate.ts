@@ -39,6 +39,7 @@ import {
   showTypeExpression,
   type ApplicationTypeExpression,
   type BlockExpression,
+  type BuiltinDeclaration,
   type CallExpression,
   type ConstructorPatternExpression,
   type EnumDeclaration,
@@ -55,6 +56,7 @@ import {
   type SelfExpression,
   type TupleExpression,
   type TupleTypeExpression,
+  type TypeDeclaration,
   type TypeExpression,
 } from "../parser.js";
 import { BaseWalker } from "../visitor.js";
@@ -77,6 +79,22 @@ export class ElaboratePass extends BaseWalker {
     super.walkTypeExpression(node);
     if (!this.context.types.has(node))
       throw new Error(`Type not elaborated: ${showTypeExpression(node)}`);
+  }
+
+  override walkTypeDeclaration(node: TypeDeclaration): void {
+    super.walkTypeDeclaration(node);
+    let acc = this.context.types.get(node.type_dec.value);
+    if (!acc)
+      throw new Error(
+        `Type not elaborated for TypeExpression: ${showTypeExpression(node.type_dec.value)}`,
+      );
+
+    // wrap the type in it's polymorphic form params
+    for (let i = node.type_dec.params.length - 1; i >= 0; i--) {
+      const name = node.type_dec.params[i]!.name;
+      acc = forallType(name, starKind, acc);
+    }
+    this.context.types.set(node, acc);
   }
 
   override walkIntExpression(node: IntExpression): void {
@@ -158,6 +176,35 @@ export class ElaboratePass extends BaseWalker {
     this.context.types.set(node, fnType);
   }
 
+  override walkBuiltinDeclaration(node: BuiltinDeclaration): void {
+    super.walkBuiltinDeclaration(node);
+    // build the polymorphic builtin type
+    let acc = this.context.types.get(node.builtin.return_type);
+    if (!acc)
+      throw new Error(
+        `Type not elaborated: ${showTypeExpression(node.builtin.return_type)}`,
+      );
+
+    // the function type itself has all the parameters
+    for (let i = node.builtin.params.length - 1; i >= 0; i--) {
+      const param = node.builtin.params[i]!;
+      const paramType = param.guard
+        ? this.context.types.get(param.guard)
+        : freshMetaVar();
+
+      if (!paramType)
+        throw new Error(
+          `Type not elaborated: ${showTypeExpression(param.guard!)}`,
+        );
+
+      acc = lamType(param.name.name, starKind, paramType);
+    }
+
+    // TODO: Maybe add type parameters here
+
+    this.context.types.set(node, acc);
+  }
+
   override walkEnumDeclaration(node: EnumDeclaration): void {
     super.walkEnumDeclaration(node);
     // generate the enumType
@@ -182,6 +229,7 @@ export class ElaboratePass extends BaseWalker {
       const vname = "fields" in v ? v.fields.id.type : v.values.id.type;
       // each enum variant created it's own function body at this point
       let body = this.context.terms.get(v);
+      let vtype: Type;
       if (!body)
         throw new Error(
           `Enum Variant term body not elaborated: ${showEnumVariant(v)}`,
@@ -190,6 +238,7 @@ export class ElaboratePass extends BaseWalker {
 
       // wrap in parameters backwards
       if ("fields" in v) {
+        const fields = [] as [string, Type][];
         for (let i = v.fields.fields.length - 1; i >= 0; i--) {
           const field = v.fields.fields[i]!;
           const fieldName = field.name.name;
@@ -198,9 +247,12 @@ export class ElaboratePass extends BaseWalker {
             throw new Error(
               `Field type not elaborated: ${showTypeExpression(field.ty)}`,
             );
+          fields.unshift([fieldName, fieldType]);
           body = lamTerm(fieldName, fieldType, body);
         }
+        vtype = recordType(fields);
       } else {
+        const fields = [] as Type[];
         for (let i = v.values.values.length - 1; i >= 0; i--) {
           const fieldName = `p${i}`;
           const fieldType = this.context.types.get(v.values.values[i]!);
@@ -209,7 +261,9 @@ export class ElaboratePass extends BaseWalker {
               `Field type not elaborated: ${showTypeExpression(v.values.values[i]!)}`,
             );
           body = lamTerm(fieldName, fieldType, body);
+          fields.unshift(fieldType);
         }
+        vtype = tupleType(fields);
       }
 
       // wrap in type parameters and possibly a fold
@@ -218,6 +272,7 @@ export class ElaboratePass extends BaseWalker {
         body = tylamTerm(typeName, starKind, body);
       }
 
+      this.context.types.set(v, vtype);
       this.context.terms.set(v, body);
     }
 

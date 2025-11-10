@@ -7,6 +7,7 @@ import { DesugarPass } from "./passes/desugar.js";
 import { ElaboratePass } from "./passes/elaborate.js";
 import { ResolveImports } from "./passes/resolve.js";
 import { ScopesPass } from "./passes/scopes.js";
+import { TypeCheckPass } from "./passes/typecheck.js";
 import {
   type Builtin,
   type CompilerContext,
@@ -45,6 +46,7 @@ const compilerContext = (basedir: string): CompilerContext => ({
   terms: new Map(),
   types: new Map(),
   builtins: new Map([["unreachable", {}]]),
+  bindings: new Map(),
 });
 
 // we need to scopify the global context for later reuse
@@ -81,6 +83,7 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
     new DesugarPass(context),
     new ScopesPass(context),
     new ElaboratePass(context),
+    new TypeCheckPass(context),
   ];
 
   for (const pass of passes) {

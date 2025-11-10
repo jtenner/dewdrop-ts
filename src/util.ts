@@ -17,7 +17,7 @@ import type {
   TypeDeclaration,
   TypeExpression,
 } from "./parser.js";
-import type { Pattern, Term, Type } from "system-f-omega";
+import type { Binding, Pattern, Term, Type } from "system-f-omega";
 import type { ModuleEntry, ModuleGraph } from "./graph.js";
 
 export type FileEntry = {
@@ -113,6 +113,7 @@ export const getTerm = (name: string, scope: Scope) => {
 };
 
 export type CompilerContext = {
+  bindings: Map<ASTNode, Binding[]>;
   builtins: Map<string, Builtin>;
   globalModule: ModuleEntry;
   globalScope: Scope;
