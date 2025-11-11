@@ -23,7 +23,9 @@ describe("lexer tokenkinds", () => {
   ])("$token is a name token", async ({ token }) => {
     const output = await Array.fromAsync(lex(chars(token)));
 
-    expect(output).toStrictEqual([{ name: token }]);
+    expect(output, `Should be: { name: "${token}" }`).toMatchSnapshot(
+      `Name: ${token}`,
+    );
   });
 
   test.each([
@@ -34,7 +36,9 @@ describe("lexer tokenkinds", () => {
     { token: `A${strOf(/[\p{Ll}\p{Lu}_0-9]/u)}` },
   ])("$token is a type token", async ({ token }) => {
     const output = await Array.fromAsync(lex(chars(token)));
-    expect(output).toStrictEqual([{ type: token }]);
+    expect(output, `Should be: { type: "${token}" }`).toMatchSnapshot(
+      `Token: ${token}`,
+    );
   });
 
   test("symbols", async () => {
@@ -45,87 +49,199 @@ describe("lexer tokenkinds", () => {
     expect(output).toMatchInlineSnapshot(`
       [
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "!",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "@",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "#",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "$",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "%",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "^",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "&",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "*",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "(",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": ")",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "-",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "=",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "+",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "-",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "/",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "<",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": ">",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "[",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "]",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "{",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "}",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": ":",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": ";",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": ",",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": ".",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "?",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "~",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "symbol": "|",
         },
       ]
@@ -171,9 +287,8 @@ describe("lexer tokenkinds", () => {
     { token: "+0.000001e10" },
     { token: "0.0000001e-10" },
   ])("$token should be a float", async ({ token }) => {
-    const value = parseFloat(token);
     const output = await Array.fromAsync(lex(chars(token)));
-    expect(output, token).toStrictEqual([{ float: value }]);
+    expect(output).toMatchSnapshot(`Token: ${token}`);
   });
 
   test.each([
@@ -239,11 +354,8 @@ describe("lexer tokenkinds", () => {
     { token: '"\\u0041\\z0042"', expected: "Az0042" }, // Valid Unicode followed by invalid escape
   ])("$token should match $expected", async ({ token, expected }) => {
     const output = await Array.fromAsync(lex(chars(token)));
-    expect(
-      output,
-      // @ts-expect-error: don't mind the gap
-      `Actual: ${output[0].string} Expected: ${expected}`,
-    ).toStrictEqual([{ string: expected! }]);
+
+    expect(output, `Should be ${expected}`).toMatchSnapshot(`Token: ${token}`);
   });
 
   test.each([
@@ -270,7 +382,7 @@ describe("lexer tokenkinds", () => {
   ])("$token should be an integer", async ({ token, expected }) => {
     const output = await Array.fromAsync(lex(chars(token)));
 
-    expect(output).toStrictEqual([{ int: expected }]);
+    expect(output, `Should be ${expected}`).toMatchSnapshot(`Token: ${token}`);
   });
 
   test("keywords", async () => {
@@ -292,66 +404,150 @@ describe("lexer tokenkinds", () => {
     expect(output).toMatchInlineSnapshot(`
       [
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "name": "one",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "name": "two",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "name": "red",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "name": "blue",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "name": "fish",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "name": "dish",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "name": "glue",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "keyword": "fn",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "keyword": "type",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
         {
           "keyword": "trait",
+          "position": [
+            2,
+            2,
+          ],
         },
         {
+          "position": [
+            2,
+            2,
+          ],
           "whitespace": null,
         },
       ]

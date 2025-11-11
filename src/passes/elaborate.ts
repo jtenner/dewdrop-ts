@@ -1,8 +1,12 @@
 import {
   appTerm,
   appType,
+  arrowKind,
+  arrowType,
   conTerm,
   conType,
+  dictTerm,
+  foldTerm,
   forallType,
   freshMetaVar,
   injectTerm,
@@ -12,9 +16,15 @@ import {
   matchTerm,
   muType,
   neverType,
+  type Pattern,
   recordTerm,
   recordType,
+  showTerm,
+  showType,
   starKind,
+  type Term,
+  type Type,
+  traitDefBinding,
   tuplePattern,
   tupleTerm,
   tupleType,
@@ -26,41 +36,44 @@ import {
   varTerm,
   varType,
   wildcardPattern,
-  type Pattern,
-  type Term,
-  type Type,
 } from "system-f-omega";
+import type { NameToken, TypeToken } from "../lexer.js";
 import {
-  showBodyExpression,
-  showEnumVariant,
-  showExpression,
-  showFn,
-  showPatternExpression,
-  showTypeExpression,
   type ApplicationTypeExpression,
   type BlockExpression,
   type BuiltinDeclaration,
   type CallExpression,
   type ConstructorPatternExpression,
+  type Declaration,
   type EnumDeclaration,
   type EnumVariant,
   type Expression,
   type ExpressionBodyExpression,
   type Fn,
+  type FnDeclaration,
   type FnExpression,
   type FnTypeExpression,
   type IntExpression,
   type LetBindBodyExpression,
+  type LetDeclaration,
   type MatchExpression,
   type PatternExpression,
   type SelfExpression,
+  showBodyExpression,
+  showDeclaration,
+  showEnumVariant,
+  showExpression,
+  showFn,
+  showPatternExpression,
+  showTypeExpression,
+  type TraitDeclaration,
+  type TraitFn,
   type TupleExpression,
   type TupleTypeExpression,
   type TypeDeclaration,
   type TypeExpression,
 } from "../parser.js";
 import { BaseWalker } from "../visitor.js";
-import type { NameToken, TypeToken } from "../lexer.js";
 
 export class ElaboratePass extends BaseWalker {
   override walkExpression(node: Expression): void {
@@ -79,6 +92,55 @@ export class ElaboratePass extends BaseWalker {
     super.walkTypeExpression(node);
     if (!this.context.types.has(node))
       throw new Error(`Type not elaborated: ${showTypeExpression(node)}`);
+  }
+
+  override walkTraitDeclaration(node: TraitDeclaration): void {
+    super.walkTraitDeclaration(node);
+
+    const methods: [string, Type][] = [];
+    for (const method of node.trait.fns) {
+      const methodType = this.elaborateMethodSignature(method);
+      methods.push([method.name.name, methodType]);
+    }
+
+    const selfKind = arrowKind(starKind, starKind); // Or compute from trait
+    const traitDef = {
+      name: node.trait.id.type,
+      type_param: "Self",
+      kind: selfKind,
+      methods,
+    };
+
+    this.context.traitDefs.set(node, traitDef);
+  }
+
+  private elaborateMethodSignature(method: TraitFn): Type {
+    let ty = this.context.types.get(method.return_type);
+    if (!ty)
+      throw new Error(
+        `Type not elaborated for return type: ${showTypeExpression(method.return_type)}`,
+      );
+
+    // Add implicit self: Self<trait_param>
+    const selfTy = appType(varType("Self"), varType(this.currentTraitParam!));
+    ty = arrowType(selfTy, ty);
+
+    // Add explicit params
+    for (let i = method.params.length - 1; i >= 0; i--) {
+      const paramTy = this.context.types.get(method.params[i]!.ty);
+      if (!paramTy)
+        throw new Error(
+          `Type not elaborated for return type: ${showTypeExpression(method.params[i]!.ty)}`,
+        );
+      ty = arrowType(paramTy, ty);
+    }
+
+    // Add method type parameters
+    for (let i = method.type_params.length - 1; i >= 0; i--) {
+      ty = forallType(method.type_params[i]!.name, starKind, ty);
+    }
+
+    return ty;
   }
 
   override walkTypeDeclaration(node: TypeDeclaration): void {
@@ -118,10 +180,10 @@ export class ElaboratePass extends BaseWalker {
   override walkFn(node: Fn): void {
     super.walkFn(node);
 
-    let bodyType = node.return_type
+    let fnType = node.return_type
       ? this.context.types.get(node.return_type)
       : (freshMetaVar() as Type);
-    if (!bodyType)
+    if (!fnType)
       throw new Error(
         `Return Type not elaborated: ${showTypeExpression(node.return_type!)}`,
       );
@@ -141,11 +203,25 @@ export class ElaboratePass extends BaseWalker {
           `Function Parameter Type Guard not elaborated: ${showTypeExpression(guard!)}`,
         );
 
-      fnTerm = lamTerm(name.name, bodyType, fnTerm);
-      bodyType = lamType(name.name, starKind, bodyType);
+      fnTerm = lamTerm(name.name, guardType, fnTerm);
+      fnType = arrowType(guardType, fnType);
+    }
+
+    for (let i = node.type_params.length - 1; i >= 0; i--) {
+      const typeParam = node.type_params[i]!.name;
+      fnTerm = tylamTerm(typeParam, starKind, fnTerm);
+      fnType = forallType(typeParam, starKind, fnType);
     }
 
     this.context.terms.set(node, fnTerm);
+    this.context.types.set(node, fnType);
+  }
+
+  override walkFnDeclaration(node: FnDeclaration): void {
+    super.walkFnDeclaration(node);
+    const term = this.context.terms.get(node.fn.fn);
+    if (!term) throw new Error(`Term not elaborated for ${showFn(node.fn.fn)}`);
+    this.context.terms.set(node, term);
   }
 
   override walkFnExpression(node: FnExpression): void {
@@ -261,12 +337,15 @@ export class ElaboratePass extends BaseWalker {
               `Field type not elaborated: ${showTypeExpression(v.values.values[i]!)}`,
             );
           body = lamTerm(fieldName, fieldType, body);
+          console.log("Field Type", fieldName, JSON.stringify(fieldType));
           fields.unshift(fieldType);
         }
         vtype = tupleType(fields);
       }
 
       // wrap in type parameters and possibly a fold
+      if (node.enum.recursive) body = foldTerm(enumType, body);
+
       for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
         const typeName = node.enum.type_params[i]!.name;
         body = tylamTerm(typeName, starKind, body);
@@ -495,11 +574,26 @@ export class ElaboratePass extends BaseWalker {
   override walkTypeIdentifier(node: TypeToken): void {
     if (this.idMode === "type") {
       if (node.type === "Never") this.context.types.set(node, neverType);
-      else this.context.types.set(node, varType(node.type));
+      else this.context.types.set(node, conType(node.type));
     } else if (this.idMode === "expression")
       this.context.terms.set(node, varTerm(node.type));
   }
 
+  override walkLetDeclaration(node: LetDeclaration): void {
+    super.walkLetDeclaration(node);
+    const pattern = this.context.patterns.get(node.let_dec.pattern);
+    if (!pattern)
+      throw new Error(
+        `Pattern not elaborated for: ${showPatternExpression(node.let_dec.pattern)}`,
+      );
+    const term = this.context.terms.get(node.let_dec.value);
+    if (!term)
+      throw new Error(
+        `Term not elaborated for : ${showExpression(node.let_dec.value)}`,
+      );
+    this.context.patterns.set(node, pattern);
+    this.context.terms.set(node, term);
+  }
   override walkConstructorPatternExpression(
     node: ConstructorPatternExpression,
   ): void {
@@ -516,5 +610,18 @@ export class ElaboratePass extends BaseWalker {
       node,
       variantPattern(node.constr.type.type, tuplePattern(args)),
     );
+  }
+
+  override walkDeclaration(node: Declaration): void {
+    super.walkDeclaration(node);
+    const elaborated =
+      this.context.terms.has(node) ||
+      this.context.types.has(node) ||
+      this.context.patterns.has(node);
+
+    if (!elaborated)
+      throw new Error(
+        `Term or type not elaborated for declaration: ${showDeclaration(node)}`,
+      );
   }
 }

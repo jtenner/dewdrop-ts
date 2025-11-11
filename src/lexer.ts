@@ -33,115 +33,132 @@ const to_num = (c: string) =>
           ? c.charCodeAt(0) - "A".charCodeAt(0) + 10
           : -1,
   );
-export type IntToken = { int: bigint };
-export type FloatToken = { float: number };
-export type NameToken = { name: string };
-export type TypeToken = { type: string };
-export type StringToken = { string: string };
-export type SymbolToken = { symbol: string };
+export type UnknownToken = { unknown: null; position: [number, number] };
+export type WhitespaceToken = { whitespace: null; position: [number, number] };
+export type IntToken = { int: bigint; position: [number, number] };
+export type FloatToken = { float: number; position: [number, number] };
+export type NameToken = { name: string; position: [number, number] };
+export type TypeToken = { type: string; position: [number, number] };
+export type StringToken = { string: string; position: [number, number] };
+export type SymbolToken = { symbol: string; position: [number, number] };
+export type KeywordToken = { keyword: string; position: [number, number] };
 export type Token =
-  | { unknown: null }
-  | { whitespace: null }
+  | UnknownToken
+  | WhitespaceToken
   | SymbolToken
   | IntToken
   | FloatToken
   | NameToken
   | TypeToken
   | StringToken
-  | { keyword: string };
+  | KeywordToken;
 
 const take_whitespace = async (
   iter: CharIter,
-): Promise<[string | null, Token]> => {
+  line: number,
+  col: number,
+): Promise<[[string, number, number] | null, Token]> => {
   while (true) {
     const result = await iter.next();
-    if (!result.done && whitespace(result.value)) continue;
-    return [result.value ?? null, { whitespace: null }];
+    if (!result.done && whitespace(result.value[0])) continue;
+    return [result.value ?? null, { whitespace: null, position: [line, col] }];
   }
 };
 
 const take_name = async (
   first_char: string,
   iter: CharIter,
-): Promise<[string | null, Token]> => {
+  line: number,
+  col: number,
+): Promise<[[string, number, number] | null, Token]> => {
   let name = first_char;
   while (true) {
     const result = await iter.next();
-    if (result.done) return [null, { name }];
+    if (result.done) return [null, { name, position: [line, col] }];
     const next = result.value;
-    if (name_cont(next)) {
-      name += next;
+    if (name_cont(next[0])) {
+      name += next[0];
       continue;
     }
-    return [next, { name }];
+    return [next, { name, position: [line, col] }];
   }
 };
 
 const take_type = async (
   first_char: string,
   iter: CharIter,
-): Promise<[string | null, Token]> => {
+  line: number,
+  col: number,
+): Promise<[[string, number, number] | null, Token]> => {
   let type = first_char;
   while (true) {
     const result = await iter.next();
-    if (result.done) return [null, { type }];
+    if (result.done) return [null, { type, position: [line, col] }];
     const next = result.value;
-    if (type_cont(next)) {
-      type += next;
+    if (type_cont(next[0])) {
+      type += next[0];
       continue;
     }
-    return [next, { type }];
+    return [next, { type, position: [line, col] }];
   }
 };
 
-const take_zero = async (iter: CharIter): Promise<[string | null, Token]> => {
+const take_zero = async (
+  iter: CharIter,
+  line: number,
+  col: number,
+): Promise<[[string, number, number] | null, Token]> => {
   let result = await iter.next();
   if (result.done) [null, { int: 0 }];
   const next_char = result.value ?? null;
   let predicate: (c: string) => boolean;
   let stride = 0n;
-  if (next_char === ".") {
-    return take_after_decimal("0.", iter);
-  } else if (next_char === "b") {
+  if (next_char[0] === ".") {
+    return take_after_decimal("0.", iter, line, col);
+  } else if (next_char[0] === "b") {
     predicate = bin;
     stride = 2n;
-  } else if (next_char === "o") {
+  } else if (next_char[0] === "o") {
     predicate = oct;
     stride = 8n;
-  } else if (next_char === "x") {
+  } else if (next_char[0] === "x") {
     predicate = hex;
     stride = 16n;
   } else {
-    return [next_char, { int: 0n }];
+    return [next_char, { int: 0n, position: [line, col] }];
   }
 
   let value = 0n;
 
   result = await iter.next();
-  if (result.done) return [null, { unknown: null }];
-  if (predicate(result.value)) value = value * stride + to_num(result.value);
-  else return [result.value, { unknown: null }];
+  if (result.done) return [null, { unknown: null, position: [line, col] }];
+  if (predicate(result.value[0]))
+    value = value * stride + to_num(result.value[0]);
+  else return [result.value, { unknown: null, position: [line, col] }];
 
   while (true) {
     result = await iter.next();
-    if (result.done) return [null, { int: value }];
+    if (result.done) return [null, { int: value, position: [line, col] }];
 
-    if (predicate(result.value)) value = value * stride + to_num(result.value);
-    else return [result.value, { int: value }];
+    if (predicate(result.value[0]))
+      value = value * stride + to_num(result.value[0]);
+    else return [result.value, { int: value, position: [line, col] }];
   }
 };
 
 const take_maybe_number = async (
   first_char: string,
   iter: CharIter,
-): Promise<[string | null, Token]> => {
+  line: number,
+  col: number,
+): Promise<[[string, number, number] | null, Token]> => {
   const result = await iter.next();
-  if (result.done) return [null, { symbol: first_char }];
+  if (result.done) return [null, { symbol: first_char, position: [line, col] }];
 
   const next_char = result.value;
 
-  if (zero(next_char)) {
-    const result = await take_zero(iter);
+  if (zero(next_char[0])) {
+    const result = await take_zero(iter, line, col);
     if (first_char === "-" && "int" in result[1]) {
       result[1].int *= -1n;
     }
@@ -150,91 +167,105 @@ const take_maybe_number = async (
     }
     return result;
   }
-  if (dec(next_char)) return take_number(first_char + next_char, iter);
-  return [next_char, { symbol: first_char }];
+  if (dec(next_char[0]))
+    return take_number(first_char + next_char[0], iter, line, col);
+  return [next_char, { symbol: first_char, position: [line, col] }];
 };
 
 const take_number = async (
   start: string,
   iter: CharIter,
-): Promise<[string | null, Token]> => {
+  line: number,
+  col: number,
+): Promise<[[string, number, number] | null, Token]> => {
   let acc = start;
 
   while (true) {
     const result = await iter.next();
 
-    if (result.done) return [null, { int: BigInt(acc) }];
+    if (result.done) return [null, { int: BigInt(acc), position: [line, col] }];
     const next_char = result.value;
-    if (dec(next_char)) acc += next_char;
-    else if (dot(next_char)) {
+    if (dec(next_char[0])) acc += next_char[0];
+    else if (dot(next_char[0])) {
       acc += ".";
       break;
-    } else return [next_char, { int: BigInt(acc) }];
+    } else return [next_char, { int: BigInt(acc), position: [line, col] }];
   }
 
-  return take_after_decimal(acc, iter);
+  return take_after_decimal(acc, iter, line, col);
 };
 
 const take_after_decimal = async (
   start: string,
   iter: CharIter,
-): Promise<[string | null, Token]> => {
+  line: number,
+  col: number,
+): Promise<[[string, number, number] | null, Token]> => {
   let acc = start;
   let result = await iter.next();
-  if (result.done) return [null, { unknown: null }];
+  if (result.done) return [null, { unknown: null, position: [line, col] }];
 
-  if (dec(result.value)) acc += result.value;
-  else return [result.value, { unknown: null }];
+  if (dec(result.value[0])) acc += result.value[0];
+  else return [result.value, { unknown: null, position: [line, col] }];
 
   while (true) {
     const result = await iter.next();
-    if (result.done) return [null, { float: parseFloat(acc) }];
+    if (result.done)
+      return [null, { float: parseFloat(acc), position: [line, col] }];
 
     const next_char = result.value;
-    if (dec(next_char)) acc += next_char;
-    else if (e(next_char)) {
-      acc += next_char;
+    if (dec(next_char[0])) acc += next_char[0];
+    else if (e(next_char[0])) {
+      acc += next_char[0];
       break;
-    } else return [next_char, { float: parseFloat(acc) }];
+    } else
+      return [next_char, { float: parseFloat(acc), position: [line, col] }];
   }
 
   // after "e"
   result = await iter.next();
-  if (result.done) return [null, { unknown: null }];
+  if (result.done) return [null, { unknown: null, position: [line, col] }];
 
-  if (sign(result.value)) {
-    acc += result.value;
+  if (sign(result.value[0])) {
+    acc += result.value[0];
 
     result = await iter.next();
-    if (result.done) return [null, { unknown: null }];
+    if (result.done) return [null, { unknown: null, position: [line, col] }];
   }
 
-  if (dec(result.value)) acc += result.value;
-  else return [result.value, { unknown: null }];
+  if (dec(result.value[0])) acc += result.value[0];
+  else return [result.value, { unknown: null, position: [line, col] }];
 
   while (true) {
     const result = await iter.next();
-    if (result.done) return [null, { float: parseFloat(acc) }];
+    if (result.done)
+      return [null, { float: parseFloat(acc), position: [line, col] }];
 
-    if (dec(result.value)) acc += result.value;
-    else return [result.value, { float: parseFloat(acc) }];
+    if (dec(result.value[0])) acc += result.value[0];
+    else
+      return [result.value, { float: parseFloat(acc), position: [line, col] }];
   }
 };
 
-const take_string = async (iter: CharIter): Promise<[string | null, Token]> => {
+const take_string = async (
+  iter: CharIter,
+  line: number,
+  col: number,
+): Promise<[[string, number, number] | null, Token]> => {
   let acc = "";
 
   while (true) {
     const result = await iter.next();
-    if (result.done) return [null, { string: acc }];
+    if (result.done) return [null, { string: acc, position: [line, col] }];
 
-    if (result.value === `"`) return [null, { string: acc }];
+    if (result.value[0] === `"`)
+      return [null, { string: acc, position: [line, col] }];
 
-    if (result.value === "\\") {
+    if (result.value[0] === "\\") {
       const result = await iter.next();
-      if (result.done) return [null, { unknown: null }];
+      if (result.done) return [null, { unknown: null, position: [line, col] }];
 
-      switch (result.value) {
+      switch (result.value[0]) {
         case "0": {
           acc += "\0";
           break;
@@ -279,9 +310,11 @@ const take_string = async (iter: CharIter): Promise<[string | null, Token]> => {
           let v = 0n;
           for (let i = 0; i < 2; i++) {
             const next_char = await iter.next();
-            if (next_char.done) return [null, { unknown: null }];
-            if (hex(next_char.value)) v = v * 16n + to_num(next_char.value);
-            else return [null, { unknown: null }];
+            if (next_char.done)
+              return [null, { unknown: null, position: [line, col] }];
+            if (hex(next_char.value[0]))
+              v = v * 16n + to_num(next_char.value[0]);
+            else return [null, { unknown: null, position: [line, col] }];
           }
 
           acc += String.fromCodePoint(Number(v));
@@ -292,9 +325,11 @@ const take_string = async (iter: CharIter): Promise<[string | null, Token]> => {
           let v = 0n;
           for (let i = 0; i < 4; i++) {
             const next_char = await iter.next();
-            if (next_char.done) return [null, { unknown: null }];
-            if (hex(next_char.value)) v = v * 16n + to_num(next_char.value);
-            else return [null, { unknown: null }];
+            if (next_char.done)
+              return [null, { unknown: null, position: [line, col] }];
+            if (hex(next_char.value[0]))
+              v = v * 16n + to_num(next_char.value[0]);
+            else return [null, { unknown: null, position: [line, col] }];
           }
 
           acc += String.fromCodePoint(Number(v));
@@ -305,9 +340,11 @@ const take_string = async (iter: CharIter): Promise<[string | null, Token]> => {
           let v = 0n;
           for (let i = 0; i < 8; i++) {
             const next_char = await iter.next();
-            if (next_char.done) return [null, { unknown: null }];
-            if (hex(next_char.value)) v = v * 16n + to_num(next_char.value);
-            else return [null, { unknown: null }];
+            if (next_char.done)
+              return [null, { unknown: null, position: [line, col] }];
+            if (hex(next_char.value[0]))
+              v = v * 16n + to_num(next_char.value[0]);
+            else return [null, { unknown: null, position: [line, col] }];
           }
 
           acc += String.fromCodePoint(Number(v));
@@ -315,14 +352,14 @@ const take_string = async (iter: CharIter): Promise<[string | null, Token]> => {
         }
 
         default: {
-          acc += result.value;
+          acc += result.value[0];
           break;
         }
       }
 
       continue;
     }
-    acc += result.value;
+    acc += result.value[0];
   }
 };
 
@@ -355,37 +392,40 @@ export async function* lex(
     "for",
     "rec",
   ],
-) {
+): AsyncGenerator<Token> {
   const effective_keywords = new Set([...keywords]);
   let next: string | null = null;
+  let line: number;
+  let col: number;
   let token: Token;
   while (true) {
     if (!next) {
       const result = await iter.next();
       if (result.done) return;
-      next = result.value;
+      [next, line, col] = result.value;
     }
-    const first_char: string = next!;
+    const first_char: string = next;
 
     if (!first_char) return;
-    [next, token] = whitespace(first_char)
-      ? await take_whitespace(iter)
+    let ret_next: [string, number, number] | null;
+    [ret_next, token] = whitespace(first_char)
+      ? await take_whitespace(iter, line!, col!)
       : name_start(first_char)
-        ? await take_name(first_char, iter)
+        ? await take_name(first_char, iter, line!, col!)
         : type_start(first_char)
-          ? await take_type(first_char, iter)
+          ? await take_type(first_char, iter, line!, col!)
           : quote(first_char)
-            ? await take_string(iter)
+            ? await take_string(iter, line!, col!)
             : sign(first_char)
-              ? await take_maybe_number(first_char, iter)
+              ? await take_maybe_number(first_char, iter, line!, col!)
               : symbol(first_char)
-                ? [null, { symbol: first_char }]
+                ? [null, { symbol: first_char, position: [line!, col!] }]
                 : dec(first_char)
-                  ? await take_number(first_char, iter)
-                  : [null, { unknown: null }];
-
+                  ? await take_number(first_char, iter, line!, col!)
+                  : [null, { unknown: null, position: [line!, col!] }];
+    next = ret_next?.[0] ?? null;
     if ("name" in token && effective_keywords.has(token.name))
-      yield { keyword: token.name };
+      yield { keyword: token.name, position: [line!, col!] };
     else yield token;
   }
 }

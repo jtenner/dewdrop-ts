@@ -1,26 +1,32 @@
 import {
+  arrowKind,
+  type Binding,
   checkKind,
   checkPattern,
   enumDefBinding,
   inferType,
+  showContext,
   showTerm,
+  showType,
   starKind,
   termBinding,
+  traitDefBinding,
   typeAliasBinding,
   typecheck,
-  type Binding,
 } from "system-f-omega";
 import {
-  showDeclaration,
-  showEnumVariant,
-  showExpression,
-  showPatternExpression,
   type BuiltinDeclaration,
   type Declaration,
   type EnumDeclaration,
   type EnumVariant,
+  type FnDeclaration,
   type LetDeclaration,
   type Module,
+  showDeclaration,
+  showEnumVariant,
+  showExpression,
+  showPatternExpression,
+  type TraitDeclaration,
   type TypeDeclaration,
 } from "../parser.js";
 import { BaseWalker } from "../visitor.js";
@@ -33,20 +39,37 @@ export class TypeCheckPass extends BaseWalker {
     super.walkModule(node);
   }
 
+  override walkTraitDeclaration(node: TraitDeclaration): void {}
+
+  override walkFnDeclaration(node: FnDeclaration): void {
+    const term = this.context.terms.get(node.fn.fn);
+    if (!term)
+      throw new Error(`Term not elaborated for ${showDeclaration(node)}`);
+
+    const typeRes = inferType(this.env, term);
+    if ("err" in typeRes) {
+      console.log("Term is", showTerm(term));
+      console.log("Context is", showContext(this.env));
+      console.log(typeRes);
+      this.errors.push({ type_error: typeRes.err });
+      return;
+    }
+    const binding = termBinding(node.fn.fn.name!.name, typeRes.ok);
+    this.env.push(binding);
+    this.context.bindings.set(node, [binding]);
+  }
+
   override walkEnumDeclaration(node: EnumDeclaration): void {
     const type = this.context.types.get(node);
     if (!type)
       throw new Error(`Type not elaborated for enum: ${showDeclaration(node)}`);
 
-    const kind = checkKind(this.env, type);
-    if ("err" in kind) {
-      console.log(kind);
-      this.errors.push({ type_error: kind.err });
-      return;
-    }
+    let kind = starKind;
+    for (const _ of node.enum.type_params) kind = arrowKind(starKind, kind);
+
     const enumBinding = enumDefBinding(
       node.enum.id.type,
-      kind.ok,
+      kind,
       node.enum.type_params.map((t) => t.name),
       node.enum.variants.map((t) => {
         const ty = this.context.types.get(t);
@@ -77,6 +100,7 @@ export class TypeCheckPass extends BaseWalker {
     const name = "fields" in node ? node.fields.id.type : node.values.id.type;
 
     // The constructor function is defined at this point
+    console.log("type checking term", showTerm(term));
     const constructorTypeRes = typecheck(this.env, term);
     if ("err" in constructorTypeRes) {
       this.errors.push({ type_error: constructorTypeRes.err });

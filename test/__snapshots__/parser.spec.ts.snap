@@ -15,6 +15,10 @@ exports[`a matches snapshot: Expression: a 1`] = `
 {
   "ok": {
     "name": "a",
+    "position": [
+      1,
+      1,
+    ],
   },
 }
 `;
@@ -22,6 +26,10 @@ exports[`a matches snapshot: Expression: a 1`] = `
 exports[`"testing" matches snapshot: Expression: "testing" 1`] = `
 {
   "ok": {
+    "position": [
+      1,
+      1,
+    ],
     "string": "testing",
   },
 }
@@ -35,16 +43,28 @@ exports[`a + b * c - d matches snapshot: Expression: a + b * c - d 1`] = `
         "infix": {
           "left": {
             "name": "a",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "+",
           "right": {
             "infix": {
               "left": {
                 "name": "b",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": "*",
               "right": {
                 "name": "c",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -53,6 +73,10 @@ exports[`a + b * c - d matches snapshot: Expression: a + b * c - d 1`] = `
       "op": "-",
       "right": {
         "name": "d",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -69,22 +93,38 @@ exports[`a + b + c + d matches snapshot: Expression: a + b + c + d 1`] = `
             "infix": {
               "left": {
                 "name": "a",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": "+",
               "right": {
                 "name": "b",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
           "op": "+",
           "right": {
             "name": "c",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
       "op": "+",
       "right": {
         "name": "d",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -97,22 +137,38 @@ exports[`a ** b ** c ** d matches snapshot: Expression: a ** b ** c ** d 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "**",
       "right": {
         "infix": {
           "left": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "**",
           "right": {
             "infix": {
               "left": {
                 "name": "c",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": "**",
               "right": {
                 "name": "d",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -129,10 +185,18 @@ exports[`(a + b) * c matches snapshot: Expression: (a + b) * c 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "+",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -145,6 +209,10 @@ exports[`foo() matches snapshot: Expression: foo() 1`] = `
     "call": [
       {
         "name": "foo",
+        "position": [
+          1,
+          1,
+        ],
       },
       [],
     ],
@@ -158,6 +226,10 @@ exports[`foo(1, 2, bar) matches snapshot: Expression: foo(1, 2, bar) 1`] = `
     "call": [
       {
         "name": "foo",
+        "position": [
+          1,
+          1,
+        ],
       },
       [
         {
@@ -174,6 +246,10 @@ exports[`foo(1, 2, bar) matches snapshot: Expression: foo(1, 2, bar) 1`] = `
         },
         {
           "name": "bar",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
     ],
@@ -187,9 +263,17 @@ exports[`obj.field matches snapshot: Expression: obj.field 1`] = `
     "select": [
       {
         "name": "obj",
+        "position": [
+          1,
+          1,
+        ],
       },
       {
         "name": "field",
+        "position": [
+          1,
+          1,
+        ],
       },
     ],
   },
@@ -204,18 +288,34 @@ exports[`obj.method(x, y) matches snapshot: Expression: obj.method(x, y) 1`] = `
         "select": [
           {
             "name": "obj",
+            "position": [
+              1,
+              1,
+            ],
           },
           {
             "name": "method",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
       },
       [
         {
           "name": "x",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "name": "y",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
     ],
@@ -226,6 +326,10 @@ exports[`obj.method(x, y) matches snapshot: Expression: obj.method(x, y) 1`] = `
 exports[`MyType matches snapshot: Expression: MyType 1`] = `
 {
   "ok": {
+    "position": [
+      1,
+      1,
+    ],
     "type": "MyType",
   },
 }
@@ -236,6 +340,10 @@ exports[`MyType() matches snapshot: Expression: MyType() 1`] = `
   "ok": {
     "call": [
       {
+        "position": [
+          1,
+          1,
+        ],
         "type": "MyType",
       },
       [],
@@ -278,6 +386,10 @@ exports[`#{x: 1, y: 2} matches snapshot: Expression: #{x: 1, y: 2} 1`] = `
       [
         {
           "name": "x",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "int": {
@@ -289,6 +401,10 @@ exports[`#{x: 1, y: 2} matches snapshot: Expression: #{x: 1, y: 2} 1`] = `
       [
         {
           "name": "y",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "int": {
@@ -309,16 +425,28 @@ exports[`{ a; b; c } matches snapshot: Expression: { a; b; c } 1`] = `
       {
         "expression": {
           "name": "a",
+          "position": [
+            1,
+            1,
+          ],
         },
       },
       {
         "expression": {
           "name": "b",
+          "position": [
+            1,
+            1,
+          ],
         },
       },
       {
         "expression": {
           "name": "c",
+          "position": [
+            1,
+            1,
+          ],
         },
       },
     ],
@@ -341,6 +469,10 @@ exports[`{ let x = 1; x + 2 } matches snapshot: Expression: { let x = 1; x + 2 }
           },
           "pattern": {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
@@ -349,6 +481,10 @@ exports[`{ let x = 1; x + 2 } matches snapshot: Expression: { let x = 1; x + 2 }
           "infix": {
             "left": {
               "name": "x",
+              "position": [
+                1,
+                1,
+              ],
             },
             "op": "+",
             "right": {
@@ -371,12 +507,20 @@ exports[`if a { b } else { c } matches snapshot: Expression: if a { b } else { c
     "if_expr": {
       "cond": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "else_body": {
         "block": [
           {
             "expression": {
               "name": "c",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
         ],
@@ -386,6 +530,10 @@ exports[`if a { b } else { c } matches snapshot: Expression: if a { b } else { c
           {
             "expression": {
               "name": "b",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
         ],
@@ -401,6 +549,10 @@ exports[`if a { b } matches snapshot: Expression: if a { b } 1`] = `
     "if_expr": {
       "cond": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "else_body": null,
       "if_body": {
@@ -408,6 +560,10 @@ exports[`if a { b } matches snapshot: Expression: if a { b } 1`] = `
           {
             "expression": {
               "name": "b",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
         ],
@@ -423,6 +579,10 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
     "match": [
       {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
       [
         {
@@ -437,6 +597,10 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
             "constr": {
               "patterns": [],
               "type": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "A",
               },
             },
@@ -454,6 +618,10 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
             "constr": {
               "patterns": [],
               "type": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "B",
               },
             },
@@ -469,6 +637,10 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
           "guard": null,
           "pattern": {
             "name": "_",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
@@ -487,12 +659,20 @@ exports[`{ a <- try(explosion()) } matches snapshot: Expression: { a <- try(expl
             "call": [
               {
                 "name": "try",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               [
                 {
                   "call": [
                     {
                       "name": "explosion",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                     [],
                   ],
@@ -502,6 +682,10 @@ exports[`{ a <- try(explosion()) } matches snapshot: Expression: { a <- try(expl
           },
           "name": {
             "name": "a",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
@@ -522,6 +706,10 @@ exports[`foo(1).bar(2, 3).baz matches snapshot: Expression: foo(1).bar(2, 3).baz
                 "call": [
                   {
                     "name": "foo",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   [
                     {
@@ -535,6 +723,10 @@ exports[`foo(1).bar(2, 3).baz matches snapshot: Expression: foo(1).bar(2, 3).baz
               },
               {
                 "name": "bar",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
           },
@@ -556,6 +748,10 @@ exports[`foo(1).bar(2, 3).baz matches snapshot: Expression: foo(1).bar(2, 3).baz
       },
       {
         "name": "baz",
+        "position": [
+          1,
+          1,
+        ],
       },
     ],
   },
@@ -570,6 +766,10 @@ exports[`if match x { A => true, _ => false } { 1 } else { 0 } matches snapshot:
         "match": [
           {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
           [
             {
@@ -581,6 +781,10 @@ exports[`if match x { A => true, _ => false } { 1 } else { 0 } matches snapshot:
                 "constr": {
                   "patterns": [],
                   "type": {
+                    "position": [
+                      1,
+                      1,
+                    ],
                     "type": "A",
                   },
                 },
@@ -593,6 +797,10 @@ exports[`if match x { A => true, _ => false } { 1 } else { 0 } matches snapshot:
               "guard": null,
               "pattern": {
                 "name": "_",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           ],
@@ -631,6 +839,10 @@ exports[`x matches snapshot: PatternExpression: x 1`] = `
 {
   "ok": {
     "name": "x",
+    "position": [
+      1,
+      1,
+    ],
   },
 }
 `;
@@ -639,6 +851,10 @@ exports[`_wild matches snapshot: PatternExpression: _wild 1`] = `
 {
   "ok": {
     "name": "_wild",
+    "position": [
+      1,
+      1,
+    ],
   },
 }
 `;
@@ -649,6 +865,10 @@ exports[`Some matches snapshot: PatternExpression: Some 1`] = `
     "constr": {
       "patterns": [],
       "type": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Some",
       },
     },
@@ -669,6 +889,10 @@ exports[`Some(42) matches snapshot: PatternExpression: Some(42) 1`] = `
         },
       ],
       "type": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Some",
       },
     },
@@ -689,9 +913,17 @@ exports[`Pair(1, x) matches snapshot: PatternExpression: Pair(1, x) 1`] = `
         },
         {
           "name": "x",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
       "type": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Pair",
       },
     },
@@ -724,6 +956,10 @@ exports[`3.14 matches snapshot: PatternExpression: 3.14 1`] = `
 exports[`"hello" matches snapshot: PatternExpression: "hello" 1`] = `
 {
   "ok": {
+    "position": [
+      1,
+      1,
+    ],
     "string": "hello",
   },
 }
@@ -757,9 +993,17 @@ exports[`#(x, y) matches snapshot: PatternExpression: #(x, y) 1`] = `
     "tuple": [
       {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
       {
         "name": "y",
+        "position": [
+          1,
+          1,
+        ],
       },
     ],
   },
@@ -808,14 +1052,26 @@ exports[`#{foo: x, bar: 42} matches snapshot: PatternExpression: #{foo: x, bar: 
       [
         {
           "name": "foo",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "name": "x",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
       [
         {
           "name": "bar",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "int": {
@@ -836,18 +1092,34 @@ exports[`#{nested: Pair(x, y)} matches snapshot: PatternExpression: #{nested: Pa
       [
         {
           "name": "nested",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "constr": {
             "patterns": [
               {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               {
                 "name": "y",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
             "type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Pair",
             },
           },
@@ -867,12 +1139,20 @@ exports[`Some(#(x, #{y: 1})) matches snapshot: PatternExpression: Some(#(x, #{y:
           "tuple": [
             {
               "name": "x",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "record": [
                 [
                   {
                     "name": "y",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   {
                     "int": {
@@ -887,6 +1167,10 @@ exports[`Some(#(x, #{y: 1})) matches snapshot: PatternExpression: Some(#(x, #{y:
         },
       ],
       "type": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Some",
       },
     },
@@ -897,6 +1181,10 @@ exports[`Some(#(x, #{y: 1})) matches snapshot: PatternExpression: Some(#(x, #{y:
 exports[`Int matches snapshot: TypeExpression: Int 1`] = `
 {
   "ok": {
+    "position": [
+      1,
+      1,
+    ],
     "type": "Int",
   },
 }
@@ -907,9 +1195,17 @@ exports[`MyNamespace.Type matches snapshot: TypeExpression: MyNamespace.Type 1`]
   "ok": {
     "select": {
       "name": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Type",
       },
       "root": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "MyNamespace",
       },
     },
@@ -923,10 +1219,18 @@ exports[`(Int) => Bool matches snapshot: TypeExpression: (Int) => Bool 1`] = `
     "fn": {
       "args": [
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Int",
         },
       ],
       "ret": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Bool",
       },
     },
@@ -940,13 +1244,25 @@ exports[`(Int, String) => Bool matches snapshot: TypeExpression: (Int, String) =
     "fn": {
       "args": [
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Int",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "String",
         },
       ],
       "ret": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Bool",
       },
     },
@@ -960,6 +1276,10 @@ exports[`() => Void matches snapshot: TypeExpression: () => Void 1`] = `
     "fn": {
       "args": [],
       "ret": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Void",
       },
     },
@@ -972,12 +1292,24 @@ exports[`#(Int, Bool, String) matches snapshot: TypeExpression: #(Int, Bool, Str
   "ok": {
     "tuple": [
       {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Int",
       },
       {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Bool",
       },
       {
+        "position": [
+          1,
+          1,
+        ],
         "type": "String",
       },
     ],
@@ -1000,16 +1332,32 @@ exports[`#{x: Int, y: Bool} matches snapshot: TypeExpression: #{x: Int, y: Bool}
       {
         "name": {
           "name": "x",
+          "position": [
+            1,
+            1,
+          ],
         },
         "ty": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Int",
         },
       },
       {
         "name": {
           "name": "y",
+          "position": [
+            1,
+            1,
+          ],
         },
         "ty": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Bool",
         },
       },
@@ -1025,13 +1373,25 @@ exports[`#{nested: #(Int, String), flag: Bool} matches snapshot: TypeExpression:
       {
         "name": {
           "name": "nested",
+          "position": [
+            1,
+            1,
+          ],
         },
         "ty": {
           "tuple": [
             {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Int",
             },
             {
+              "position": [
+                1,
+                1,
+              ],
               "type": "String",
             },
           ],
@@ -1040,8 +1400,16 @@ exports[`#{nested: #(Int, String), flag: Bool} matches snapshot: TypeExpression:
       {
         "name": {
           "name": "flag",
+          "position": [
+            1,
+            1,
+          ],
         },
         "ty": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Bool",
         },
       },
@@ -1056,14 +1424,26 @@ exports[`#{a: Int}.a matches snapshot: TypeExpression: #{a: Int}.a 1`] = `
     "select": {
       "name": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "root": {
         "record": [
           {
             "name": {
               "name": "a",
+              "position": [
+                1,
+                1,
+              ],
             },
             "ty": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Int",
             },
           },
@@ -1080,10 +1460,18 @@ exports[`List<Int> matches snapshot: TypeExpression: List<Int> 1`] = `
     "app": {
       "args": [
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Int",
         },
       ],
       "callee": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "List",
       },
     },
@@ -1097,13 +1485,25 @@ exports[`Map<String, Int> matches snapshot: TypeExpression: Map<String, Int> 1`]
     "app": {
       "args": [
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "String",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Int",
         },
       ],
       "callee": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Map",
       },
     },
@@ -1120,10 +1520,18 @@ exports[`Outer.Inner<Nested<T>> matches snapshot: TypeExpression: Outer.Inner<Ne
           "app": {
             "args": [
               {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "T",
               },
             ],
             "callee": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Nested",
             },
           },
@@ -1132,9 +1540,17 @@ exports[`Outer.Inner<Nested<T>> matches snapshot: TypeExpression: Outer.Inner<Ne
       "callee": {
         "select": {
           "name": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Inner",
           },
           "root": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Outer",
           },
         },
@@ -1150,16 +1566,28 @@ exports[`(Int, List<String>) => Map<String, Int> matches snapshot: TypeExpressio
     "fn": {
       "args": [
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Int",
         },
         {
           "app": {
             "args": [
               {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "String",
               },
             ],
             "callee": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "List",
             },
           },
@@ -1169,13 +1597,25 @@ exports[`(Int, List<String>) => Map<String, Int> matches snapshot: TypeExpressio
         "app": {
           "args": [
             {
+              "position": [
+                1,
+                1,
+              ],
               "type": "String",
             },
             {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Int",
             },
           ],
           "callee": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Map",
           },
         },
@@ -1193,9 +1633,17 @@ exports[`(#(Int, Bool)) => #{ok: String, err: String} matches snapshot: TypeExpr
         {
           "tuple": [
             {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Int",
             },
             {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Bool",
             },
           ],
@@ -1206,16 +1654,32 @@ exports[`(#(Int, Bool)) => #{ok: String, err: String} matches snapshot: TypeExpr
           {
             "name": {
               "name": "ok",
+              "position": [
+                1,
+                1,
+              ],
             },
             "ty": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "String",
             },
           },
           {
             "name": {
               "name": "err",
+              "position": [
+                1,
+                1,
+              ],
             },
             "ty": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "String",
             },
           },
@@ -1232,9 +1696,17 @@ exports[`a <- b matches snapshot: BodyExpression: a <- b 1`] = `
     "arrow_bind": {
       "expression": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
       "name": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -1249,16 +1721,28 @@ exports[`{ a; b; c } matches snapshot: BodyExpression: { a; b; c } 1`] = `
         {
           "expression": {
             "name": "a",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
         {
           "expression": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
         {
           "expression": {
             "name": "c",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
@@ -1274,9 +1758,17 @@ exports[`let a = b matches snapshot: BodyExpression: let a = b 1`] = `
       "assert": false,
       "expression": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
       "pattern": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -1290,15 +1782,27 @@ exports[`let Some(a) = b matches snapshot: BodyExpression: let Some(a) = b 1`] =
       "assert": false,
       "expression": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
       "pattern": {
         "constr": {
           "patterns": [
             {
               "name": "a",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
           "type": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Some",
           },
         },
@@ -1315,15 +1819,27 @@ exports[`let assert Some(a) = b matches snapshot: BodyExpression: let assert Som
       "assert": true,
       "expression": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
       "pattern": {
         "constr": {
           "patterns": [
             {
               "name": "a",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
           "type": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Some",
           },
         },
@@ -1341,15 +1857,27 @@ exports[`d = a + b matches snapshot: BodyExpression: d = a + b 1`] = `
         "infix": {
           "left": {
             "name": "a",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "+",
           "right": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
       "name": {
         "name": "d",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -1370,10 +1898,18 @@ exports[`fn add(x: I32, y: I32): I32 { x + y } matches snapshot 1`] = `
                   "infix": {
                     "left": {
                       "name": "x",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                     "op": "+",
                     "right": {
                       "name": "y",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                   },
                 },
@@ -1382,26 +1918,50 @@ exports[`fn add(x: I32, y: I32): I32 { x + y } matches snapshot 1`] = `
           },
           "name": {
             "name": "add",
+            "position": [
+              1,
+              1,
+            ],
           },
           "params": [
             {
               "guard": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "I32",
               },
               "name": {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
             {
               "guard": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "I32",
               },
               "name": {
                 "name": "y",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           ],
           "return_type": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "I32",
           },
           "type_params": [],
@@ -1434,6 +1994,10 @@ exports[`pub fn main() { 42 } matches snapshot 1`] = `
           },
           "name": {
             "name": "main",
+            "position": [
+              1,
+              1,
+            ],
           },
           "params": [],
           "return_type": null,
@@ -1458,29 +2022,53 @@ exports[`fn identity<t>(x: t): t { x } matches snapshot 1`] = `
               {
                 "expression": {
                   "name": "x",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
             ],
           },
           "name": {
             "name": "identity",
+            "position": [
+              1,
+              1,
+            ],
           },
           "params": [
             {
               "guard": {
                 "name": "t",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "name": {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           ],
           "return_type": {
             "name": "t",
+            "position": [
+              1,
+              1,
+            ],
           },
           "type_params": [
             {
               "name": "t",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
         },
@@ -1495,21 +2083,16 @@ exports[`let x: i32 = 42 matches snapshot 1`] = `
 [
   null,
   {
-    "ok": {
-      "let_dec": {
-        "guard": {
-          "name": "i32",
+    "err": {
+      "expected": {
+        "found": {
+          "position": [
+            1,
+            1,
+          ],
+          "symbol": ":",
         },
-        "id": {
-          "name": "x",
-        },
-        "pub": false,
-        "value": {
-          "int": {
-            "size": 32,
-            "value": 42n,
-          },
-        },
+        "kind": "keyword(builtin)",
       },
     },
   },
@@ -1520,21 +2103,12 @@ exports[`pub let pi: f64 = 3.14159 matches snapshot 1`] = `
 [
   null,
   {
-    "ok": {
-      "let_dec": {
-        "guard": {
-          "name": "f64",
+    "err": {
+      "expected": {
+        "found": {
+          "unknown": null,
         },
-        "id": {
-          "name": "pi",
-        },
-        "pub": true,
-        "value": {
-          "float": {
-            "size": 64,
-            "value": 3.14159,
-          },
-        },
+        "kind": "keyword(builtin)",
       },
     },
   },
@@ -1547,9 +2121,13 @@ exports[`let y = true matches snapshot 1`] = `
   {
     "ok": {
       "let_dec": {
-        "guard": null,
-        "id": {
+        "assert": false,
+        "pattern": {
           "name": "y",
+          "position": [
+            1,
+            1,
+          ],
         },
         "pub": false,
         "value": {
@@ -1568,11 +2146,19 @@ exports[`type MyInt = I32 matches snapshot 1`] = `
     "ok": {
       "type_dec": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "MyInt",
         },
         "params": [],
         "pub": false,
         "value": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "I32",
         },
       },
@@ -1588,6 +2174,10 @@ exports[`pub enum Result<t, e> { Ok(t), Err(e) } matches snapshot 1`] = `
     "ok": {
       "enum": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Result",
         },
         "pub": true,
@@ -1595,20 +2185,36 @@ exports[`pub enum Result<t, e> { Ok(t), Err(e) } matches snapshot 1`] = `
         "type_params": [
           {
             "name": "t",
+            "position": [
+              1,
+              1,
+            ],
           },
           {
             "name": "e",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
         "variants": [
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Ok",
               },
               "values": [
                 {
                   "name": "t",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               ],
             },
@@ -1616,11 +2222,19 @@ exports[`pub enum Result<t, e> { Ok(t), Err(e) } matches snapshot 1`] = `
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Err",
               },
               "values": [
                 {
                   "name": "e",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               ],
             },
@@ -1639,6 +2253,10 @@ exports[`enum Color { Red, Green(I32), Blue { shade: f32 } } matches snapshot 1`
     "ok": {
       "enum": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Color",
         },
         "pub": false,
@@ -1648,6 +2266,10 @@ exports[`enum Color { Red, Green(I32), Blue { shade: f32 } } matches snapshot 1`
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Red",
               },
               "values": [],
@@ -1656,10 +2278,18 @@ exports[`enum Color { Red, Green(I32), Blue { shade: f32 } } matches snapshot 1`
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Green",
               },
               "values": [
                 {
+                  "position": [
+                    1,
+                    1,
+                  ],
                   "type": "I32",
                 },
               ],
@@ -1671,13 +2301,25 @@ exports[`enum Color { Red, Green(I32), Blue { shade: f32 } } matches snapshot 1`
                 {
                   "name": {
                     "name": "shade",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   "ty": {
                     "name": "f32",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 },
               ],
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Blue",
               },
             },
@@ -1696,6 +2338,10 @@ exports[`pub enum Direction { Up, Down, Left, Right } matches snapshot 1`] = `
     "ok": {
       "enum": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Direction",
         },
         "pub": true,
@@ -1705,6 +2351,10 @@ exports[`pub enum Direction { Up, Down, Left, Right } matches snapshot 1`] = `
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Up",
               },
               "values": [],
@@ -1713,6 +2363,10 @@ exports[`pub enum Direction { Up, Down, Left, Right } matches snapshot 1`] = `
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Down",
               },
               "values": [],
@@ -1721,6 +2375,10 @@ exports[`pub enum Direction { Up, Down, Left, Right } matches snapshot 1`] = `
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Left",
               },
               "values": [],
@@ -1729,6 +2387,10 @@ exports[`pub enum Direction { Up, Down, Left, Right } matches snapshot 1`] = `
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Right",
               },
               "values": [],
@@ -1751,30 +2413,54 @@ exports[`pub trait Eq<t> { fn eq(other: t) : bool } matches snapshot 1`] = `
           {
             "name": {
               "name": "eq",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [
               {
                 "name": {
                   "name": "other",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 "ty": {
                   "name": "t",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
             ],
             "return_type": {
               "name": "bool",
+              "position": [
+                1,
+                1,
+              ],
             },
             "type_params": [],
           },
         ],
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Eq",
         },
         "pub": true,
         "type_params": [
           {
             "name": "t",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
       },
@@ -1793,9 +2479,17 @@ exports[`trait Drawable { fn draw(): Void fn bounds(): Rect } matches snapshot 1
           {
             "name": {
               "name": "draw",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [],
             "return_type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Void",
             },
             "type_params": [],
@@ -1803,15 +2497,27 @@ exports[`trait Drawable { fn draw(): Void fn bounds(): Rect } matches snapshot 1
           {
             "name": {
               "name": "bounds",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [],
             "return_type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Rect",
             },
             "type_params": [],
           },
         ],
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Drawable",
         },
         "pub": false,
@@ -1834,13 +2540,25 @@ exports[`import "std" { fn print(): Void as out } matches snapshot 1`] = `
             "fn": {
               "alias": {
                 "name": "out",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "name": {
                 "name": "print",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "signature": {
                 "param_types": [],
                 "return_type": {
+                  "position": [
+                    1,
+                    1,
+                  ],
                   "type": "Void",
                 },
               },
@@ -1865,12 +2583,24 @@ exports[`import "std" { memory "memory": 1 as mem } matches snapshot 1`] = `
             "memory": {
               "alias": {
                 "name": "mem",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "max": null,
               "min": {
                 "int": 1n,
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "string": "memory",
               },
             },
@@ -1894,13 +2624,25 @@ exports[`import "std" { global mut count: i32 as cnt } matches snapshot 1`] = `
             "global": {
               "alias": {
                 "name": "cnt",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "global_type": {
                 "name": "i32",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "mut": true,
               "name": {
                 "name": "count",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -1923,17 +2665,37 @@ exports[`import "wasm" { table "table": I32 0 0 as tbl } matches snapshot 1`] = 
             "table": {
               "alias": {
                 "name": "tbl",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "max": {
                 "int": 0n,
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "min": {
                 "int": 0n,
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "string": "table",
               },
               "table_type": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "I32",
               },
             },
@@ -1956,9 +2718,17 @@ exports[`import "wasm" { type Option as Maybe } matches snapshot 1`] = `
           {
             "type": {
               "alias": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Maybe",
               },
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Option",
               },
             },
@@ -1982,6 +2752,10 @@ exports[`import "wasm" { trait Semiring } matches snapshot 1`] = `
             "trait": {
               "alias": null,
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Semiring",
               },
             },
@@ -2006,6 +2780,10 @@ exports[`import "wasm" { item } matches snapshot 1`] = `
               "alias": null,
               "name": {
                 "name": "item",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -2028,9 +2806,17 @@ exports[`import "wasm" { item as blah } matches snapshot 1`] = `
             "name": {
               "alias": {
                 "name": "blah",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "name": {
                 "name": "item",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -2053,6 +2839,10 @@ exports[`import "std" { Some } matches snapshot 1`] = `
             "constr": {
               "alias": null,
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Some",
               },
             },
@@ -2081,6 +2871,10 @@ exports[`Expression: self.field matches snapshot: Expression: self.field 1`] = `
       },
       {
         "name": "field",
+        "position": [
+          1,
+          1,
+        ],
       },
     ],
   },
@@ -2098,6 +2892,10 @@ exports[`Expression: self.method() matches snapshot: Expression: self.method() 1
           },
           {
             "name": "method",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
       },
@@ -2118,6 +2916,10 @@ exports[`Expression: fn (x: Int) { x + 1 } matches snapshot: Expression: fn (x: 
               "infix": {
                 "left": {
                   "name": "x",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 "op": "+",
                 "right": {
@@ -2135,10 +2937,18 @@ exports[`Expression: fn (x: Int) { x + 1 } matches snapshot: Expression: fn (x: 
       "params": [
         {
           "guard": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Int",
           },
           "name": {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
@@ -2160,10 +2970,18 @@ exports[`Expression: fn (x, y) { x + y } matches snapshot: Expression: fn (x, y)
               "infix": {
                 "left": {
                   "name": "x",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 "op": "+",
                 "right": {
                   "name": "y",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
             },
@@ -2176,12 +2994,20 @@ exports[`Expression: fn (x, y) { x + y } matches snapshot: Expression: fn (x, y)
           "guard": null,
           "name": {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
         {
           "guard": null,
           "name": {
             "name": "y",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
@@ -2201,6 +3027,10 @@ exports[`Expression: fn<t>(x: t): t { x } matches snapshot: Expression: fn<t>(x:
           {
             "expression": {
               "name": "x",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
         ],
@@ -2210,18 +3040,34 @@ exports[`Expression: fn<t>(x: t): t { x } matches snapshot: Expression: fn<t>(x:
         {
           "guard": {
             "name": "t",
+            "position": [
+              1,
+              1,
+            ],
           },
           "name": {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
       "return_type": {
         "name": "t",
+        "position": [
+          1,
+          1,
+        ],
       },
       "type_params": [
         {
           "name": "t",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
     },
@@ -2235,12 +3081,20 @@ exports[`Expression: map(fn (b) b, a) matches snapshot: Expression: map(fn (b) b
     "call": [
       {
         "name": "map",
+        "position": [
+          1,
+          1,
+        ],
       },
       [
         {
           "fn": {
             "body": {
               "name": "b",
+              "position": [
+                1,
+                1,
+              ],
             },
             "name": null,
             "params": [
@@ -2248,6 +3102,10 @@ exports[`Expression: map(fn (b) b, a) matches snapshot: Expression: map(fn (b) b
                 "guard": null,
                 "name": {
                   "name": "b",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
             ],
@@ -2257,6 +3115,10 @@ exports[`Expression: map(fn (b) b, a) matches snapshot: Expression: map(fn (b) b
         },
         {
           "name": "a",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
     ],
@@ -2271,6 +3133,10 @@ exports[`Expression: !x matches snapshot: Expression: !x 1`] = `
       "op": "!",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2295,6 +3161,10 @@ exports[`Expression: ~bits matches snapshot: Expression: ~bits 1`] = `
       "op": "~",
       "operand": {
         "name": "bits",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2308,6 +3178,10 @@ exports[`Expression: .!x matches snapshot: Expression: .!x 1`] = `
       "op": ".!",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2321,6 +3195,10 @@ exports[`Expression: !.x matches snapshot: Expression: !.x 1`] = `
       "op": "!.",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2334,6 +3212,10 @@ exports[`Expression: .~y matches snapshot: Expression: .~y 1`] = `
       "op": ".~",
       "operand": {
         "name": "y",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2347,6 +3229,10 @@ exports[`Expression: ~.y matches snapshot: Expression: ~.y 1`] = `
       "op": "~.",
       "operand": {
         "name": "y",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2360,6 +3246,10 @@ exports[`Expression: .-z matches snapshot: Expression: .-z 1`] = `
       "op": ".-",
       "operand": {
         "name": "z",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2373,6 +3263,10 @@ exports[`Expression: -.z matches snapshot: Expression: -.z 1`] = `
       "op": "-.",
       "operand": {
         "name": "z",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2386,6 +3280,10 @@ exports[`Expression: x! matches snapshot: Expression: x! 1`] = `
       "op": "!",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2399,6 +3297,10 @@ exports[`Expression: x? matches snapshot: Expression: x? 1`] = `
       "op": "?",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2412,6 +3314,10 @@ exports[`Expression: x.! matches snapshot: Expression: x.! 1`] = `
       "op": ".!",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2425,6 +3331,10 @@ exports[`Expression: x!. matches snapshot: Expression: x!. 1`] = `
       "op": "!.",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2438,6 +3348,10 @@ exports[`Expression: x.? matches snapshot: Expression: x.? 1`] = `
       "op": ".?",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2451,6 +3365,10 @@ exports[`Expression: x?. matches snapshot: Expression: x?. 1`] = `
       "op": "?.",
       "operand": {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2463,10 +3381,18 @@ exports[`Expression: a .+ b matches snapshot: Expression: a .+ b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".+",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2479,10 +3405,18 @@ exports[`Expression: a +. b matches snapshot: Expression: a +. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "+.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2495,10 +3429,18 @@ exports[`Expression: a .* b matches snapshot: Expression: a .* b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".*",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2511,10 +3453,18 @@ exports[`Expression: a *. b matches snapshot: Expression: a *. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "*.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2527,10 +3477,18 @@ exports[`Expression: a ./ b matches snapshot: Expression: a ./ b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "./",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2543,10 +3501,18 @@ exports[`Expression: a /. b matches snapshot: Expression: a /. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "/.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2559,10 +3525,18 @@ exports[`Expression: a .** b matches snapshot: Expression: a .** b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".**",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2575,10 +3549,18 @@ exports[`Expression: a **. b matches snapshot: Expression: a **. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "**.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2591,10 +3573,18 @@ exports[`Expression: a .- b matches snapshot: Expression: a .- b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".-",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2607,10 +3597,18 @@ exports[`Expression: a -. b matches snapshot: Expression: a -. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "-.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2623,10 +3621,18 @@ exports[`Expression: a .% b matches snapshot: Expression: a .% b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".%",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2639,10 +3645,18 @@ exports[`Expression: a %. b matches snapshot: Expression: a %. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "%.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2655,10 +3669,18 @@ exports[`Expression: a & b matches snapshot: Expression: a & b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "&",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2671,10 +3693,18 @@ exports[`Expression: a | b matches snapshot: Expression: a | b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "|",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2687,10 +3717,18 @@ exports[`Expression: a ^ b matches snapshot: Expression: a ^ b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "^",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2703,10 +3741,18 @@ exports[`Expression: a << b matches snapshot: Expression: a << b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "<<",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2719,10 +3765,18 @@ exports[`Expression: a >> b matches snapshot: Expression: a >> b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ">>",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2735,10 +3789,18 @@ exports[`Expression: a .& b matches snapshot: Expression: a .& b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".&",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2751,10 +3813,18 @@ exports[`Expression: a &. b matches snapshot: Expression: a &. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "&.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2767,10 +3837,18 @@ exports[`Expression: a .| b matches snapshot: Expression: a .| b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".|",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2783,10 +3861,18 @@ exports[`Expression: a |. b matches snapshot: Expression: a |. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "|.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2799,10 +3885,18 @@ exports[`Expression: a .^ b matches snapshot: Expression: a .^ b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".^",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2815,10 +3909,18 @@ exports[`Expression: a ^. b matches snapshot: Expression: a ^. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "^.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2831,10 +3933,18 @@ exports[`Expression: a .<< b matches snapshot: Expression: a .<< b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".<<",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2847,10 +3957,18 @@ exports[`Expression: a <<. b matches snapshot: Expression: a <<. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "<<.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2863,10 +3981,18 @@ exports[`Expression: a .>> b matches snapshot: Expression: a .>> b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".>>",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2879,10 +4005,18 @@ exports[`Expression: a >>. b matches snapshot: Expression: a >>. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ">>.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2895,10 +4029,18 @@ exports[`Expression: a < b matches snapshot: Expression: a < b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "<",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2911,10 +4053,18 @@ exports[`Expression: a > b matches snapshot: Expression: a > b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ">",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2927,10 +4077,18 @@ exports[`Expression: a <= b matches snapshot: Expression: a <= b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "<=",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2943,10 +4101,18 @@ exports[`Expression: a >= b matches snapshot: Expression: a >= b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ">=",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2959,10 +4125,18 @@ exports[`Expression: a == b matches snapshot: Expression: a == b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "==",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2975,10 +4149,18 @@ exports[`Expression: a != b matches snapshot: Expression: a != b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "!=",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -2991,10 +4173,18 @@ exports[`Expression: a .< b matches snapshot: Expression: a .< b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".<",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3007,10 +4197,18 @@ exports[`Expression: a <. b matches snapshot: Expression: a <. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "<.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3023,10 +4221,18 @@ exports[`Expression: a .> b matches snapshot: Expression: a .> b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".>",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3039,10 +4245,18 @@ exports[`Expression: a >. b matches snapshot: Expression: a >. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ">.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3055,10 +4269,18 @@ exports[`Expression: a .<= b matches snapshot: Expression: a .<= b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".<=",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3071,10 +4293,18 @@ exports[`Expression: a <=. b matches snapshot: Expression: a <=. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "<=.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3087,10 +4317,18 @@ exports[`Expression: a .>= b matches snapshot: Expression: a .>= b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".>=",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3103,10 +4341,18 @@ exports[`Expression: a >=. b matches snapshot: Expression: a >=. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ">=.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3119,10 +4365,18 @@ exports[`Expression: a .== b matches snapshot: Expression: a .== b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".==",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3135,10 +4389,18 @@ exports[`Expression: a ==. b matches snapshot: Expression: a ==. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "==.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3151,10 +4413,18 @@ exports[`Expression: a .!= b matches snapshot: Expression: a .!= b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".!=",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3167,10 +4437,18 @@ exports[`Expression: a !=. b matches snapshot: Expression: a !=. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "!=.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3183,10 +4461,18 @@ exports[`Expression: a && b matches snapshot: Expression: a && b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "&&",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3199,10 +4485,18 @@ exports[`Expression: a || b matches snapshot: Expression: a || b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "||",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3215,10 +4509,18 @@ exports[`Expression: a ^^ b matches snapshot: Expression: a ^^ b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "^^",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3231,10 +4533,18 @@ exports[`Expression: a .&& b matches snapshot: Expression: a .&& b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".&&",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3247,10 +4557,18 @@ exports[`Expression: a &&. b matches snapshot: Expression: a &&. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "&&.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3263,10 +4581,18 @@ exports[`Expression: a .|| b matches snapshot: Expression: a .|| b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".||",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3279,10 +4605,18 @@ exports[`Expression: a ||. b matches snapshot: Expression: a ||. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "||.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3295,10 +4629,18 @@ exports[`Expression: a .^^ b matches snapshot: Expression: a .^^ b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".^^",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3311,10 +4653,18 @@ exports[`Expression: a ^^. b matches snapshot: Expression: a ^^. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "^^.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3327,10 +4677,18 @@ exports[`Expression: a ?? b matches snapshot: Expression: a ?? b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "??",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3343,10 +4701,18 @@ exports[`Expression: a .?? b matches snapshot: Expression: a .?? b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".??",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3359,10 +4725,18 @@ exports[`Expression: a ??. b matches snapshot: Expression: a ??. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "??.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3375,10 +4749,18 @@ exports[`Expression: a .. b matches snapshot: Expression: a .. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "..",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3391,10 +4773,18 @@ exports[`Expression: a |> b matches snapshot: Expression: a |> b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "|>",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3407,10 +4797,18 @@ exports[`Expression: a <> b matches snapshot: Expression: a <> b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "<>",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3423,10 +4821,18 @@ exports[`Expression: a .<> b matches snapshot: Expression: a .<> b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": ".<>",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3439,10 +4845,18 @@ exports[`Expression: a <>. b matches snapshot: Expression: a <>. b 1`] = `
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "<>.",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3455,22 +4869,38 @@ exports[`Expression: a + b * c ** d matches snapshot: Expression: a + b * c ** d
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "+",
       "right": {
         "infix": {
           "left": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "*",
           "right": {
             "infix": {
               "left": {
                 "name": "c",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": "**",
               "right": {
                 "name": "d",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -3487,16 +4917,28 @@ exports[`Expression: a || b && c matches snapshot: Expression: a || b && c 1`] =
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "||",
       "right": {
         "infix": {
           "left": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "&&",
           "right": {
             "name": "c",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
@@ -3516,18 +4958,30 @@ exports[`Expression: !a && b || c matches snapshot: Expression: !a && b || c 1`]
               "op": "!",
               "operand": {
                 "name": "a",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
           "op": "&&",
           "right": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
       "op": "||",
       "right": {
         "name": "c",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3542,10 +4996,18 @@ exports[`Expression: a + b < c * d matches snapshot: Expression: a + b < c * d 1
         "infix": {
           "left": {
             "name": "a",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "+",
           "right": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
@@ -3554,10 +5016,18 @@ exports[`Expression: a + b < c * d matches snapshot: Expression: a + b < c * d 1
         "infix": {
           "left": {
             "name": "c",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "*",
           "right": {
             "name": "d",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
@@ -3574,16 +5044,28 @@ exports[`Expression: a |> b |> c matches snapshot: Expression: a |> b |> c 1`] =
         "infix": {
           "left": {
             "name": "a",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "|>",
           "right": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
       "op": "|>",
       "right": {
         "name": "c",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -3596,16 +5078,28 @@ exports[`Expression: a ?? b ?? c matches snapshot: Expression: a ?? b ?? c 1`] =
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "??",
       "right": {
         "infix": {
           "left": {
             "name": "b",
+            "position": [
+              1,
+              1,
+            ],
           },
           "op": "??",
           "right": {
             "name": "c",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
@@ -3628,9 +5122,17 @@ exports[`Expression: obj.foo().bar().baz matches snapshot: Expression: obj.foo()
                     "select": [
                       {
                         "name": "obj",
+                        "position": [
+                          1,
+                          1,
+                        ],
                       },
                       {
                         "name": "foo",
+                        "position": [
+                          1,
+                          1,
+                        ],
                       },
                     ],
                   },
@@ -3639,6 +5141,10 @@ exports[`Expression: obj.foo().bar().baz matches snapshot: Expression: obj.foo()
               },
               {
                 "name": "bar",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
           },
@@ -3647,6 +5153,10 @@ exports[`Expression: obj.foo().bar().baz matches snapshot: Expression: obj.foo()
       },
       {
         "name": "baz",
+        "position": [
+          1,
+          1,
+        ],
       },
     ],
   },
@@ -3665,9 +5175,17 @@ exports[`Expression: list.map(fn(x) { x + 1 }).filter(fn(x) { x > 0 }) matches s
                 "select": [
                   {
                     "name": "list",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   {
                     "name": "map",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 ],
               },
@@ -3681,6 +5199,10 @@ exports[`Expression: list.map(fn(x) { x + 1 }).filter(fn(x) { x > 0 }) matches s
                             "infix": {
                               "left": {
                                 "name": "x",
+                                "position": [
+                                  1,
+                                  1,
+                                ],
                               },
                               "op": "+",
                               "right": {
@@ -3700,6 +5222,10 @@ exports[`Expression: list.map(fn(x) { x + 1 }).filter(fn(x) { x > 0 }) matches s
                         "guard": null,
                         "name": {
                           "name": "x",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                       },
                     ],
@@ -3712,6 +5238,10 @@ exports[`Expression: list.map(fn(x) { x + 1 }).filter(fn(x) { x > 0 }) matches s
           },
           {
             "name": "filter",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
       },
@@ -3725,6 +5255,10 @@ exports[`Expression: list.map(fn(x) { x + 1 }).filter(fn(x) { x > 0 }) matches s
                     "infix": {
                       "left": {
                         "name": "x",
+                        "position": [
+                          1,
+                          1,
+                        ],
                       },
                       "op": ">",
                       "right": {
@@ -3744,6 +5278,10 @@ exports[`Expression: list.map(fn(x) { x + 1 }).filter(fn(x) { x > 0 }) matches s
                 "guard": null,
                 "name": {
                   "name": "x",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
             ],
@@ -3768,11 +5306,19 @@ exports[`Expression: fn(x) { match x { Some(y) => y, None => 0 } } matches snaps
               "match": [
                 {
                   "name": "x",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 [
                   {
                     "body": {
                       "name": "y",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                     "guard": null,
                     "pattern": {
@@ -3780,9 +5326,17 @@ exports[`Expression: fn(x) { match x { Some(y) => y, None => 0 } } matches snaps
                         "patterns": [
                           {
                             "name": "y",
+                            "position": [
+                              1,
+                              1,
+                            ],
                           },
                         ],
                         "type": {
+                          "position": [
+                            1,
+                            1,
+                          ],
                           "type": "Some",
                         },
                       },
@@ -3800,6 +5354,10 @@ exports[`Expression: fn(x) { match x { Some(y) => y, None => 0 } } matches snaps
                       "constr": {
                         "patterns": [],
                         "type": {
+                          "position": [
+                            1,
+                            1,
+                          ],
                           "type": "None",
                         },
                       },
@@ -3817,6 +5375,10 @@ exports[`Expression: fn(x) { match x { Some(y) => y, None => 0 } } matches snaps
           "guard": null,
           "name": {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
@@ -3833,6 +5395,10 @@ exports[`Expression: if a { #{x: 1} } else { #{x: 2} } matches snapshot: Express
     "if_expr": {
       "cond": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "else_body": {
         "block": [
@@ -3842,6 +5408,10 @@ exports[`Expression: if a { #{x: 1} } else { #{x: 2} } matches snapshot: Express
                 [
                   {
                     "name": "x",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   {
                     "int": {
@@ -3863,6 +5433,10 @@ exports[`Expression: if a { #{x: 1} } else { #{x: 2} } matches snapshot: Express
                 [
                   {
                     "name": "x",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   {
                     "int": {
@@ -3896,6 +5470,10 @@ exports[`Expression: { let x = 1; let y = 2; x + y } matches snapshot: Expressio
           },
           "pattern": {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
@@ -3910,6 +5488,10 @@ exports[`Expression: { let x = 1; let y = 2; x + y } matches snapshot: Expressio
           },
           "pattern": {
             "name": "y",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       },
@@ -3918,10 +5500,18 @@ exports[`Expression: { let x = 1; let y = 2; x + y } matches snapshot: Expressio
           "infix": {
             "left": {
               "name": "x",
+              "position": [
+                1,
+                1,
+              ],
             },
             "op": "+",
             "right": {
               "name": "y",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
         },
@@ -4007,18 +5597,34 @@ exports[`Pattern: Some(Pair(x, y)) matches snapshot: PatternExpression: Some(Pai
             "patterns": [
               {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               {
                 "name": "y",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
             "type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Pair",
             },
           },
         },
       ],
       "type": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Some",
       },
     },
@@ -4036,15 +5642,27 @@ exports[`Pattern: Result(Ok(value)) matches snapshot: PatternExpression: Result(
             "patterns": [
               {
                 "name": "value",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
             "type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Ok",
             },
           },
         },
       ],
       "type": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Result",
       },
     },
@@ -4067,25 +5685,49 @@ exports[`Pattern: #{x, y, z} matches snapshot: PatternExpression: #{x, y, z} 1`]
       [
         {
           "name": "x",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "name": "x",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
       [
         {
           "name": "y",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "name": "y",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
       [
         {
           "name": "z",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "name": "z",
+          "position": [
+            1,
+            1,
+          ],
         },
       ],
     ],
@@ -4100,14 +5742,26 @@ exports[`Pattern: #{point: #(x, y)} matches snapshot: PatternExpression: #{point
       [
         {
           "name": "point",
+          "position": [
+            1,
+            1,
+          ],
         },
         {
           "tuple": [
             {
               "name": "x",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "name": "y",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
         },
@@ -4127,15 +5781,27 @@ exports[`Pattern: Wrapper(#{inner: value}) matches snapshot: PatternExpression: 
             [
               {
                 "name": "inner",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               {
                 "name": "value",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
           ],
         },
       ],
       "type": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Wrapper",
       },
     },
@@ -4161,9 +5827,17 @@ exports[`Pattern: Nested(#(1, #{x: y})) matches snapshot: PatternExpression: Nes
                 [
                   {
                     "name": "x",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   {
                     "name": "y",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 ],
               ],
@@ -4172,6 +5846,10 @@ exports[`Pattern: Nested(#(1, #{x: y})) matches snapshot: PatternExpression: Nes
         },
       ],
       "type": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Nested",
       },
     },
@@ -4201,6 +5879,10 @@ exports[`Type: () => Void matches snapshot: TypeExpression: () => Void 1`] = `
     "fn": {
       "args": [],
       "ret": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Void",
       },
     },
@@ -4213,19 +5895,35 @@ exports[`Type: A.B.C.D matches snapshot: TypeExpression: A.B.C.D 1`] = `
   "ok": {
     "select": {
       "name": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "D",
       },
       "root": {
         "select": {
           "name": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "C",
           },
           "root": {
             "select": {
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "B",
               },
               "root": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "A",
               },
             },
@@ -4242,6 +5940,10 @@ exports[`Type: Container<Inner<T>>.Value matches snapshot: TypeExpression: Conta
   "ok": {
     "select": {
       "name": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Value",
       },
       "root": {
@@ -4251,16 +5953,28 @@ exports[`Type: Container<Inner<T>>.Value matches snapshot: TypeExpression: Conta
               "app": {
                 "args": [
                   {
+                    "position": [
+                      1,
+                      1,
+                    ],
                     "type": "T",
                   },
                 ],
                 "callee": {
+                  "position": [
+                    1,
+                    1,
+                  ],
                   "type": "Inner",
                 },
               },
             },
           ],
           "callee": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Container",
           },
         },
@@ -4276,13 +5990,25 @@ exports[`Type: Map<K, V> matches snapshot: TypeExpression: Map<K, V> 1`] = `
     "app": {
       "args": [
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "K",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "V",
         },
       ],
       "callee": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Map",
       },
     },
@@ -4296,16 +6022,32 @@ exports[`Type: Triple<A, B, C> matches snapshot: TypeExpression: Triple<A, B, C>
     "app": {
       "args": [
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "A",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "B",
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "C",
         },
       ],
       "callee": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Triple",
       },
     },
@@ -4321,18 +6063,34 @@ exports[`Type: Fn<#(A, B), C> matches snapshot: TypeExpression: Fn<#(A, B), C> 1
         {
           "tuple": [
             {
+              "position": [
+                1,
+                1,
+              ],
               "type": "A",
             },
             {
+              "position": [
+                1,
+                1,
+              ],
               "type": "B",
             },
           ],
         },
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "C",
         },
       ],
       "callee": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Fn",
       },
     },
@@ -4349,16 +6107,28 @@ exports[`Type: ((Int) => Int) => Int matches snapshot: TypeExpression: ((Int) =>
           "fn": {
             "args": [
               {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Int",
               },
             ],
             "ret": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Int",
             },
           },
         },
       ],
       "ret": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Int",
       },
     },
@@ -4372,22 +6142,38 @@ exports[`Type: (Int, (String) => Bool) => Result matches snapshot: TypeExpressio
     "fn": {
       "args": [
         {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Int",
         },
         {
           "fn": {
             "args": [
               {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "String",
               },
             ],
             "ret": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Bool",
             },
           },
         },
       ],
       "ret": {
+        "position": [
+          1,
+          1,
+        ],
         "type": "Result",
       },
     },
@@ -4402,14 +6188,26 @@ exports[`Type: #{pos: #(f64, f64), vel: #(f64, f64)} matches snapshot: TypeExpre
       {
         "name": {
           "name": "pos",
+          "position": [
+            1,
+            1,
+          ],
         },
         "ty": {
           "tuple": [
             {
               "name": "f64",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "name": "f64",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
         },
@@ -4417,14 +6215,26 @@ exports[`Type: #{pos: #(f64, f64), vel: #(f64, f64)} matches snapshot: TypeExpre
       {
         "name": {
           "name": "vel",
+          "position": [
+            1,
+            1,
+          ],
         },
         "ty": {
           "tuple": [
             {
               "name": "f64",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "name": "f64",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
         },
@@ -4441,14 +6251,26 @@ exports[`Body: let #(x, y) = point matches snapshot: BodyExpression: let #(x, y)
       "assert": false,
       "expression": {
         "name": "point",
+        "position": [
+          1,
+          1,
+        ],
       },
       "pattern": {
         "tuple": [
           {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
           {
             "name": "y",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
       },
@@ -4464,23 +6286,43 @@ exports[`Body: let #{name, age} = person matches snapshot: BodyExpression: let #
       "assert": false,
       "expression": {
         "name": "person",
+        "position": [
+          1,
+          1,
+        ],
       },
       "pattern": {
         "record": [
           [
             {
               "name": "name",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "name": "name",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
           [
             {
               "name": "age",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "name": "age",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
         ],
@@ -4497,15 +6339,27 @@ exports[`Body: let Some(value) = option matches snapshot: BodyExpression: let So
       "assert": false,
       "expression": {
         "name": "option",
+        "position": [
+          1,
+          1,
+        ],
       },
       "pattern": {
         "constr": {
           "patterns": [
             {
               "name": "value",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
           "type": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Some",
           },
         },
@@ -4526,11 +6380,19 @@ exports[`Body: { { a; b }; c } matches snapshot: BodyExpression: { { a; b }; c }
               {
                 "expression": {
                   "name": "a",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
               {
                 "expression": {
                   "name": "b",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
             ],
@@ -4539,6 +6401,10 @@ exports[`Body: { { a; b }; c } matches snapshot: BodyExpression: { { a; b }; c }
         {
           "expression": {
             "name": "c",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
@@ -4563,6 +6429,10 @@ exports[`Body: { let x = 1; y <- compute(); x + y } matches snapshot: BodyExpres
             },
             "pattern": {
               "name": "x",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
         },
@@ -4572,12 +6442,20 @@ exports[`Body: { let x = 1; y <- compute(); x + y } matches snapshot: BodyExpres
               "call": [
                 {
                   "name": "compute",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 [],
               ],
             },
             "name": {
               "name": "y",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
         },
@@ -4586,10 +6464,18 @@ exports[`Body: { let x = 1; y <- compute(); x + y } matches snapshot: BodyExpres
             "infix": {
               "left": {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": "+",
               "right": {
                 "name": "y",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -4612,6 +6498,10 @@ exports[`Declaration: impl Show for Int { fn show(): String { "int" } } matches 
               "block": [
                 {
                   "expression": {
+                    "position": [
+                      1,
+                      1,
+                    ],
                     "string": "int",
                   },
                 },
@@ -4619,18 +6509,34 @@ exports[`Declaration: impl Show for Int { fn show(): String { "int" } } matches 
             },
             "name": {
               "name": "show",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [],
             "return_type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "String",
             },
             "type_params": [],
           },
         ],
         "for": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Int",
         },
         "name": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Show",
         },
         "type_params": [],
@@ -4659,6 +6565,10 @@ exports[`Declaration: impl Eq<T> for Option<T> { fn eq(other: Option<T>): Bool {
             },
             "name": {
               "name": "eq",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [
               {
@@ -4666,20 +6576,36 @@ exports[`Declaration: impl Eq<T> for Option<T> { fn eq(other: Option<T>): Bool {
                   "app": {
                     "args": [
                       {
+                        "position": [
+                          1,
+                          1,
+                        ],
                         "type": "T",
                       },
                     ],
                     "callee": {
+                      "position": [
+                        1,
+                        1,
+                      ],
                       "type": "Option",
                     },
                   },
                 },
                 "name": {
                   "name": "other",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
             ],
             "return_type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Bool",
             },
             "type_params": [],
@@ -4689,19 +6615,35 @@ exports[`Declaration: impl Eq<T> for Option<T> { fn eq(other: Option<T>): Bool {
           "app": {
             "args": [
               {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "T",
               },
             ],
             "callee": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Option",
             },
           },
         },
         "name": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Eq",
         },
         "type_params": [
           {
+            "position": [
+              1,
+              1,
+            ],
             "type": "T",
           },
         ],
@@ -4725,6 +6667,10 @@ exports[`Declaration: impl Default for Vec<t> { fn default(): Vec<t> { Vec() } }
                   "expression": {
                     "call": [
                       {
+                        "position": [
+                          1,
+                          1,
+                        ],
                         "type": "Vec",
                       },
                       [],
@@ -4735,6 +6681,10 @@ exports[`Declaration: impl Default for Vec<t> { fn default(): Vec<t> { Vec() } }
             },
             "name": {
               "name": "default",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [],
             "return_type": {
@@ -4742,9 +6692,17 @@ exports[`Declaration: impl Default for Vec<t> { fn default(): Vec<t> { Vec() } }
                 "args": [
                   {
                     "name": "t",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 ],
                 "callee": {
+                  "position": [
+                    1,
+                    1,
+                  ],
                   "type": "Vec",
                 },
               },
@@ -4757,14 +6715,26 @@ exports[`Declaration: impl Default for Vec<t> { fn default(): Vec<t> { Vec() } }
             "args": [
               {
                 "name": "t",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
             "callee": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Vec",
             },
           },
         },
         "name": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Default",
         },
         "type_params": [],
@@ -4793,16 +6763,28 @@ exports[`Declaration: fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { 
                             "call": [
                               {
                                 "name": "f",
+                                "position": [
+                                  1,
+                                  1,
+                                ],
                               },
                               [
                                 {
                                   "call": [
                                     {
                                       "name": "g",
+                                      "position": [
+                                        1,
+                                        1,
+                                      ],
                                     },
                                     [
                                       {
                                         "name": "x",
+                                        "position": [
+                                          1,
+                                          1,
+                                        ],
                                       },
                                     ],
                                   ],
@@ -4818,14 +6800,26 @@ exports[`Declaration: fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { 
                       {
                         "guard": {
                           "name": "a",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                         "name": {
                           "name": "x",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                       },
                     ],
                     "return_type": {
                       "name": "c",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                     "type_params": [],
                   },
@@ -4835,6 +6829,10 @@ exports[`Declaration: fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { 
           },
           "name": {
             "name": "compose",
+            "position": [
+              1,
+              1,
+            ],
           },
           "params": [
             {
@@ -4843,15 +6841,27 @@ exports[`Declaration: fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { 
                   "args": [
                     {
                       "name": "b",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                   ],
                   "ret": {
                     "name": "c",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 },
               },
               "name": {
                 "name": "f",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
             {
@@ -4860,15 +6870,27 @@ exports[`Declaration: fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { 
                   "args": [
                     {
                       "name": "a",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                   ],
                   "ret": {
                     "name": "b",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 },
               },
               "name": {
                 "name": "g",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           ],
@@ -4877,22 +6899,42 @@ exports[`Declaration: fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { 
               "args": [
                 {
                   "name": "a",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               ],
               "ret": {
                 "name": "c",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
           "type_params": [
             {
               "name": "a",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "name": "b",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "name": "c",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
         },
@@ -4915,12 +6957,20 @@ exports[`Declaration: pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) 
               {
                 "expression": {
                   "name": "init",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               },
             ],
           },
           "name": {
             "name": "fold",
+            "position": [
+              1,
+              1,
+            ],
           },
           "params": [
             {
@@ -4929,23 +6979,43 @@ exports[`Declaration: pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) 
                   "args": [
                     {
                       "name": "t",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                   ],
                   "callee": {
+                    "position": [
+                      1,
+                      1,
+                    ],
                     "type": "List",
                   },
                 },
               },
               "name": {
                 "name": "list",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
             {
               "guard": {
                 "name": "acc",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "name": {
                 "name": "init",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
             {
@@ -4954,30 +7024,58 @@ exports[`Declaration: pub fn fold<t, acc>(list: List<t>, init: acc, f: (acc, t) 
                   "args": [
                     {
                       "name": "acc",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                     {
                       "name": "t",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                   ],
                   "ret": {
                     "name": "acc",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 },
               },
               "name": {
                 "name": "f",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           ],
           "return_type": {
             "name": "acc",
+            "position": [
+              1,
+              1,
+            ],
           },
           "type_params": [
             {
               "name": "t",
+              "position": [
+                1,
+                1,
+              ],
             },
             {
               "name": "acc",
+              "position": [
+                1,
+                1,
+              ],
             },
           ],
         },
@@ -4995,6 +7093,10 @@ exports[`Declaration: enum Result<t, e> { Ok(t), Err(e) } matches snapshot: Decl
     "ok": {
       "enum": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Result",
         },
         "pub": false,
@@ -5002,20 +7104,36 @@ exports[`Declaration: enum Result<t, e> { Ok(t), Err(e) } matches snapshot: Decl
         "type_params": [
           {
             "name": "t",
+            "position": [
+              1,
+              1,
+            ],
           },
           {
             "name": "e",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
         "variants": [
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Ok",
               },
               "values": [
                 {
                   "name": "t",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               ],
             },
@@ -5023,11 +7141,19 @@ exports[`Declaration: enum Result<t, e> { Ok(t), Err(e) } matches snapshot: Decl
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Err",
               },
               "values": [
                 {
                   "name": "e",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               ],
             },
@@ -5046,14 +7172,26 @@ exports[`Declaration: pub type Map<k, v> = #{entries: List<#(k, v)>} matches sna
     "ok": {
       "type_dec": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Map",
         },
         "params": [
           {
             "name": "k",
+            "position": [
+              1,
+              1,
+            ],
           },
           {
             "name": "v",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
         "pub": true,
@@ -5062,6 +7200,10 @@ exports[`Declaration: pub type Map<k, v> = #{entries: List<#(k, v)>} matches sna
             {
               "name": {
                 "name": "entries",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "ty": {
                 "app": {
@@ -5070,14 +7212,26 @@ exports[`Declaration: pub type Map<k, v> = #{entries: List<#(k, v)>} matches sna
                       "tuple": [
                         {
                           "name": "k",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                         {
                           "name": "v",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                       ],
                     },
                   ],
                   "callee": {
+                    "position": [
+                      1,
+                      1,
+                    ],
                     "type": "List",
                   },
                 },
@@ -5098,6 +7252,10 @@ exports[`Declaration: enum rec List<t_item> { Nil, Cons(t_item, List<t_item>) } 
     "ok": {
       "enum": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "List",
         },
         "pub": false,
@@ -5105,12 +7263,20 @@ exports[`Declaration: enum rec List<t_item> { Nil, Cons(t_item, List<t_item>) } 
         "type_params": [
           {
             "name": "t_item",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
         "variants": [
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Nil",
               },
               "values": [],
@@ -5119,20 +7285,36 @@ exports[`Declaration: enum rec List<t_item> { Nil, Cons(t_item, List<t_item>) } 
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Cons",
               },
               "values": [
                 {
                   "name": "t_item",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 {
                   "app": {
                     "args": [
                       {
                         "name": "t_item",
+                        "position": [
+                          1,
+                          1,
+                        ],
                       },
                     ],
                     "callee": {
+                      "position": [
+                        1,
+                        1,
+                      ],
                       "type": "List",
                     },
                   },
@@ -5154,6 +7336,10 @@ exports[`Declaration: enum Tree<t> { Leaf, Node { value: t, left: Tree<t>, right
     "ok": {
       "enum": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Tree",
         },
         "pub": false,
@@ -5161,12 +7347,20 @@ exports[`Declaration: enum Tree<t> { Leaf, Node { value: t, left: Tree<t>, right
         "type_params": [
           {
             "name": "t",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
         "variants": [
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Leaf",
               },
               "values": [],
@@ -5178,23 +7372,43 @@ exports[`Declaration: enum Tree<t> { Leaf, Node { value: t, left: Tree<t>, right
                 {
                   "name": {
                     "name": "value",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   "ty": {
                     "name": "t",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 },
                 {
                   "name": {
                     "name": "left",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   "ty": {
                     "app": {
                       "args": [
                         {
                           "name": "t",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                       ],
                       "callee": {
+                        "position": [
+                          1,
+                          1,
+                        ],
                         "type": "Tree",
                       },
                     },
@@ -5203,15 +7417,27 @@ exports[`Declaration: enum Tree<t> { Leaf, Node { value: t, left: Tree<t>, right
                 {
                   "name": {
                     "name": "right",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   "ty": {
                     "app": {
                       "args": [
                         {
                           "name": "t",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                       ],
                       "callee": {
+                        "position": [
+                          1,
+                          1,
+                        ],
                         "type": "Tree",
                       },
                     },
@@ -5219,6 +7445,10 @@ exports[`Declaration: enum Tree<t> { Leaf, Node { value: t, left: Tree<t>, right
                 },
               ],
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Node",
               },
             },
@@ -5237,6 +7467,10 @@ exports[`Declaration: pub enum Message { Quit, Move { x: i32, y: i32 }, Write(St
     "ok": {
       "enum": {
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Message",
         },
         "pub": true,
@@ -5246,6 +7480,10 @@ exports[`Declaration: pub enum Message { Quit, Move { x: i32, y: i32 }, Write(St
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Quit",
               },
               "values": [],
@@ -5257,21 +7495,41 @@ exports[`Declaration: pub enum Message { Quit, Move { x: i32, y: i32 }, Write(St
                 {
                   "name": {
                     "name": "x",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   "ty": {
                     "name": "i32",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 },
                 {
                   "name": {
                     "name": "y",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   "ty": {
                     "name": "i32",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 },
               ],
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Move",
               },
             },
@@ -5279,10 +7537,18 @@ exports[`Declaration: pub enum Message { Quit, Move { x: i32, y: i32 }, Write(St
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Write",
               },
               "values": [
                 {
+                  "position": [
+                    1,
+                    1,
+                  ],
                   "type": "String",
                 },
               ],
@@ -5291,17 +7557,33 @@ exports[`Declaration: pub enum Message { Quit, Move { x: i32, y: i32 }, Write(St
           {
             "values": {
               "id": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "ChangeColor",
               },
               "values": [
                 {
                   "name": "i32",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 {
                   "name": "i32",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 {
                   "name": "i32",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               ],
             },
@@ -5323,18 +7605,34 @@ exports[`Declaration: trait Numeric { fn add(other: Self): Self fn mul(other: Se
           {
             "name": {
               "name": "add",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [
               {
                 "name": {
                   "name": "other",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 "ty": {
+                  "position": [
+                    1,
+                    1,
+                  ],
                   "type": "Self",
                 },
               },
             ],
             "return_type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Self",
             },
             "type_params": [],
@@ -5342,18 +7640,34 @@ exports[`Declaration: trait Numeric { fn add(other: Self): Self fn mul(other: Se
           {
             "name": {
               "name": "mul",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [
               {
                 "name": {
                   "name": "other",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
                 "ty": {
+                  "position": [
+                    1,
+                    1,
+                  ],
                   "type": "Self",
                 },
               },
             ],
             "return_type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Self",
             },
             "type_params": [],
@@ -5361,15 +7675,27 @@ exports[`Declaration: trait Numeric { fn add(other: Self): Self fn mul(other: Se
           {
             "name": {
               "name": "zero",
+              "position": [
+                1,
+                1,
+              ],
             },
             "params": [],
             "return_type": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "Self",
             },
             "type_params": [],
           },
         ],
         "id": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "Numeric",
         },
         "pub": false,
@@ -5393,19 +7719,35 @@ exports[`Declaration: import "std" { fn print(msg: String): Void, type String, m
               "alias": null,
               "name": {
                 "name": "print",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "signature": {
                 "param_types": [
                   {
                     "guard": {
+                      "position": [
+                        1,
+                        1,
+                      ],
                       "type": "String",
                     },
                     "name": {
                       "name": "msg",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                   },
                 ],
                 "return_type": {
+                  "position": [
+                    1,
+                    1,
+                  ],
                   "type": "Void",
                 },
               },
@@ -5415,6 +7757,10 @@ exports[`Declaration: import "std" { fn print(msg: String): Void, type String, m
             "type": {
               "alias": null,
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "String",
               },
             },
@@ -5423,14 +7769,30 @@ exports[`Declaration: import "std" { fn print(msg: String): Void, type String, m
             "memory": {
               "alias": {
                 "name": "mem",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "max": {
                 "int": 10n,
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "min": {
                 "int": 1n,
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "string": "mem",
               },
             },
@@ -5454,6 +7816,10 @@ exports[`Declaration: import "core" { trait Eq, trait Ord, enum Option, enum Res
             "trait": {
               "alias": null,
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Eq",
               },
             },
@@ -5462,6 +7828,10 @@ exports[`Declaration: import "core" { trait Eq, trait Ord, enum Option, enum Res
             "trait": {
               "alias": null,
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Ord",
               },
             },
@@ -5470,6 +7840,10 @@ exports[`Declaration: import "core" { trait Eq, trait Ord, enum Option, enum Res
             "enum": {
               "alias": null,
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Option",
               },
             },
@@ -5478,6 +7852,10 @@ exports[`Declaration: import "core" { trait Eq, trait Ord, enum Option, enum Res
             "enum": {
               "alias": null,
               "name": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Result",
               },
             },
@@ -5503,10 +7881,18 @@ exports[`Declaration: fn side_effect(x: Int) { print(x) } matches snapshot: Decl
                   "call": [
                     {
                       "name": "print",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                     [
                       {
                         "name": "x",
+                        "position": [
+                          1,
+                          1,
+                        ],
                       },
                     ],
                   ],
@@ -5516,14 +7902,26 @@ exports[`Declaration: fn side_effect(x: Int) { print(x) } matches snapshot: Decl
           },
           "name": {
             "name": "side_effect",
+            "position": [
+              1,
+              1,
+            ],
           },
           "params": [
             {
               "guard": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Int",
               },
               "name": {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           ],
@@ -5553,6 +7951,10 @@ exports[`Declaration: fn factorial(n: Int): Int { if n <= 1 { 1 } else { n * fac
                       "infix": {
                         "left": {
                           "name": "n",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                         "op": "<=",
                         "right": {
@@ -5570,18 +7972,30 @@ exports[`Declaration: fn factorial(n: Int): Int { if n <= 1 { 1 } else { n * fac
                             "infix": {
                               "left": {
                                 "name": "n",
+                                "position": [
+                                  1,
+                                  1,
+                                ],
                               },
                               "op": "*",
                               "right": {
                                 "call": [
                                   {
                                     "name": "factorial",
+                                    "position": [
+                                      1,
+                                      1,
+                                    ],
                                   },
                                   [
                                     {
                                       "infix": {
                                         "left": {
                                           "name": "n",
+                                          "position": [
+                                            1,
+                                            1,
+                                          ],
                                         },
                                         "op": "-",
                                         "right": {
@@ -5619,18 +8033,34 @@ exports[`Declaration: fn factorial(n: Int): Int { if n <= 1 { 1 } else { n * fac
           },
           "name": {
             "name": "factorial",
+            "position": [
+              1,
+              1,
+            ],
           },
           "params": [
             {
               "guard": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Int",
               },
               "name": {
                 "name": "n",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           ],
           "return_type": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Int",
           },
           "type_params": [],
@@ -5660,9 +8090,17 @@ exports[`Declaration: fn process(data: List<Int>): Int { let sum = data.fold(0, 
                         "select": [
                           {
                             "name": "data",
+                            "position": [
+                              1,
+                              1,
+                            ],
                           },
                           {
                             "name": "fold",
+                            "position": [
+                              1,
+                              1,
+                            ],
                           },
                         ],
                       },
@@ -5682,10 +8120,18 @@ exports[`Declaration: fn process(data: List<Int>): Int { let sum = data.fold(0, 
                                     "infix": {
                                       "left": {
                                         "name": "acc",
+                                        "position": [
+                                          1,
+                                          1,
+                                        ],
                                       },
                                       "op": "+",
                                       "right": {
                                         "name": "x",
+                                        "position": [
+                                          1,
+                                          1,
+                                        ],
                                       },
                                     },
                                   },
@@ -5698,12 +8144,20 @@ exports[`Declaration: fn process(data: List<Int>): Int { let sum = data.fold(0, 
                                 "guard": null,
                                 "name": {
                                   "name": "acc",
+                                  "position": [
+                                    1,
+                                    1,
+                                  ],
                                 },
                               },
                               {
                                 "guard": null,
                                 "name": {
                                   "name": "x",
+                                  "position": [
+                                    1,
+                                    1,
+                                  ],
                                 },
                               },
                             ],
@@ -5716,6 +8170,10 @@ exports[`Declaration: fn process(data: List<Int>): Int { let sum = data.fold(0, 
                   },
                   "pattern": {
                     "name": "sum",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                 },
               },
@@ -5724,6 +8182,10 @@ exports[`Declaration: fn process(data: List<Int>): Int { let sum = data.fold(0, 
                   "infix": {
                     "left": {
                       "name": "sum",
+                      "position": [
+                        1,
+                        1,
+                      ],
                     },
                     "op": "/",
                     "right": {
@@ -5732,9 +8194,17 @@ exports[`Declaration: fn process(data: List<Int>): Int { let sum = data.fold(0, 
                           "select": [
                             {
                               "name": "data",
+                              "position": [
+                                1,
+                                1,
+                              ],
                             },
                             {
                               "name": "length",
+                              "position": [
+                                1,
+                                1,
+                              ],
                             },
                           ],
                         },
@@ -5748,6 +8218,10 @@ exports[`Declaration: fn process(data: List<Int>): Int { let sum = data.fold(0, 
           },
           "name": {
             "name": "process",
+            "position": [
+              1,
+              1,
+            ],
           },
           "params": [
             {
@@ -5755,20 +8229,36 @@ exports[`Declaration: fn process(data: List<Int>): Int { let sum = data.fold(0, 
                 "app": {
                   "args": [
                     {
+                      "position": [
+                        1,
+                        1,
+                      ],
                       "type": "Int",
                     },
                   ],
                   "callee": {
+                    "position": [
+                      1,
+                      1,
+                    ],
                     "type": "List",
                   },
                 },
               },
               "name": {
                 "name": "data",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           ],
           "return_type": {
+            "position": [
+              1,
+              1,
+            ],
             "type": "Int",
           },
           "type_params": [],
@@ -5788,29 +8278,57 @@ exports[`Declaration: builtin "i32.add" as i32_add(a: I32, b: I32): I32 matches 
       "builtin": {
         "alias": {
           "name": "i32_add",
+          "position": [
+            1,
+            1,
+          ],
         },
         "name": {
+          "position": [
+            1,
+            1,
+          ],
           "string": "i32.add",
         },
         "params": [
           {
             "guard": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "I32",
             },
             "name": {
               "name": "a",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
           {
             "guard": {
+              "position": [
+                1,
+                1,
+              ],
               "type": "I32",
             },
             "name": {
               "name": "b",
+              "position": [
+                1,
+                1,
+              ],
             },
           },
         ],
         "return_type": {
+          "position": [
+            1,
+            1,
+          ],
           "type": "I32",
         },
       },
@@ -5825,6 +8343,10 @@ exports[`Edge case: foo() matches snapshot: EdgeCase: foo() 1`] = `
     "call": [
       {
         "name": "foo",
+        "position": [
+          1,
+          1,
+        ],
       },
       [],
     ],
@@ -5851,6 +8373,10 @@ exports[`Edge case: #{} matches snapshot: EdgeCase: #{} 1`] = `
 exports[`Edge case: MyEnum matches snapshot: EdgeCase: MyEnum 1`] = `
 {
   "ok": {
+    "position": [
+      1,
+      1,
+    ],
     "type": "MyEnum",
   },
 }
@@ -5862,30 +8388,50 @@ exports[`Edge case: a(b(c(d(e())))) matches snapshot: EdgeCase: a(b(c(d(e())))) 
     "call": [
       {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       [
         {
           "call": [
             {
               "name": "b",
+              "position": [
+                1,
+                1,
+              ],
             },
             [
               {
                 "call": [
                   {
                     "name": "c",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   [
                     {
                       "call": [
                         {
                           "name": "d",
+                          "position": [
+                            1,
+                            1,
+                          ],
                         },
                         [
                           {
                             "call": [
                               {
                                 "name": "e",
+                                "position": [
+                                  1,
+                                  1,
+                                ],
                               },
                               [],
                             ],
@@ -5909,6 +8455,10 @@ exports[`Edge case: ((((a)))) matches snapshot: EdgeCase: ((((a)))) 1`] = `
 {
   "ok": {
     "name": "a",
+    "position": [
+      1,
+      1,
+    ],
   },
 }
 `;
@@ -5923,12 +8473,20 @@ exports[`Edge case: foo().bar + baz().qux * 2 matches snapshot: EdgeCase: foo().
             "call": [
               {
                 "name": "foo",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               [],
             ],
           },
           {
             "name": "bar",
+            "position": [
+              1,
+              1,
+            ],
           },
         ],
       },
@@ -5941,12 +8499,20 @@ exports[`Edge case: foo().bar + baz().qux * 2 matches snapshot: EdgeCase: foo().
                 "call": [
                   {
                     "name": "baz",
+                    "position": [
+                      1,
+                      1,
+                    ],
                   },
                   [],
                 ],
               },
               {
                 "name": "qux",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
           },
@@ -5970,10 +8536,18 @@ exports[`Edge case: (a + b)(c, d) matches snapshot: EdgeCase: (a + b)(c, d) 1`] 
     "infix": {
       "left": {
         "name": "a",
+        "position": [
+          1,
+          1,
+        ],
       },
       "op": "+",
       "right": {
         "name": "b",
+        "position": [
+          1,
+          1,
+        ],
       },
     },
   },
@@ -5986,16 +8560,28 @@ exports[`Match with guard: match x { Some(y) if (y > 0) => y, _ => 0 } matches s
     "match": [
       {
         "name": "x",
+        "position": [
+          1,
+          1,
+        ],
       },
       [
         {
           "body": {
             "name": "y",
+            "position": [
+              1,
+              1,
+            ],
           },
           "guard": {
             "infix": {
               "left": {
                 "name": "y",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": ">",
               "right": {
@@ -6011,9 +8597,17 @@ exports[`Match with guard: match x { Some(y) if (y > 0) => y, _ => 0 } matches s
               "patterns": [
                 {
                   "name": "y",
+                  "position": [
+                    1,
+                    1,
+                  ],
                 },
               ],
               "type": {
+                "position": [
+                  1,
+                  1,
+                ],
                 "type": "Some",
               },
             },
@@ -6029,6 +8623,10 @@ exports[`Match with guard: match x { Some(y) if (y > 0) => y, _ => 0 } matches s
           "guard": null,
           "pattern": {
             "name": "_",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
@@ -6043,20 +8641,36 @@ exports[`Match with guard: match point { #(x, y) if (x == y) => x, #(x, _) => x,
     "match": [
       {
         "name": "point",
+        "position": [
+          1,
+          1,
+        ],
       },
       [
         {
           "body": {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
           "guard": {
             "infix": {
               "left": {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": "==",
               "right": {
                 "name": "y",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -6064,9 +8678,17 @@ exports[`Match with guard: match point { #(x, y) if (x == y) => x, #(x, _) => x,
             "tuple": [
               {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               {
                 "name": "y",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
           },
@@ -6074,15 +8696,27 @@ exports[`Match with guard: match point { #(x, y) if (x == y) => x, #(x, _) => x,
         {
           "body": {
             "name": "x",
+            "position": [
+              1,
+              1,
+            ],
           },
           "guard": null,
           "pattern": {
             "tuple": [
               {
                 "name": "x",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               {
                 "name": "_",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             ],
           },
@@ -6097,6 +8731,10 @@ exports[`Match with guard: match point { #(x, y) if (x == y) => x, #(x, _) => x,
           "guard": null,
           "pattern": {
             "name": "_",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
@@ -6111,6 +8749,10 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
     "match": [
       {
         "name": "value",
+        "position": [
+          1,
+          1,
+        ],
       },
       [
         {
@@ -6119,6 +8761,10 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
               "op": "-",
               "operand": {
                 "name": "n",
+                "position": [
+                  1,
+                  1,
+                ],
               },
             },
           },
@@ -6126,6 +8772,10 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
             "infix": {
               "left": {
                 "name": "n",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": "<",
               "right": {
@@ -6138,6 +8788,10 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
           },
           "pattern": {
             "name": "n",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
         {
@@ -6151,6 +8805,10 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
             "infix": {
               "left": {
                 "name": "n",
+                "position": [
+                  1,
+                  1,
+                ],
               },
               "op": ">",
               "right": {
@@ -6163,15 +8821,27 @@ exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 1
           },
           "pattern": {
             "name": "n",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
         {
           "body": {
             "name": "n",
+            "position": [
+              1,
+              1,
+            ],
           },
           "guard": null,
           "pattern": {
             "name": "n",
+            "position": [
+              1,
+              1,
+            ],
           },
         },
       ],
