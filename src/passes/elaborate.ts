@@ -1,8 +1,10 @@
 import {
+  applySubstitution,
   appTerm,
   appType,
   arrowKind,
   arrowType,
+  checkType,
   conTerm,
   conType,
   dictTerm,
@@ -23,8 +25,10 @@ import {
   showType,
   starKind,
   type Term,
+  type TraitDefBinding,
   type Type,
   traitDefBinding,
+  traitImplBinding,
   tuplePattern,
   tupleTerm,
   tupleType,
@@ -53,6 +57,7 @@ import {
   type FnDeclaration,
   type FnExpression,
   type FnTypeExpression,
+  type ImplDeclaration,
   type IntExpression,
   type LetBindBodyExpression,
   type LetDeclaration,
@@ -97,50 +102,128 @@ export class ElaboratePass extends BaseWalker {
   override walkTraitDeclaration(node: TraitDeclaration): void {
     super.walkTraitDeclaration(node);
 
-    const methods: [string, Type][] = [];
-    for (const method of node.trait.fns) {
-      const methodType = this.elaborateMethodSignature(method);
-      methods.push([method.name.name, methodType]);
+    let kind = starKind;
+
+    for (let i = node.trait.type_params.length - 1; i >= 0; i--) {
+      kind = arrowKind(starKind, kind);
     }
 
-    const selfKind = arrowKind(starKind, starKind); // Or compute from trait
-    const traitDef = {
-      name: node.trait.id.type,
-      type_param: "Self",
-      kind: selfKind,
-      methods,
-    };
+    const methods = [] as [string, Type][];
 
-    this.context.traitDefs.set(node, traitDef);
+    for (const fn of node.trait.fns) {
+      // start with the return type and build up the function def for each param
+      let fnTy = this.context.types.get(fn.return_type);
+      if (!fnTy)
+        throw new Error(
+          `Return type not elaborated for trait def: ${showTypeExpression(fn.return_type)}`,
+        );
+
+      for (let i = fn.params.length - 1; i >= 0; i--) {
+        const param = fn.params[i]!;
+        const paramTy = this.context.types.get(param.ty);
+        if (!paramTy)
+          throw new Error(
+            `Param type not elaborated for trait def: ${showTypeExpression(param.ty)}`,
+          );
+        fnTy = arrowType(paramTy, fnTy);
+      }
+
+      // build a type parameter for each trait type param
+      for (let i = node.trait.type_params.length - 1; i >= 0; i--) {
+        const param = node.trait.type_params[i]!;
+        fnTy = forallType(param.name, starKind, fnTy);
+      }
+
+      methods.push([fn.name.name, fnTy]);
+      this.context.types.set(fn, fnTy);
+    }
+
+    const traitDef = {
+      trait_def: {
+        kind,
+        methods,
+        name: node.trait.id.type,
+        type_param: "Self",
+      },
+    } satisfies TraitDefBinding;
+    this.context.bindings.set(node, [traitDef]);
   }
 
-  private elaborateMethodSignature(method: TraitFn): Type {
-    let ty = this.context.types.get(method.return_type);
-    if (!ty)
+  override walkImplDeclaration(node: ImplDeclaration): void {
+    super.walkImplDeclaration(node);
+    const implFor = this.context.types.get(node.impl.for);
+    if (!implFor)
       throw new Error(
-        `Type not elaborated for return type: ${showTypeExpression(method.return_type)}`,
+        `Trait impl for type expression not elaborated: ${showTypeExpression(node.impl.for)}`,
       );
 
-    // Add implicit self: Self<trait_param>
-    const selfTy = appType(varType("Self"), varType(this.currentTraitParam!));
-    ty = arrowType(selfTy, ty);
+    const methods = [] as [string, Term][];
 
-    // Add explicit params
-    for (let i = method.params.length - 1; i >= 0; i--) {
-      const paramTy = this.context.types.get(method.params[i]!.ty);
+    const implTerm = this.lookupType(node, node.impl.name.type);
+    if (!implTerm) {
+      this.errors.push({
+        unbound: {
+          name: node.impl.name.type,
+          scope: this.getScope(node)!,
+        },
+      });
+      return;
+    }
+
+    if (!("trait" in implTerm)) {
+      this.errors.push({
+        invalid_name: node,
+      });
+      return;
+    }
+
+    const traitTypeParams = implTerm.trait.trait.type_params;
+    if (traitTypeParams.length !== node.impl.trait_params.length) {
+      this.errors.push({
+        type_parameter_count: {
+          node,
+          actual: node.impl.trait_params.length,
+          expected: traitTypeParams.length,
+        },
+      });
+      return;
+    }
+
+    // build a trait substitution
+    const traitSubstitution = new Map<string, Type>();
+    for (let i = 0; i < traitTypeParams.length; i++) {
+      const paramName = traitTypeParams[i]!.name;
+      const paramTy = this.context.types.get(node.impl.trait_params[i]!);
       if (!paramTy)
         throw new Error(
-          `Type not elaborated for return type: ${showTypeExpression(method.params[i]!.ty)}`,
+          `Trait param type not elaborated for: ${node.impl.trait_params[i]!}`,
         );
-      ty = arrowType(paramTy, ty);
+      traitSubstitution.set(paramName, paramTy);
     }
 
-    // Add method type parameters
-    for (let i = method.type_params.length - 1; i >= 0; i--) {
-      ty = forallType(method.type_params[i]!.name, starKind, ty);
+    for (const fn of node.impl.fns) {
+      const fnTy = this.context.types.get(fn);
+      if (!fnTy)
+        throw new Error(`Function Type not elaborated for fn ${showFn(fn)}`);
+      const methodTy = applySubstitution(traitSubstitution, fnTy);
+      this.context.types.set(fn, methodTy);
+
+      const fnTerm = this.context.terms.get(fn);
+      if (!fnTerm)
+        throw new Error(`Function term not elaborated for ${showFn(fn)}`);
+
+      // Need to wait for type checking
+      methods.push([fn.name!.name, fnTerm]);
     }
 
-    return ty;
+    let methodDict = dictTerm(node.impl.name.type, implFor, methods);
+    for (let i = node.impl.type_params.length - 1; i >= 0; i--) {
+      const p = node.impl.type_params[i]!;
+      methodDict = tylamTerm(p.name, starKind, methodDict);
+    }
+
+    const binding = traitImplBinding(node.impl.name.type, implFor, methodDict);
+    this.context.bindings.set(node, [binding]);
   }
 
   override walkTypeDeclaration(node: TypeDeclaration): void {

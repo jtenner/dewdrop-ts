@@ -346,7 +346,8 @@ export type TraitDeclaration = {
 export type ImplDeclaration = {
   impl: {
     name: TypeIdentifier;
-    type_params: TypeExpression[];
+    type_params: NameIdentifier[];
+    trait_params: TypeExpression[];
     for: TypeExpression;
     fns: Fn[];
   };
@@ -2526,7 +2527,8 @@ const take_impl_declaration = async (
       impl: {
         for: impl_for.ok,
         name: name.ok,
-        type_params: trait_params.ok.list,
+        type_params: type_params.ok.list,
+        trait_params: trait_params.ok.list,
         fns: fns.ok.list,
       },
       position: start_pos,

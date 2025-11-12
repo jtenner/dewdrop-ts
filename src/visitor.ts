@@ -264,6 +264,32 @@ export abstract class BaseContext {
   setScope(node: ASTNode, scope: Scope) {
     this.context.scopes.set(node, scope);
   }
+
+  lookupTerm(node: ASTNode, name: string) {
+    let scope = this.context.scopes.get(node) ?? null;
+    if (!scope) throw new Error(`Node scope not found!`);
+
+    while (scope) {
+      const term = scope.terms.get(name);
+      if (term) return term;
+      scope = scope.parent;
+    }
+
+    return null;
+  }
+
+  lookupType(node: ASTNode, name: string) {
+    let scope = this.context.scopes.get(node) ?? null;
+    if (!scope) throw new Error(`Node scope not found!`);
+
+    while (scope) {
+      const ty = scope.types.get(name);
+      if (ty) return ty;
+      scope = scope.parent;
+    }
+
+    return null;
+  }
 }
 
 export class BaseWalker extends BaseContext implements ASTWalker {
