@@ -51,196 +51,196 @@ describe("lexer tokenkinds", () => {
         {
           "position": [
             1,
-            1,
+            2,
           ],
           "symbol": "!",
         },
         {
           "position": [
             1,
-            1,
+            3,
           ],
           "symbol": "@",
         },
         {
           "position": [
             1,
-            1,
+            4,
           ],
           "symbol": "#",
         },
         {
           "position": [
             1,
-            1,
+            5,
           ],
           "symbol": "$",
         },
         {
           "position": [
             1,
-            1,
+            6,
           ],
           "symbol": "%",
         },
         {
           "position": [
             1,
-            1,
+            7,
           ],
           "symbol": "^",
         },
         {
           "position": [
             1,
-            1,
+            8,
           ],
           "symbol": "&",
         },
         {
           "position": [
             1,
-            1,
+            9,
           ],
           "symbol": "*",
         },
         {
           "position": [
             1,
-            1,
+            10,
           ],
           "symbol": "(",
         },
         {
           "position": [
             1,
-            1,
+            11,
           ],
           "symbol": ")",
         },
         {
           "position": [
             1,
-            1,
+            12,
           ],
           "symbol": "-",
         },
         {
           "position": [
             1,
-            1,
+            12,
           ],
           "symbol": "=",
         },
         {
           "position": [
             1,
-            1,
+            14,
           ],
           "symbol": "+",
         },
         {
           "position": [
             1,
-            1,
+            14,
           ],
           "symbol": "-",
         },
         {
           "position": [
             1,
-            1,
+            14,
           ],
           "symbol": "/",
         },
         {
           "position": [
             1,
-            1,
+            17,
           ],
           "symbol": "<",
         },
         {
           "position": [
             1,
-            1,
+            18,
           ],
           "symbol": ">",
         },
         {
           "position": [
             1,
-            1,
+            19,
           ],
           "symbol": "[",
         },
         {
           "position": [
             1,
-            1,
+            20,
           ],
           "symbol": "]",
         },
         {
           "position": [
             1,
-            1,
+            21,
           ],
           "symbol": "{",
         },
         {
           "position": [
             1,
-            1,
+            22,
           ],
           "symbol": "}",
         },
         {
           "position": [
             1,
-            1,
+            23,
           ],
           "symbol": ":",
         },
         {
           "position": [
             1,
-            1,
+            24,
           ],
           "symbol": ";",
         },
         {
           "position": [
             1,
-            1,
+            25,
           ],
           "symbol": ",",
         },
         {
           "position": [
             1,
-            1,
+            26,
           ],
           "symbol": ".",
         },
         {
           "position": [
             1,
-            1,
+            27,
           ],
           "symbol": "?",
         },
         {
           "position": [
             1,
-            1,
+            28,
           ],
           "symbol": "~",
         },
         {
           "position": [
             1,
-            1,
+            29,
           ],
           "symbol": "|",
         },
@@ -406,7 +406,7 @@ describe("lexer tokenkinds", () => {
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -414,13 +414,13 @@ describe("lexer tokenkinds", () => {
           "name": "one",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -428,13 +428,13 @@ describe("lexer tokenkinds", () => {
           "name": "two",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -442,13 +442,13 @@ describe("lexer tokenkinds", () => {
           "name": "red",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -456,13 +456,13 @@ describe("lexer tokenkinds", () => {
           "name": "blue",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -470,13 +470,13 @@ describe("lexer tokenkinds", () => {
           "name": "fish",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -484,13 +484,13 @@ describe("lexer tokenkinds", () => {
           "name": "dish",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -498,13 +498,13 @@ describe("lexer tokenkinds", () => {
           "name": "glue",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -512,13 +512,13 @@ describe("lexer tokenkinds", () => {
           "keyword": "fn",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -526,13 +526,13 @@ describe("lexer tokenkinds", () => {
           "keyword": "type",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },
@@ -540,13 +540,13 @@ describe("lexer tokenkinds", () => {
           "keyword": "trait",
           "position": [
             2,
-            2,
+            1,
           ],
         },
         {
           "position": [
             2,
-            2,
+            1,
           ],
           "whitespace": null,
         },

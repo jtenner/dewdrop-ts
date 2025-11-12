@@ -22,8 +22,9 @@ export async function* chars_from(
       stream: true,
     });
     for (const c of decoded) {
-      line += Number(c === "\n");
-      col = col * Number("\n" === c) + 1;
+      const isNewline = Number("\n" === c);
+      line += isNewline;
+      col += 1 - isNewline * col;
       yield [c, line, col];
     }
     offset += bytesRead;
@@ -36,8 +37,9 @@ export async function* chars(
   let line = 1;
   let col = 1;
   for (const c of text) {
-    line += Number(c === "\n");
-    col = col * Number("\n" === c) + 1;
+    const isNewline = Number("\n" === c);
+    line += isNewline;
+    col += 1 - isNewline * col;
     yield [c, line, col];
   }
 }
