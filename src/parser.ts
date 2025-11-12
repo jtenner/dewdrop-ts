@@ -28,23 +28,33 @@ export const ok = <T>(ok: T) => ({ ok });
 
 export const expected = (kind: string, found: Token | null) =>
   ({
-    err: { expected: { kind, found: found ?? { unknown: null } } },
+    err: {
+      expected: { kind, found: found ?? { unknown: null, position: [1, 1] } },
+    },
   }) satisfies Result<ExpectedParseError, Token>;
 
 export type NamedTypeExpression = { name: NameIdentifier; ty: TypeExpression };
 
-export type NameTypeExpression = { name: string };
 export type SelectTypeExpression = {
   select: { root: TypeExpression; name: Identifier };
+  position: [number, number];
 };
 export type ApplicationTypeExpression = {
   app: { callee: TypeExpression; args: TypeExpression[] };
+  position: [number, number];
 };
 export type FnTypeExpression = {
   fn: { args: TypeExpression[]; ret: TypeExpression };
+  position: [number, number];
 };
-export type RecordTypeExpression = { record: NamedTypeExpression[] };
-export type TupleTypeExpression = { tuple: TypeExpression[] };
+export type RecordTypeExpression = {
+  record: NamedTypeExpression[];
+  position: [number, number];
+};
+export type TupleTypeExpression = {
+  tuple: TypeExpression[];
+  position: [number, number];
+};
 export type TypeExpression =
   | NameIdentifier
   | TypeIdentifier
@@ -56,6 +66,7 @@ export type TypeExpression =
 
 export type ArrowKindBodyExpression = {
   arrow_bind: { name: NameIdentifier; expression: Expression };
+  position: [number, number];
 };
 export type LetBindBodyExpression = {
   let_bind: {
@@ -63,11 +74,16 @@ export type LetBindBodyExpression = {
     assert: boolean;
     expression: Expression;
   };
+  position: [number, number];
 };
 export type AssignBodyExpression = {
   assign: { name: NameIdentifier; expression: Expression };
+  position: [number, number];
 };
-export type ExpressionBodyExpression = { expression: Expression };
+export type ExpressionBodyExpression = {
+  expression: Expression;
+  position: [number, number];
+};
 export type BodyExpression =
   | ArrowKindBodyExpression // a <- expr
   | LetBindBodyExpression // let a = expr
@@ -75,35 +91,64 @@ export type BodyExpression =
   | ExpressionBodyExpression; // expr
 
 export type TypeConstructorExpression = TypeIdentifier;
-export type CallExpression = { call: [Expression, Expression[]] };
-export type BlockExpression = { block: BodyExpression[] };
+export type CallExpression = {
+  call: [Expression, Expression[]];
+  position: [number, number];
+};
+export type BlockExpression = {
+  block: BodyExpression[];
+  position: [number, number];
+};
 export type IfExpression = {
   if_expr: {
     cond: Expression;
     if_body: Expression;
     else_body: Expression | null;
   };
+  position: [number, number];
 };
-export type SelectExpression = { select: [Expression, NameIdentifier] };
-export type MatchExpression = { match: [Expression, MatchArm[]] };
-export type FloatExpression = { float: { value: number; size: number } };
-export type IntExpression = { int: { value: bigint; size: number } };
-export type BoolExpression = { bool: boolean };
+export type SelectExpression = {
+  select: [Expression, NameIdentifier];
+  position: [number, number];
+};
+export type MatchExpression = {
+  match: [Expression, MatchArm[]];
+  position: [number, number];
+};
+export type FloatExpression = {
+  float: { value: number; size: number };
+  position: [number, number];
+};
+export type IntExpression = {
+  int: { value: bigint; size: number };
+  position: [number, number];
+};
+export type BoolExpression = { bool: boolean; position: [number, number] };
 export type PrefixExpression = {
   prefix: { op: PrefixOp; operand: Expression };
+  position: [number, number];
 };
 export type PostfixExpression = {
   postfix: { op: PostfixOp; operand: Expression };
+  position: [number, number];
 };
 export type InfixExpression = {
   infix: { op: InfixOp; left: Expression; right: Expression };
+  position: [number, number];
 };
 export type FnExpression = {
   fn: Fn;
+  position: [number, number];
 };
-export type RecordExpression = { record: [NameIdentifier, Expression][] };
-export type TupleExpression = { tuple: Expression[] };
-export type SelfExpression = { self: null };
+export type RecordExpression = {
+  record: [NameIdentifier, Expression][];
+  position: [number, number];
+};
+export type TupleExpression = {
+  tuple: Expression[];
+  position: [number, number];
+};
+export type SelfExpression = { self: null; position: [number, number] };
 export type Expression =
   | NameIdentifier
   | TypeConstructorExpression
@@ -137,14 +182,28 @@ const isString = (expr: Expression) => "string" in expr;
 
 export type ConstructorPatternExpression = {
   constr: { type: TypeIdentifier; patterns: PatternExpression[] };
+  position: [number, number];
 };
-export type IntPatternExpression = { int: { value: bigint; size: number } };
-export type FloatPatternExpression = { float: { value: number; size: number } };
-export type StringPatternExpression = { string: string };
+export type IntPatternExpression = {
+  int: { value: bigint; size: number };
+  position: [number, number];
+};
+export type FloatPatternExpression = {
+  float: { value: number; size: number };
+  position: [number, number];
+};
+export type StringPatternExpression = {
+  string: string;
+  position: [number, number];
+};
 export type RecordPatternExpression = {
   record: [NameIdentifier, PatternExpression][];
+  position: [number, number];
 };
-export type TuplePatternExpression = { tuple: PatternExpression[] };
+export type TuplePatternExpression = {
+  tuple: PatternExpression[];
+  position: [number, number];
+};
 export type PatternExpression =
   | NameIdentifier
   | ConstructorPatternExpression
@@ -168,6 +227,7 @@ export type FnSignature = {
 export type Int = { int: bigint };
 export type TypeImport = {
   type: { name: TypeIdentifier; alias: TypeIdentifier | null };
+  position: [number, number];
 };
 export type FnImport = {
   fn: {
@@ -175,6 +235,7 @@ export type FnImport = {
     signature: FnSignature;
     alias: NameIdentifier | null;
   };
+  position: [number, number];
 };
 export type GlobalImport = {
   global: {
@@ -183,6 +244,7 @@ export type GlobalImport = {
     global_type: TypeExpression;
     alias: NameIdentifier | null;
   };
+  position: [number, number];
 };
 export type TableImport = {
   table: {
@@ -192,6 +254,7 @@ export type TableImport = {
     max: IntToken | null;
     alias: NameIdentifier | null;
   };
+  position: [number, number];
 };
 export type StarImport = { star: TypeIdentifier };
 export type MemoryImport = {
@@ -201,18 +264,23 @@ export type MemoryImport = {
     max: IntToken | null;
     alias: NameIdentifier | null;
   };
+  position: [number, number];
 };
 export type NameImport = {
   name: { name: NameIdentifier; alias: NameIdentifier | null };
+  position: [number, number];
 };
 export type TraitImport = {
   trait: { name: TypeIdentifier; alias: TypeIdentifier | null };
+  position: [number, number];
 };
 export type EnumImport = {
   enum: { name: TypeIdentifier; alias: TypeIdentifier | null };
+  position: [number, number];
 };
 export type ConstructorImport = {
   constr: { name: TypeIdentifier; alias: TypeIdentifier | null };
+  position: [number, number];
 };
 export type Import =
   | ConstructorImport
@@ -231,6 +299,7 @@ export type TraitFn = {
   params: NamedTypeExpression[];
   type_params: NameIdentifier[];
   return_type: TypeExpression;
+  position: [number, number];
 };
 
 export type Fn = {
@@ -239,6 +308,7 @@ export type Fn = {
   params: FnParam[];
   return_type: TypeExpression | null;
   body: Expression;
+  position: [number, number];
 };
 
 export type FnParam = { name: NameIdentifier; guard: TypeExpression | null };
@@ -250,6 +320,7 @@ export type TypeDeclaration = {
     params: NameIdentifier[];
     value: TypeExpression;
   };
+  position: [number, number];
 };
 
 export type LetDeclaration = {
@@ -259,6 +330,7 @@ export type LetDeclaration = {
     pattern: PatternExpression;
     value: Expression;
   };
+  position: [number, number];
 };
 
 export type TraitDeclaration = {
@@ -268,6 +340,7 @@ export type TraitDeclaration = {
     type_params: NameIdentifier[];
     fns: TraitFn[];
   };
+  position: [number, number];
 };
 
 export type ImplDeclaration = {
@@ -277,6 +350,7 @@ export type ImplDeclaration = {
     for: TypeExpression;
     fns: Fn[];
   };
+  position: [number, number];
 };
 
 export type ImportDeclaration = {
@@ -284,6 +358,7 @@ export type ImportDeclaration = {
     import_from: string;
     imports: Import[];
   };
+  position: [number, number];
 };
 
 export type EnumVariant =
@@ -292,8 +367,12 @@ export type EnumVariant =
         id: TypeIdentifier;
         fields: NamedTypeExpression[];
       };
+      position: [number, number];
     }
-  | { values: { id: TypeIdentifier; values: TypeExpression[] } };
+  | {
+      values: { id: TypeIdentifier; values: TypeExpression[] };
+      position: [number, number];
+    };
 
 export type EnumDeclaration = {
   enum: {
@@ -303,9 +382,13 @@ export type EnumDeclaration = {
     type_params: NameIdentifier[];
     variants: EnumVariant[];
   };
+  position: [number, number];
 };
 
-export type FnDeclaration = { fn: { pub: boolean; fn: Fn } };
+export type FnDeclaration = {
+  fn: { pub: boolean; fn: Fn };
+  position: [number, number];
+};
 export type BuiltinDeclaration = {
   builtin: {
     name: StringToken;
@@ -313,6 +396,7 @@ export type BuiltinDeclaration = {
     params: FnParam[];
     return_type: TypeExpression;
   };
+  position: [number, number];
 };
 export type Declaration =
   | BuiltinDeclaration
@@ -335,7 +419,7 @@ const next = async (tokens: TokenIter, skip_whitespace = true) => {
 
 const operators = new Set(Array.from("!%^&*-=+/<>:.?~|"));
 
-const is_operator = (token: Token): token is { symbol: string } => {
+const is_operator = (token: Token): token is SymbolToken => {
   return "symbol" in token && operators.has(token.symbol);
 };
 
@@ -410,7 +494,10 @@ const infix_ops = {
   "|>": [1, "left"] as const,
 } as const satisfies Record<string, [number, "left" | "right"]>;
 
-const get_infix_op = (op: string): Operator<Expression> | null =>
+const get_infix_op = (
+  op: string,
+  position: [number, number],
+): Operator<Expression> | null =>
   op in infix_ops
     ? ({
         infix: [
@@ -419,6 +506,7 @@ const get_infix_op = (op: string): Operator<Expression> | null =>
           infix_ops[op as keyof typeof infix_ops][1],
           (left: Expression, right: Expression) => ({
             infix: { op: op as InfixOp, left, right },
+            position,
           }),
         ],
       } satisfies Operator<Expression>)
@@ -431,21 +519,30 @@ export type PrefixOp = (typeof prefix_ops)[number];
 export type PostfixOp = (typeof postfix_ops)[number];
 export type InfixOp = keyof typeof infix_ops;
 
-const get_prefix_op = (op: string): Operator<Expression> | null =>
+const get_prefix_op = (
+  op: string,
+  position: [number, number],
+): Operator<Expression> | null =>
   prefix_ops.includes(op as PrefixOp)
     ? {
         prefix: [
           op,
-          (operand) => ({ prefix: { op: op as PrefixOp, operand } }),
+          (operand) => ({ prefix: { op: op as PrefixOp, operand }, position }),
         ],
       }
     : null;
-const get_postfix_op = (op: string): Operator<Expression> | null =>
+const get_postfix_op = (
+  op: string,
+  position: [number, number],
+): Operator<Expression> | null =>
   postfix_ops.includes(op as PostfixOp)
     ? {
         postfix: [
           op,
-          (operand) => ({ postfix: { op: op as PostfixOp, operand } }),
+          (operand) => ({
+            postfix: { op: op as PostfixOp, operand },
+            position,
+          }),
         ],
       }
     : null;
@@ -480,10 +577,14 @@ export const take_type_expression = async (
   [next_token, name] = await take_name(next_token, tokens);
   if ("ok" in name) return [next_token, name];
 
+  next_token ??= await next(tokens);
+  if (!next_token) return [next_token, expected("Token", null)];
+  const start_pos = next_token.position;
+
   // function type `(...types) -> TypeExpression`
   [next_token, success_token] = await take_symbol(next_token, tokens, "(");
   if ("ok" in success_token) {
-    let args: Result<ParseError, TypeExpression[]>;
+    let args: Result<ParseError, ListResult<TypeExpression>>;
     [next_token, args] = await take_list(
       next_token,
       tokens,
@@ -501,7 +602,10 @@ export const take_type_expression = async (
       let ret: Result<ParseError, TypeExpression>;
       [next_token, ret] = await take_type_expression(null, tokens);
       if ("ok" in ret)
-        return [next_token, ok({ fn: { args: args.ok, ret: ret.ok } })];
+        return [
+          next_token,
+          ok({ fn: { args: args.ok.list, ret: ret.ok }, position: start_pos }),
+        ];
     }
 
     const actual = next_token;
@@ -511,11 +615,11 @@ export const take_type_expression = async (
   }
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "#");
-  if (success_token) {
+  if ("ok" in success_token) {
     next_token ??= await next(tokens, false);
     // record types can also be chained
     if (next_token && "symbol" in next_token && next_token.symbol === "{") {
-      let record: Result<ParseError, NamedTypeExpression[]>;
+      let record: Result<ParseError, ListResult<NamedTypeExpression>>;
       [next_token, record] = await take_list(
         null,
         tokens,
@@ -524,14 +628,14 @@ export const take_type_expression = async (
         "}",
       );
       if ("err" in record) return [next_token, record];
-      acc = ok({ record: record.ok });
+      acc = ok({ record: record.ok.list, position: start_pos });
     } else if (
       next_token &&
       "symbol" in next_token &&
       next_token.symbol === "("
     ) {
       // tuple type cannot be chained
-      let tuple: Result<ParseError, TypeExpression[]>;
+      let tuple: Result<ParseError, ListResult<TypeExpression>>;
       [next_token, tuple] = await take_list(
         null,
         tokens,
@@ -541,7 +645,7 @@ export const take_type_expression = async (
       );
 
       if ("err" in tuple) return [next_token, tuple];
-      return [next_token, ok({ tuple: tuple.ok })];
+      return [next_token, ok({ tuple: tuple.ok.list, position: start_pos })];
     }
   }
 
@@ -561,14 +665,17 @@ export const take_type_expression = async (
         [next_token, name] = await take_type(next_token, tokens);
       if ("err" in name) return [next_token, name];
 
-      acc = ok({ select: { root: acc!.ok, name: name.ok } });
+      acc = ok({
+        select: { root: acc!.ok, name: name.ok },
+        position: start_pos,
+      });
       continue;
     }
 
     // Type Application
     [next_token, success_token] = await take_symbol(next_token, tokens, "<");
     if ("ok" in success_token) {
-      let args: Result<ParseError, TypeExpression[]>;
+      let args: Result<ParseError, ListResult<TypeExpression>>;
       [next_token, args] = await take_list(
         next_token,
         tokens,
@@ -579,7 +686,10 @@ export const take_type_expression = async (
 
       if ("err" in args) return [next_token, args];
 
-      acc = ok({ app: { callee: acc.ok, args: args.ok } });
+      acc = ok({
+        app: { callee: acc.ok, args: args.ok.list },
+        position: start_pos,
+      });
       continue;
     }
 
@@ -616,10 +726,15 @@ export const take_pattern_expression = async (
   let int: Result<ParseError, IntToken>;
   let float: Result<ParseError, FloatToken>;
   let string: Result<ParseError, StringToken>;
-  let patterns: Result<ParseError, PatternExpression[]>;
+  let patterns: Result<ParseError, ListResult<PatternExpression>>;
 
   [next_token, name] = await take_name(next_token, tokens);
   if ("ok" in name) return [next_token, name];
+
+  next_token ?? (await next(tokens));
+  if (!next_token) return [next_token, expected("Token", null)];
+
+  const start_pos = next_token.position;
 
   [next_token, type] = await take_type(next_token, tokens);
   if ("ok" in type) {
@@ -636,29 +751,51 @@ export const take_pattern_expression = async (
       if ("err" in patterns) return [next_token, patterns];
       return [
         next_token,
-        ok({ constr: { type: type.ok, patterns: patterns.ok } }),
+        ok({
+          constr: { type: type.ok, patterns: patterns.ok.list },
+          position: start_pos,
+        }),
       ];
-    } else return [next_token, ok({ constr: { type: type.ok, patterns: [] } })];
+    } else
+      return [
+        next_token,
+        ok({
+          constr: { type: type.ok, patterns: [] },
+          position: start_pos,
+        }),
+      ];
   }
 
   [next_token, int] = await take_int(next_token, tokens);
   if ("ok" in int)
-    return [next_token, ok({ int: { size: 32, value: int.ok.int } })];
+    return [
+      next_token,
+      ok({ int: { size: 32, value: int.ok.int }, position: start_pos }),
+    ];
 
   [next_token, float] = await take_float(next_token, tokens);
   if ("ok" in float)
-    return [next_token, ok({ float: { size: 64, value: float.ok.float } })];
+    return [
+      next_token,
+      ok({ float: { size: 64, value: float.ok.float }, position: start_pos }),
+    ];
 
   [next_token, string] = await take_string(next_token, tokens);
   if ("ok" in string) return [next_token, string];
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "inf");
   if ("ok" in success_token)
-    return [next_token, ok({ float: { size: 64, value: Infinity } })];
+    return [
+      next_token,
+      ok({ float: { size: 64, value: Infinity }, position: start_pos }),
+    ];
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "nan");
   if ("ok" in success_token)
-    return [next_token, ok({ float: { size: 64, value: NaN } })];
+    return [
+      next_token,
+      ok({ float: { size: 64, value: NaN }, position: start_pos }),
+    ];
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "#");
   if ("ok" in success_token) {
@@ -671,12 +808,19 @@ export const take_pattern_expression = async (
         ",",
         ")",
       );
-      if ("ok" in patterns) return [next_token, ok({ tuple: patterns.ok })];
+      if ("ok" in patterns)
+        return [
+          next_token,
+          ok({ tuple: patterns.ok.list, position: start_pos }),
+        ];
       return [next_token, patterns];
     }
 
     if (next_token && "symbol" in next_token && next_token.symbol === "{") {
-      let record: Result<ParseError, [NameIdentifier, PatternExpression][]>;
+      let record: Result<
+        ParseError,
+        ListResult<[NameIdentifier, PatternExpression]>
+      >;
       [next_token, record] = await take_list(
         null,
         tokens,
@@ -684,7 +828,11 @@ export const take_pattern_expression = async (
         ",",
         "}",
       );
-      if ("ok" in record) return [next_token, ok({ record: record.ok })];
+      if ("ok" in record)
+        return [
+          next_token,
+          ok({ record: record.ok.list, position: start_pos }),
+        ];
       return [next_token, record];
     }
     const found = next_token;
@@ -732,12 +880,17 @@ export const take_body_expression = async (
   let name: Result<ParseError, NameIdentifier>;
   let op: Result<ParseError, string>;
 
+  next_token ??= await next(tokens);
+  if (!next_token) return [next_token, expected("Token", null)];
+  const start_pos = next_token.position;
+
   [next_token, name] = await take_name(next_token, tokens);
   if ("ok" in name) {
     // name
     next_token = await next(tokens);
     // if nothing else is parsed, it's an expression of type "name"
-    if (!next_token) return [null, ok({ expression: name.ok })];
+    if (!next_token)
+      return [null, ok({ expression: name.ok, position: start_pos })];
 
     [next_token, op] = await take_operator(next_token, tokens);
     if ("err" in op) {
@@ -752,7 +905,10 @@ export const take_body_expression = async (
       );
 
       if ("ok" in expression)
-        return [next_token, ok({ expression: expression.ok })];
+        return [
+          next_token,
+          ok({ expression: expression.ok, position: start_pos }),
+        ];
       return [next_token, expected("expression", next_token)];
     }
 
@@ -763,7 +919,10 @@ export const take_body_expression = async (
       if ("ok" in expression)
         return [
           next_token,
-          ok({ arrow_bind: { name: name.ok, expression: expression.ok } }),
+          ok({
+            arrow_bind: { name: name.ok, expression: expression.ok },
+            position: start_pos,
+          }),
         ];
     }
 
@@ -777,7 +936,10 @@ export const take_body_expression = async (
         if ("ok" in expression)
           return [
             next_token,
-            ok({ assign: { name: name.ok, expression: expression.ok } }),
+            ok({
+              assign: { name: name.ok, expression: expression.ok },
+              position: start_pos,
+            }),
           ];
       }
 
@@ -790,19 +952,21 @@ export const take_body_expression = async (
               op: next_op as InfixOp,
               right: expression.ok,
             },
+            position: start_pos,
           } satisfies Expression);
 
           return [
             next_token,
             ok({
               assign: { name: name.ok, expression: expression.ok },
+              position: start_pos,
             } satisfies BodyExpression),
           ];
         }
       }
     }
 
-    const infix_op = get_infix_op(op.ok);
+    const infix_op = get_infix_op(op.ok, start_pos);
     if (infix_op) {
       const yard = new Yard<Expression>();
       yard.push_expr(name.ok);
@@ -815,11 +979,14 @@ export const take_body_expression = async (
       );
 
       if ("ok" in expression)
-        return [next_token, ok({ expression: expression.ok })];
+        return [
+          next_token,
+          ok({ expression: expression.ok, position: start_pos }),
+        ];
       return [next_token, expression];
     }
 
-    const postfix_op = get_postfix_op(op.ok);
+    const postfix_op = get_postfix_op(op.ok, start_pos);
     if (postfix_op) {
       const yard = new Yard<Expression>();
       yard.push_expr(name.ok);
@@ -831,7 +998,10 @@ export const take_body_expression = async (
         true,
       );
       if ("ok" in expression)
-        return [next_token, ok({ expression: expression.ok })];
+        return [
+          next_token,
+          ok({ expression: expression.ok, position: start_pos }),
+        ];
       return [next_token, expression];
     }
 
@@ -860,6 +1030,7 @@ export const take_body_expression = async (
                 assert,
                 expression: expression.ok,
               },
+              position: start_pos,
             }),
           ];
       }
@@ -869,7 +1040,7 @@ export const take_body_expression = async (
 
   [next_token, expression] = await take_expression(next_token, tokens);
   if ("ok" in expression)
-    return [next_token, ok({ expression: expression.ok })];
+    return [next_token, ok({ expression: expression.ok, position: start_pos })];
 
   return [next_token, expression];
 };
@@ -947,6 +1118,9 @@ export const take_expression = async (
   let float: Result<ParseError, FloatToken>;
   let string: Result<ParseError, StringToken>;
 
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
   // match
   // prefix
   // fn
@@ -955,7 +1129,7 @@ export const take_expression = async (
       // function call
       [next_token, success_token] = await take_symbol(next_token, tokens, "(");
       if ("ok" in success_token) {
-        let args: Result<ParseError, Expression[]>;
+        let args: Result<ParseError, ListResult<Expression>>;
         [next_token, args] = await take_list(
           next_token,
           tokens,
@@ -966,7 +1140,10 @@ export const take_expression = async (
         if ("err" in args) return [next_token, args];
         const value = args.ok;
         yard.push_op({
-          postfix: ["call", (expr) => ({ call: [expr, value] })],
+          postfix: [
+            "call",
+            (expr) => ({ call: [expr, value.list], position: start_pos }),
+          ],
         });
         combine_state = true;
         continue;
@@ -1002,14 +1179,17 @@ export const take_expression = async (
         if ("err" in name) return [next_token, name];
         const value = name.ok;
         yard.push_op({
-          postfix: ["select", (expr) => ({ select: [expr, value] })],
+          postfix: [
+            "select",
+            (expr) => ({ select: [expr, value], position: start_pos }),
+          ],
         });
         combine_state = true;
         continue;
       }
 
       // for binary expressions, switch back to combine = false
-      const infix_op = get_infix_op(op.ok);
+      const infix_op = get_infix_op(op.ok, start_pos);
       if (infix_op) {
         yard.push_op(infix_op);
         combine_state = false;
@@ -1017,7 +1197,7 @@ export const take_expression = async (
       }
 
       // for postfix expressions, keep combining
-      const postfix_op = get_postfix_op(op.ok);
+      const postfix_op = get_postfix_op(op.ok, start_pos);
       if (postfix_op) {
         yard.push_op(postfix_op);
         combine_state = true;
@@ -1027,7 +1207,10 @@ export const take_expression = async (
       // invalid operator, something went wrong
       return [
         next_token,
-        expected(`".", prefix, or postfix operator`, { symbol: op.ok }),
+        expected(`".", prefix, or postfix operator`, {
+          symbol: op.ok,
+          position: start_pos,
+        }),
       ];
     } else {
       // name
@@ -1044,7 +1227,7 @@ export const take_expression = async (
         "self",
       );
       if ("ok" in success_token) {
-        yard.push_expr({ self: null });
+        yard.push_expr({ self: null, position: start_pos });
         combine_state = true;
         continue;
       }
@@ -1069,7 +1252,7 @@ export const take_expression = async (
         [next_token, fn] = await take_fn(success_token.ok, tokens);
         if ("err" in fn) return [next_token, fn];
 
-        yard.push_expr(fn_expr(fn.ok));
+        yard.push_expr(fn_expr(fn.ok, fn.ok.position));
         combine_state = true;
         continue;
       }
@@ -1085,7 +1268,7 @@ export const take_expression = async (
       // block expression
       [next_token, success_token] = await take_symbol(next_token, tokens, "{");
       if ("ok" in success_token) {
-        let block: Result<ParseError, BodyExpression[]>;
+        let block: Result<ParseError, ListResult<BodyExpression>>;
         [next_token, block] = await take_list(
           next_token,
           tokens,
@@ -1094,7 +1277,7 @@ export const take_expression = async (
           "}",
         );
         if ("err" in block) return [next_token, block];
-        yard.push_expr({ block: block.ok });
+        yard.push_expr({ block: block.ok.list, position: start_pos });
         combine_state = true;
         continue;
       }
@@ -1107,7 +1290,7 @@ export const take_expression = async (
       );
       if ("ok" in success_token) {
         let scrutinee: Result<ParseError, Expression>;
-        let match_arms: Result<ParseError, MatchArm[]>;
+        let match_arms: Result<ParseError, ListResult<MatchArm>>;
         [next_token, scrutinee] = await take_expression(next_token, tokens);
         if ("err" in scrutinee) return [next_token, scrutinee];
 
@@ -1128,11 +1311,14 @@ export const take_expression = async (
         );
 
         if ("err" in match_arms) return [next_token, match_arms];
-        if (match_arms.ok.length === 0)
+        if (match_arms.ok.list.length === 0)
           return [next_token, expected("non-zero match arms", next_token)];
 
         // match success, now combine
-        yard.push_expr({ match: [scrutinee.ok, match_arms.ok] });
+        yard.push_expr({
+          match: [scrutinee.ok, match_arms.ok.list],
+          position: start_pos,
+        });
         combine_state = true;
         continue;
       }
@@ -1144,7 +1330,10 @@ export const take_expression = async (
         "inf",
       );
       if ("ok" in success_token) {
-        yard.push_expr({ float: { size: 64, value: Infinity } });
+        yard.push_expr({
+          float: { size: 64, value: Infinity },
+          position: start_pos,
+        });
         combine_state = true;
         continue;
       }
@@ -1156,7 +1345,10 @@ export const take_expression = async (
         "nan",
       );
       if ("ok" in success_token) {
-        yard.push_expr({ float: { size: 64, value: NaN } });
+        yard.push_expr({
+          float: { size: 64, value: NaN },
+          position: start_pos,
+        });
         combine_state = true;
         continue;
       }
@@ -1168,7 +1360,7 @@ export const take_expression = async (
         "true",
       );
       if ("ok" in success_token) {
-        yard.push_expr({ bool: true });
+        yard.push_expr({ bool: true, position: start_pos });
         combine_state = true;
         continue;
       }
@@ -1179,7 +1371,7 @@ export const take_expression = async (
         "false",
       );
       if ("ok" in success_token) {
-        yard.push_expr({ bool: false });
+        yard.push_expr({ bool: false, position: start_pos });
         combine_state = true;
         continue;
       }
@@ -1218,20 +1410,27 @@ export const take_expression = async (
               if_body: if_body.ok,
               else_body: else_body?.ok ?? null,
             },
+            position: start_pos,
           }),
         ];
       }
 
       [next_token, int] = await take_int(next_token, tokens);
       if ("ok" in int) {
-        yard.push_expr({ int: { size: 32, value: int.ok.int } });
+        yard.push_expr({
+          int: { size: 32, value: int.ok.int },
+          position: start_pos,
+        });
         combine_state = true;
         continue;
       }
 
       [next_token, float] = await take_float(next_token, tokens);
       if ("ok" in float) {
-        yard.push_expr({ float: { size: 64, value: float.ok.float } });
+        yard.push_expr({
+          float: { size: 64, value: float.ok.float },
+          position: start_pos,
+        });
         combine_state = true;
         continue;
       }
@@ -1251,7 +1450,10 @@ export const take_expression = async (
 
         // Record term
         if ("symbol" in next_token && next_token.symbol === "{") {
-          let record: Result<ParseError, [NameIdentifier, Expression][]>;
+          let record: Result<
+            ParseError,
+            ListResult<[NameIdentifier, Expression]>
+          >;
           [next_token, record] = await take_list(
             null,
             tokens,
@@ -1261,13 +1463,13 @@ export const take_expression = async (
           );
           if ("err" in record) return [next_token, record];
           combine_state = true;
-          yard.push_expr({ record: record.ok });
+          yard.push_expr({ record: record.ok.list, position: start_pos });
           continue;
         }
 
         // tuple
         if ("symbol" in next_token && next_token.symbol === "(") {
-          let tuple: Result<ParseError, Expression[]>;
+          let tuple: Result<ParseError, ListResult<Expression>>;
           [next_token, tuple] = await take_list(
             null,
             tokens,
@@ -1277,7 +1479,7 @@ export const take_expression = async (
           );
           if ("err" in tuple) return [next_token, tuple];
 
-          yard.push_expr({ tuple: tuple.ok });
+          yard.push_expr({ tuple: tuple.ok.list, position: start_pos });
           combine_state = true;
           continue;
         }
@@ -1287,19 +1489,27 @@ export const take_expression = async (
 
       [next_token, op] = await take_operator(next_token, tokens);
       if ("ok" in op) {
-        const prefix_op = get_prefix_op(op.ok);
+        const prefix_op = get_prefix_op(op.ok, start_pos);
         if (prefix_op) {
           yard.push_op(prefix_op);
           combine_state = false;
           continue;
         }
 
-        return [next_token, expected("operator", { symbol: op.ok })];
+        return [
+          next_token,
+          expected("operator", { symbol: op.ok, position: start_pos }),
+        ];
       }
 
       return [next_token, expected("expression", next_token)];
     }
   }
+};
+
+export type ListResult<T> = {
+  list: T[];
+  position: [number, number];
 };
 
 export const take_list = async <T>(
@@ -1308,14 +1518,16 @@ export const take_list = async <T>(
   fn: (next_token: Token | null, tokens: TokenIter) => Promise<ParseResult<T>>,
   sep: string,
   term: string,
-): Promise<ParseResult<T[]>> => {
+): Promise<ParseResult<ListResult<T>>> => {
   const results = [] as T[];
   let item: Result<ParseError, T>;
   next_token ??= await next(tokens);
   if (!next_token) return [null, expected("token", null)];
 
+  const start_pos = next_token.position;
+
   if ("symbol" in next_token && next_token.symbol === term)
-    return [null, ok(results)];
+    return [null, ok({ list: results, position: start_pos })];
 
   while (true) {
     // expect a parsed item
@@ -1327,7 +1539,7 @@ export const take_list = async <T>(
 
     if (!next_token) return [null, expected("token", null)];
     if ("symbol" in next_token && next_token.symbol === term)
-      return [null, ok(results)];
+      return [null, ok({ list: results, position: start_pos })];
     if ("symbol" in next_token && next_token.symbol === sep) {
       next_token = null;
       continue;
@@ -1372,10 +1584,14 @@ export const take_import = async (
   let min: Result<ParseError, IntToken> | null = null;
   let max: Result<ParseError, IntToken> | null = null;
 
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
+
   // fn import
   [next_token, success_token] = await take_keyword(next_token, tokens, "fn");
   if ("ok" in success_token) {
-    let param_types: Result<ParseError, FnParam[]>;
+    let param_types: Result<ParseError, ListResult<FnParam>>;
 
     [next_token, name] = await take_name(next_token, tokens);
     if ("err" in name)
@@ -1420,11 +1636,12 @@ export const take_import = async (
         fn: {
           name: name.ok,
           signature: {
-            param_types: param_types.ok,
+            param_types: param_types.ok.list,
             return_type: type_expression.ok,
           },
           alias: alias?.ok ?? null,
         },
+        position: start_pos,
       }),
     ];
   }
@@ -1467,6 +1684,7 @@ export const take_import = async (
           max: max?.ok ?? null,
           alias: alias?.ok ?? null,
         },
+        position: start_pos,
       }),
     ];
   }
@@ -1512,6 +1730,7 @@ export const take_import = async (
           mut,
           name: name.ok,
         },
+        position: start_pos,
       }),
     ];
   }
@@ -1558,6 +1777,7 @@ export const take_import = async (
           name: name.ok,
           table_type: type_expression.ok,
         },
+        position: start_pos,
       }),
     ];
   }
@@ -1581,6 +1801,7 @@ export const take_import = async (
           name: type.ok,
           alias: type_alias?.ok ?? null,
         },
+        position: start_pos,
       }),
     ];
   }
@@ -1604,6 +1825,7 @@ export const take_import = async (
           name: type.ok,
           alias: type_alias?.ok ?? null,
         },
+        position: start_pos,
       }),
     ];
   }
@@ -1621,7 +1843,10 @@ export const take_import = async (
 
     return [
       next_token,
-      ok({ enum: { name: type.ok, alias: type_alias?.ok ?? null } }),
+      ok({
+        enum: { name: type.ok, alias: type_alias?.ok ?? null },
+        position: start_pos,
+      }),
     ];
   }
 
@@ -1632,7 +1857,10 @@ export const take_import = async (
     if (!next_token) {
       return [
         next_token,
-        ok({ name: { alias: null, name: name.ok as NameToken } }),
+        ok({
+          name: { alias: null, name: name.ok as NameToken },
+          position: start_pos,
+        }),
       ];
     }
 
@@ -1647,6 +1875,7 @@ export const take_import = async (
               name: name.ok as NameToken,
               alias: next_token,
             },
+            position: start_pos,
           }),
         ];
       return [next_token, expected("alias name", next_token)];
@@ -1654,7 +1883,13 @@ export const take_import = async (
 
     return [
       next_token,
-      ok({ name: { name: name.ok as NameToken, alias: null } }),
+      ok({
+        name: {
+          name: name.ok as NameToken,
+          alias: null,
+        },
+        position: start_pos,
+      }),
     ];
   }
 
@@ -1666,13 +1901,22 @@ export const take_import = async (
     if (next_token && "keyword" in next_token && next_token.keyword === "as") {
       next_token = await next(tokens);
       if (next_token && "type" in next_token)
-        return [null, ok({ constr: { name: type.ok, alias: next_token } })];
+        return [
+          null,
+          ok({
+            constr: { name: type.ok, alias: next_token },
+            position: start_pos,
+          }),
+        ];
 
       return [next_token, expected("type", next_token)];
     }
 
     // import still succeeds
-    return [next_token, ok({ constr: { name: type.ok, alias: null } })];
+    return [
+      next_token,
+      ok({ constr: { name: type.ok, alias: null }, position: start_pos }),
+    ];
   }
 
   // failed import
@@ -1686,8 +1930,12 @@ export const take_builtin_declaration = async (
   let success_token: Result<ParseError, Token>;
   let name: Result<ParseError, StringToken>;
   let alias: Result<ParseError, NameIdentifier>;
-  let params: Result<ParseError, FnParam[]>;
+  let params: Result<ParseError, ListResult<FnParam>>;
   let return_type: Result<ParseError, TypeExpression>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
 
   [next_token, success_token] = await take_keyword(
     next_token,
@@ -1729,9 +1977,10 @@ export const take_builtin_declaration = async (
       builtin: {
         name: name.ok,
         alias: alias.ok,
-        params: params.ok,
+        params: params.ok.list,
         return_type: return_type.ok,
       },
+      position: start_pos,
     }),
   ];
 };
@@ -1742,7 +1991,11 @@ export const take_import_declaration = async (
 ): Promise<ParseResult<Declaration>> => {
   let success_token: Result<ParseError, Token>;
   let import_from: Result<ParseError, StringToken>;
-  let imports: Result<ParseError, Import[]>;
+  let imports: Result<ParseError, ListResult<Import>>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
 
   [next_token, success_token] = await take_keyword(
     next_token,
@@ -1762,7 +2015,11 @@ export const take_import_declaration = async (
   return [
     next_token,
     ok({
-      import_dec: { import_from: import_from.ok.string, imports: imports.ok },
+      import_dec: {
+        import_from: import_from.ok.string,
+        imports: imports.ok.list,
+      },
+      position: start_pos,
     }),
   ];
 };
@@ -1773,10 +2030,17 @@ export const take_fn = async (
 ): Promise<ParseResult<Fn>> => {
   let success_token: Result<ParseError, Token>;
   let name: Result<ParseError, NameIdentifier> | null;
-  let type_params: Result<ParseError, NameIdentifier[]>;
-  let params: Result<ParseError, FnParam[]>;
+  let type_params: Result<ParseError, ListResult<NameIdentifier>>;
+  let params: Result<ParseError, ListResult<FnParam>>;
   let return_type: Result<ParseError, TypeExpression> | null;
   let body: Result<ParseError, Expression>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
+
+  console.log("taking fn", next_token);
+
   [next_token, success_token] = await take_keyword(next_token, tokens, "fn");
   if ("err" in success_token) return [next_token, success_token];
 
@@ -1793,7 +2057,7 @@ export const take_fn = async (
       ">",
     );
     if ("err" in type_params) return [next_token, type_params];
-  } else type_params = { ok: [] };
+  } else type_params = { ok: { list: [], position: start_pos } };
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "(");
   if ("err" in success_token) return [next_token, success_token];
@@ -1821,9 +2085,10 @@ export const take_fn = async (
     ok({
       body: body.ok,
       name: name?.ok ?? null,
-      type_params: type_params.ok,
-      params: params.ok,
+      type_params: type_params.ok.list,
+      params: params.ok.list,
       return_type: return_type?.ok ?? null,
+      position: start_pos,
     }),
   ];
 };
@@ -1925,9 +2190,13 @@ const take_type_declaration = async (
 ): Promise<ParseResult<TypeDeclaration>> => {
   let success_token: Result<ParseError, Token>;
   let id: Result<ParseError, TypeIdentifier>;
-  let params: Result<ParseError, NameIdentifier[]>;
+  let params: Result<ParseError, ListResult<NameIdentifier>>;
   let symbol: Result<ParseError, Token>;
   let value: Result<ParseError, TypeExpression>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "type");
   if ("err" in success_token) return [next_token, success_token];
@@ -1945,7 +2214,7 @@ const take_type_declaration = async (
       ">",
     );
     if ("err" in params) return [next_token, params];
-  } else params = { ok: [] };
+  } else params = { ok: { list: [], position: start_pos } };
 
   [next_token, symbol] = await take_symbol(next_token, tokens, "=");
   if ("err" in symbol) return [next_token, symbol];
@@ -1956,7 +2225,13 @@ const take_type_declaration = async (
   return [
     next_token,
     ok({
-      type_dec: { pub: false, id: id.ok, params: params.ok, value: value.ok },
+      type_dec: {
+        pub: false,
+        id: id.ok,
+        params: params.ok.list,
+        value: value.ok,
+      },
+      position: start_pos,
     }),
   ];
 };
@@ -1968,12 +2243,16 @@ const take_enum_variant = async (
   let success_token: Result<ParseError, Token>;
   let id: Result<ParseError, TypeIdentifier>;
 
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
+
   [next_token, id] = await take_type(next_token, tokens);
   if ("err" in id) return [next_token, id];
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "(");
   if ("ok" in success_token) {
-    let values: Result<ParseError, TypeExpression[]>;
+    let values: Result<ParseError, ListResult<TypeExpression>>;
     [next_token, values] = await take_list(
       next_token,
       tokens,
@@ -1982,11 +2261,17 @@ const take_enum_variant = async (
       ")",
     );
     if ("err" in values) return [next_token, values];
-    return [next_token, ok({ values: { id: id.ok, values: values.ok } })];
+    return [
+      next_token,
+      ok({
+        values: { id: id.ok, values: values.ok.list },
+        position: start_pos,
+      }),
+    ];
   }
   [next_token, success_token] = await take_symbol(next_token, tokens, "{");
   if ("ok" in success_token) {
-    let fields: Result<ParseError, NamedTypeExpression[]>;
+    let fields: Result<ParseError, ListResult<NamedTypeExpression>>;
     [next_token, fields] = await take_list(
       next_token,
       tokens,
@@ -1996,9 +2281,18 @@ const take_enum_variant = async (
     );
     if ("err" in fields) return [next_token, fields];
 
-    return [next_token, ok({ fields: { id: id.ok, fields: fields.ok } })];
+    return [
+      next_token,
+      ok({
+        fields: { id: id.ok, fields: fields.ok.list },
+        position: start_pos,
+      }),
+    ];
   }
-  return [next_token, ok({ values: { id: id.ok, values: [] } })];
+  return [
+    next_token,
+    ok({ values: { id: id.ok, values: [] }, position: start_pos }),
+  ];
 };
 
 // enum Option<t> { Some(t), None }
@@ -2008,8 +2302,12 @@ const take_enum_declaration = async (
 ): Promise<ParseResult<EnumDeclaration>> => {
   let success_token: Result<ParseError, Token>;
   let id: Result<ParseError, TypeIdentifier>;
-  let type_params: Result<ParseError, NameIdentifier[]>;
-  let variants: Result<ParseError, EnumVariant[]>;
+  let type_params: Result<ParseError, ListResult<NameIdentifier>>;
+  let variants: Result<ParseError, ListResult<EnumVariant>>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "enum");
   if ("err" in success_token) return [next_token, success_token];
@@ -2032,7 +2330,7 @@ const take_enum_declaration = async (
       ">",
     );
     if ("err" in type_params) return [next_token, type_params];
-  } else type_params = { ok: [] };
+  } else type_params = { ok: { list: [], position: start_pos } };
 
   // expect "{"
   [next_token, success_token] = await take_symbol(next_token, tokens, "{");
@@ -2054,9 +2352,10 @@ const take_enum_declaration = async (
         id: id.ok,
         pub: false,
         recursive,
-        type_params: type_params.ok,
-        variants: variants.ok,
+        type_params: type_params.ok.list,
+        variants: variants.ok.list,
       },
+      position: start_pos,
     }),
   ];
 };
@@ -2069,13 +2368,18 @@ const take_many = async <T>(
     tokens: TokenIter,
   ) => Promise<ParseResult<T>>,
   until: string,
-): Promise<ParseResult<T[]>> => {
+): Promise<ParseResult<ListResult<T>>> => {
   let success_token: Result<ParseError, Token>;
   const results = [] as T[];
   let value: Result<ParseError, T>;
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
+
   while (true) {
     [next_token, success_token] = await take_symbol(next_token, tokens, until);
-    if ("ok" in success_token) return [next_token, ok(results)];
+    if ("ok" in success_token)
+      return [next_token, ok({ list: results, position: start_pos })];
 
     [next_token, value] = await take(next_token, tokens);
     if ("ok" in value) {
@@ -2093,9 +2397,13 @@ const take_trait_fn = async (
 ): Promise<ParseResult<TraitFn>> => {
   let success_token: Result<ParseError, Token>;
   let name: Result<ParseError, NameIdentifier>;
-  let type_params: Result<ParseError, NameIdentifier[]>;
-  let params: Result<ParseError, NamedTypeExpression[]>;
+  let type_params: Result<ParseError, ListResult<NameIdentifier>>;
+  let params: Result<ParseError, ListResult<NamedTypeExpression>>;
   let return_type: Result<ParseError, TypeExpression>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "fn");
   if ("err" in success_token) return [next_token, success_token];
@@ -2113,7 +2421,7 @@ const take_trait_fn = async (
       ">",
     );
     if ("err" in type_params) return [next_token, type_params];
-  } else type_params = { ok: [] };
+  } else type_params = { ok: { list: [], position: start_pos } };
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "(");
   if ("err" in success_token) return [next_token, success_token];
@@ -2138,9 +2446,10 @@ const take_trait_fn = async (
       next_token,
       ok({
         name: name.ok,
-        params: params.ok,
-        type_params: type_params.ok,
+        params: params.ok.list,
+        type_params: type_params.ok.list,
         return_type: return_type.ok,
+        position: start_pos,
       }),
     ];
   }
@@ -2154,29 +2463,50 @@ const take_impl_declaration = async (
   next_token: Token | null,
   tokens: TokenIter,
 ): Promise<ParseResult<ImplDeclaration>> => {
+  console.log("Starting impl");
   let success_token: Result<ParseError, Token>;
   let name: Result<ParseError, TypeIdentifier>;
-  let type_params: Result<ParseError, TypeExpression[]>;
+  let type_params: Result<ParseError, ListResult<NameIdentifier>>;
+  let trait_params: Result<ParseError, ListResult<TypeExpression>>;
   let impl_for: Result<ParseError, TypeExpression>;
-  let fns: Result<ParseError, Fn[]>;
+  let fns: Result<ParseError, ListResult<Fn>>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "impl");
   if ("err" in success_token) return [next_token, success_token];
-
-  [next_token, name] = await take_type(next_token, tokens);
-  if ("err" in name) return [next_token, name];
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "<");
   if ("ok" in success_token) {
     [next_token, type_params] = await take_list(
       next_token,
       tokens,
+      take_name,
+      ",",
+      ">",
+    );
+    console.log("result of type params", next_token, type_params);
+    if ("err" in type_params) return [next_token, type_params];
+  } else type_params = ok({ list: [], position: start_pos });
+
+  console.log("Type Parameters", type_params);
+
+  [next_token, name] = await take_type(next_token, tokens);
+  if ("err" in name) return [next_token, name];
+
+  [next_token, success_token] = await take_symbol(next_token, tokens, "<");
+  if ("ok" in success_token) {
+    [next_token, trait_params] = await take_list(
+      next_token,
+      tokens,
       take_type_expression,
       ",",
       ">",
     );
-    if ("err" in type_params) return [next_token, type_params];
-  } else type_params = { ok: [] };
+    if ("err" in trait_params) return [next_token, trait_params];
+  } else trait_params = ok({ list: [], position: start_pos });
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "for");
   if ("err" in success_token) return [next_token, success_token];
@@ -2189,15 +2519,19 @@ const take_impl_declaration = async (
 
   [next_token, fns] = await take_many(next_token, tokens, take_fn, "}");
   if ("err" in fns) return [next_token, fns];
-  const impl = {
-    impl: {
-      for: impl_for.ok,
-      name: name.ok,
-      type_params: type_params.ok,
-      fns: fns.ok,
-    },
-  };
-  return [next_token, ok(impl)];
+
+  return [
+    next_token,
+    ok({
+      impl: {
+        for: impl_for.ok,
+        name: name.ok,
+        type_params: trait_params.ok.list,
+        fns: fns.ok.list,
+      },
+      position: start_pos,
+    }),
+  ];
 };
 
 const take_trait_declaration = async (
@@ -2206,8 +2540,12 @@ const take_trait_declaration = async (
 ): Promise<ParseResult<TraitDeclaration>> => {
   let success_token: Result<ParseError, Token>;
   let id: Result<ParseError, TypeIdentifier>;
-  let type_params: Result<ParseError, NameIdentifier[]>;
-  let fns: Result<ParseError, TraitFn[]>;
+  let type_params: Result<ParseError, ListResult<NameIdentifier>>;
+  let fns: Result<ParseError, ListResult<TraitFn>>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "trait");
   if ("err" in success_token) return [next_token, success_token];
@@ -2225,7 +2563,7 @@ const take_trait_declaration = async (
       ">",
     );
     if ("err" in type_params) return [next_token, type_params];
-  } else type_params = { ok: [] };
+  } else type_params = { ok: { list: [], position: start_pos } };
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "{");
   if ("err" in success_token) return [next_token, success_token];
@@ -2237,11 +2575,12 @@ const take_trait_declaration = async (
     next_token,
     ok({
       trait: {
-        fns: fns.ok,
+        fns: fns.ok.list,
         id: id.ok,
         pub: false,
-        type_params: type_params.ok,
+        type_params: type_params.ok.list,
       },
+      position: start_pos,
     }),
   ];
 };
@@ -2253,6 +2592,10 @@ const take_let_declaration = async (
   let success_token: Result<ParseError, Token>;
   let pattern: Result<ParseError, PatternExpression>;
   let value: Result<ParseError, Expression>;
+
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
 
   [next_token, success_token] = await take_keyword(next_token, tokens, "let");
   if ("err" in success_token) return [next_token, success_token];
@@ -2282,6 +2625,7 @@ const take_let_declaration = async (
         pub: false,
         value: value.ok,
       },
+      position: start_pos,
     }),
   ];
 };
@@ -2292,13 +2636,23 @@ const take_fn_declaration = async (
 ): Promise<ParseResult<FnDeclaration>> => {
   let fn: Result<ParseError, Fn>;
 
+  next_token ??= await next(tokens);
+  if (!next_token) return [null, expected("Token", null)];
+  const start_pos = next_token.position;
+
   [next_token, fn] = await take_fn(next_token, tokens);
   if ("err" in fn) return [next_token, fn];
 
   if (!fn.ok.name)
-    return [next_token, expected("function with a name", { unknown: null })];
+    return [
+      next_token,
+      expected("function with a name", { unknown: null, position: [1, 1] }),
+    ];
 
-  return [next_token, ok({ fn: { pub: false, fn: fn.ok } })];
+  return [
+    next_token,
+    ok({ fn: { pub: false, fn: fn.ok }, position: start_pos }),
+  ];
 };
 
 const take_pub = async (
@@ -2422,117 +2776,172 @@ export async function take_declaration(
   return [next_token, decl];
 }
 
-export const name_expr = (name: string): NameIdentifier => ({ name });
+export const name_expr = (
+  name: string,
+  position: [number, number],
+): NameIdentifier => ({ name, position });
 export const call_expr = (
   fn: Expression,
   args: Expression[],
+  position: [number, number],
 ): CallExpression => ({
   call: [fn, args],
+  position,
 });
-export const block_expr = (block: BodyExpression[]): BlockExpression => ({
+export const block_expr = (
+  block: BodyExpression[],
+  position: [number, number],
+): BlockExpression => ({
   block,
+  position,
 });
 export const if_expr = (
   cond: Expression,
   if_body: Expression,
   else_body: Expression | null,
+  position: [number, number],
 ): IfExpression => ({
   if_expr: {
     cond,
     if_body,
     else_body,
   },
+  position,
 });
 export const select_expr = (
   record: Expression,
   name: string,
+  position: [number, number],
 ): SelectExpression => ({
-  select: [record, name_expr(name)],
+  select: [record, name_expr(name, position)],
+  position,
 });
 export const match_expr = (
   scrutinee: Expression,
   arms: MatchArm[],
+  position: [number, number],
 ): MatchExpression => ({
   match: [scrutinee, arms],
+  position,
 });
-export const float_expr = (value: number, size: 32 | 64): FloatExpression => ({
+export const float_expr = (
+  value: number,
+  size: 32 | 64,
+  position: [number, number],
+): FloatExpression => ({
   float: { value, size },
+  position,
 });
 export const int_expr = (
   value: number | bigint,
   size: 8 | 16 | 32 | 64,
+  position: [number, number],
 ): IntExpression => ({
   int: { value: BigInt(value), size },
+  position,
 });
-export const bool_expr = (bool: boolean): BoolExpression => ({ bool });
+export const bool_expr = (
+  bool: boolean,
+  position: [number, number],
+): BoolExpression => ({ bool, position });
+
 export const prefix_expr = (
   op: PrefixOp,
   operand: Expression,
+  position: [number, number],
 ): PrefixExpression => ({
   prefix: { op, operand },
+  position,
 });
 export const postfix_expr = (
   operand: Expression,
   op: PostfixOp,
+  position: [number, number],
 ): PostfixExpression => ({
   postfix: { op, operand },
+  position,
 });
 export const infix_expr = (
   left: Expression,
   op: InfixOp,
   right: Expression,
+  position: [number, number],
 ): InfixExpression => ({
   infix: { left, op, right },
+  position,
 });
-export const string_expr = (string: string): StringToken => ({ string });
-export const fn_expr = (fn: Fn): FnExpression => ({ fn });
+export const string_expr = (
+  string: string,
+  position: [number, number],
+): StringToken => ({ string, position });
+export const fn_expr = (fn: Fn, position: [number, number]): FnExpression => ({
+  fn,
+  position,
+});
 export const record_expr = (
   record: [string, Expression][],
+  position: [number, number],
 ): RecordExpression => ({
-  record: record.map(([k, v]) => [name_expr(k), v]),
+  record: record.map(([k, v]) => [name_expr(k, position), v]),
+  position,
 });
-export const tuple_expr = (tuple: Expression[]): TupleExpression => ({ tuple });
-export const self_expr = (): SelfExpression => ({ self: null });
+export const tuple_expr = (
+  tuple: Expression[],
+  position: [number, number],
+): TupleExpression => ({ tuple, position });
+export const self_expr = (position: [number, number]): SelfExpression => ({
+  self: null,
+  position,
+});
 
 export const arrow_kind_body_expr = (
   name: string,
   expression: Expression,
+  position: [number, number],
 ): ArrowKindBodyExpression => ({
   arrow_bind: {
-    name: name_expr(name),
+    name: name_expr(name, position),
     expression,
   },
+  position,
 });
 export const let_bind_body_expr = (
   assert: boolean,
   pattern: PatternExpression,
   expression: Expression,
+  position: [number, number],
 ): LetBindBodyExpression => ({
   let_bind: {
     assert,
     pattern,
     expression,
   },
+  position,
 });
 export const assign_body_expr = (
   name: string,
   expression: Expression,
+  position: [number, number],
 ): AssignBodyExpression => ({
   assign: {
-    name: name_expr(name),
+    name: name_expr(name, position),
     expression,
   },
+  position,
 });
 export const expression_body_expr = (
   expression: Expression,
+  position: [number, number],
 ): ExpressionBodyExpression => ({
   expression,
+  position,
 });
 export const fn_param = (
   name: string,
   guard: TypeExpression | null,
+  position: [number, number],
 ): FnParam => ({
-  name: name_expr(name),
+  name: name_expr(name, position),
   guard,
 });
 // Show methods for AST stringification

@@ -56,9 +56,9 @@ test.each([
     expr: "if match x { A => true, _ => false } { 1 } else { 0 }",
   },
 ])("$expr matches snapshot", async ({ expr }) => {
-  const [, expression] = await take_expression(null, lex(chars(expr)));
-
-  expect(expression).toMatchSnapshot(`Expression: ${expr}`);
+  const result = await take_expression(null, lex(chars(expr)));
+  expect("ok" in result[1]).toBeTrue();
+  expect(result).toMatchSnapshot(`Expression: ${expr}`);
 });
 
 test.each([
@@ -90,8 +90,9 @@ test.each([
   // Nested combos
   { expr: "Some(#(x, #{y: 1}))" }, // constructor -> tuple -> record
 ])("$expr matches snapshot", async ({ expr }) => {
-  const [, pattern] = await take_pattern_expression(null, lex(chars(expr)));
-  expect(pattern).toMatchSnapshot(`PatternExpression: ${expr}`);
+  const result = await take_pattern_expression(null, lex(chars(expr)));
+  expect("ok" in result[1]).toBeTrue();
+  expect(result).toMatchSnapshot(`PatternExpression: ${expr}`);
 });
 
 test.each([
@@ -124,8 +125,9 @@ test.each([
   { expr: "(Int, List<String>) => Map<String, Int>" }, // function with generics
   { expr: "(#(Int, Bool)) => #{ok: String, err: String}" }, // function returning record
 ])("$expr matches snapshot", async ({ expr }) => {
-  const [, typeExpr] = await take_type_expression(null, lex(chars(expr)));
-  expect(typeExpr).toMatchSnapshot(`TypeExpression: ${expr}`);
+  const result = await take_type_expression(null, lex(chars(expr)));
+  expect("ok" in result[1]).toBeTrue();
+  expect(result).toMatchSnapshot(`TypeExpression: ${expr}`);
 });
 
 // body expressions
@@ -137,16 +139,17 @@ test.each([
   { expr: "let assert Some(a) = b" },
   { expr: "d = a + b" },
 ])("$expr matches snapshot", async ({ expr }) => {
-  const [, bodyExpr] = await take_body_expression(null, lex(chars(expr)));
-  expect(bodyExpr).toMatchSnapshot(`BodyExpression: ${expr}`);
+  const result = await take_body_expression(null, lex(chars(expr)));
+  expect("ok" in result[1]).toBeTrue();
+  expect(result).toMatchSnapshot(`BodyExpression: ${expr}`);
 });
 
 test.each([
   { decl: `fn add(x: I32, y: I32): I32 { x + y }` },
   { decl: `pub fn main() { 42 }` },
   { decl: `fn identity<t>(x: t): t { x }` },
-  { decl: `let x: i32 = 42` },
-  { decl: `pub let pi: f64 = 3.14159` },
+  { decl: `let x = 42` },
+  { decl: `pub let pi = 3.14159` },
   { decl: `let y = true` },
   { decl: `type MyInt = I32` },
   { decl: `pub enum Result<t, e> { Ok(t), Err(e) }` },
@@ -165,7 +168,7 @@ test.each([
   { decl: `import "std" { Some }` },
 ])("$decl matches snapshot", async ({ decl }) => {
   const result = await take_declaration(null, lex(chars(decl)));
-  expect(result[1]).not.toBeNull();
+  expect("ok" in result[1]).toBeTrue();
   expect(result).toMatchSnapshot();
 });
 
@@ -298,9 +301,10 @@ test.each([
   { expr: "inf + 1" },
   { expr: "nan * 2" },
 ])("Expression: $expr matches snapshot", async ({ expr }) => {
-  const [, expression] = await take_expression(null, lex(chars(expr)));
-  expect(expression).not.toBeNull();
-  expect(expression).toMatchSnapshot(`Expression: ${expr}`);
+  const result = await take_expression(null, lex(chars(expr)));
+  expect(result[1]).not.toBeNull();
+  expect("ok" in result[1]).toBeTrue();
+  expect(result).toMatchSnapshot(`Expression: ${expr}`);
 });
 
 // More pattern expression tests
@@ -318,9 +322,9 @@ test.each([
   { expr: "Wrapper(#{inner: value})" },
   { expr: "Nested(#(1, #{x: y}))" },
 ])("Pattern: $expr matches snapshot", async ({ expr }) => {
-  const [, pattern] = await take_pattern_expression(null, lex(chars(expr)));
-  expect(pattern).not.toBeNull();
-  expect(pattern).toMatchSnapshot(`PatternExpression: ${expr}`);
+  const result = await take_pattern_expression(null, lex(chars(expr)));
+  expect("ok" in result[1]).toBeTrue();
+  expect(result).toMatchSnapshot(`PatternExpression: ${expr}`);
 });
 
 // More type expression tests
@@ -348,6 +352,7 @@ test.each([
 ])("Type: $expr matches snapshot", async ({ expr }) => {
   const [, typeExpr] = await take_type_expression(null, lex(chars(expr)));
   expect(typeExpr).not.toBeNull();
+  expect("ok" in typeExpr).toBeTrue();
   expect(typeExpr).toMatchSnapshot(`TypeExpression: ${expr}`);
 });
 
@@ -366,6 +371,7 @@ test.each([
 ])("Body: $expr matches snapshot", async ({ expr }) => {
   const [, bodyExpr] = await take_body_expression(null, lex(chars(expr)));
   expect(bodyExpr).not.toBeNull();
+  expect("ok" in bodyExpr).toBeTrue();
   expect(bodyExpr).toMatchSnapshot(`BodyExpression: ${expr}`);
 });
 
@@ -374,10 +380,19 @@ test.each([
   // Impl declarations
   { decl: `impl Show for Int { fn show(): String { "int" } }` },
   {
-    decl: `impl Eq<T> for Option<T> { fn eq(other: Option<T>): Bool { true } }`,
+    decl: `impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool { true } }`,
   },
-  { decl: `impl Default for Vec<t> { fn default(): Vec<t> { Vec() } }` },
-
+  { decl: `impl<t> Default for Vec<t> { fn default(): Vec<t> { Vec() } }` },
+  {
+    decl: `impl <t_err, t_ok> Map<t_ok> for Result<t_err, t_ok> {
+    fn map<t_to>(cb: (t_ok) => t_to): Result<t_err, t_to> {
+      match self {
+        Ok(t) => Ok(cb(t)),
+        Err(t) => Err(t)
+      }
+    }
+  }`,
+  },
   // Complex function declarations
   {
     decl: `fn compose<a, b, c>(f: (b) => c, g: (a) => b): (a) => c { fn(x: a): c { f(g(x)) } }`,
@@ -426,7 +441,7 @@ test.each([
   { decl: `builtin "i32.add" as i32_add(a: I32, b: I32): I32` },
 ])("Declaration: $decl matches snapshot", async ({ decl }) => {
   const result = await take_declaration(null, lex(chars(decl)));
-  expect(result[1]).not.toBeNull();
+  expect("ok" in result[1]).toBeTrue();
   expect(result).toMatchSnapshot(`Declaration: ${decl}`);
 });
 
@@ -446,9 +461,9 @@ test.each([
   { expr: "foo().bar + baz().qux * 2" },
   { expr: "(a + b)(c, d)" },
 ])("Edge case: $expr matches snapshot", async ({ expr }) => {
-  const [, expression] = await take_expression(null, lex(chars(expr)));
-  expect(expression).not.toBeNull();
-  expect(expression).toMatchSnapshot(`EdgeCase: ${expr}`);
+  const result = await take_expression(null, lex(chars(expr)));
+  expect("ok" in result[1]).toBeTrue();
+  expect(result).toMatchSnapshot(`EdgeCase: ${expr}`);
 });
 
 // Test match expressions with guards
@@ -457,7 +472,7 @@ test.each([
   { expr: "match point { #(x, y) if (x == y) => x, #(x, _) => x, _ => 0 }" },
   { expr: "match value { n if (n < 0) => -n, n if (n > 100) => 100, n => n }" },
 ])("Match with guard: $expr matches snapshot", async ({ expr }) => {
-  const [, expression] = await take_expression(null, lex(chars(expr)));
-  expect(expression).not.toBeNull();
-  expect(expression).toMatchSnapshot(`MatchWithGuard: ${expr}`);
+  const result = await take_expression(null, lex(chars(expr)));
+  expect("ok" in result[1]).toBeTrue();
+  expect(result).toMatchSnapshot(`MatchWithGuard: ${expr}`);
 });
