@@ -2,6 +2,7 @@ import type { TypeToken } from "../lexer.js";
 import type {
   BuiltinDeclaration,
   ConstructorImport,
+  Declaration,
   EnumDeclaration,
   EnumImport,
   Expression,
@@ -288,6 +289,11 @@ export class ScopesPass extends BaseWalker {
     super.walkPatternExpression(node);
   }
 
+  override walkDeclaration(node: Declaration): void {
+    this.setScope(node, this.current);
+    super.walkDeclaration(node);
+  }
+
   override walkFn(node: Fn): void {
     // enter the next context before defining the function's name in the func
     this.push();
@@ -310,6 +316,7 @@ export class ScopesPass extends BaseWalker {
 
     const typeVars = getTypeUniqueTypeVars({
       tuple: [...node.impl.type_params, node.impl.for],
+      position: node.position,
     });
 
     for (const tyvar of typeVars) {

@@ -691,6 +691,12 @@ export class ElaboratePass extends BaseWalker {
 
   override walkDeclaration(node: Declaration): void {
     super.walkDeclaration(node);
+    if ("impl" in node || "trait" in node) {
+      if (!this.context.bindings.has(node))
+        throw new Error(`Declaration not elaborated: ${showDeclaration(node)}`);
+      return;
+    }
+
     const elaborated =
       this.context.terms.has(node) ||
       this.context.types.has(node) ||
