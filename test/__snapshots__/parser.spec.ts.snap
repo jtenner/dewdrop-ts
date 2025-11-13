@@ -8713,6 +8713,7 @@ exports[`Declaration: impl Show for Int { fn show(): String { "int" } } matches 
           ],
           "type": "Show",
         },
+        "trait_params": [],
         "type_params": [],
       },
       "position": [
@@ -8840,7 +8841,16 @@ exports[`Declaration: impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool {
           ],
           "type": "Eq",
         },
-        "type_params": [],
+        "trait_params": [],
+        "type_params": [
+          {
+            "name": "t",
+            "position": [
+              1,
+              7,
+            ],
+          },
+        ],
       },
       "position": [
         1,
@@ -8959,7 +8969,16 @@ exports[`Declaration: impl<t> Default for Vec<t> { fn default(): Vec<t> { Vec() 
           ],
           "type": "Default",
         },
-        "type_params": [],
+        "trait_params": [],
+        "type_params": [
+          {
+            "name": "t",
+            "position": [
+              1,
+              7,
+            ],
+          },
+        ],
       },
       "position": [
         1,
@@ -9268,12 +9287,28 @@ exports[`Declaration: impl <t_err, t_ok> Map<t_ok> for Result<t_err, t_ok> {
           ],
           "type": "Map",
         },
-        "type_params": [
+        "trait_params": [
           {
             "name": "t_ok",
             "position": [
               1,
               25,
+            ],
+          },
+        ],
+        "type_params": [
+          {
+            "name": "t_err",
+            "position": [
+              1,
+              8,
+            ],
+          },
+          {
+            "name": "t_ok",
+            "position": [
+              1,
+              14,
             ],
           },
         ],

@@ -4,7 +4,6 @@ import {
   appType,
   arrowKind,
   arrowType,
-  checkType,
   conTerm,
   conType,
   dictTerm,
@@ -21,13 +20,10 @@ import {
   type Pattern,
   recordTerm,
   recordType,
-  showTerm,
-  showType,
   starKind,
   type Term,
   type TraitDefBinding,
   type Type,
-  traitDefBinding,
   traitImplBinding,
   tuplePattern,
   tupleTerm,
@@ -72,7 +68,6 @@ import {
   showPatternExpression,
   showTypeExpression,
   type TraitDeclaration,
-  type TraitFn,
   type TupleExpression,
   type TupleTypeExpression,
   type TypeDeclaration,
@@ -420,7 +415,6 @@ export class ElaboratePass extends BaseWalker {
               `Field type not elaborated: ${showTypeExpression(v.values.values[i]!)}`,
             );
           body = lamTerm(fieldName, fieldType, body);
-          console.log("Field Type", fieldName, JSON.stringify(fieldType));
           fields.unshift(fieldType);
         }
         vtype = tupleType(fields);

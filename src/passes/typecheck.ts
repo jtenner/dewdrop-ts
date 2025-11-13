@@ -1,16 +1,13 @@
 import {
   arrowKind,
   type Binding,
-  checkKind,
   checkPattern,
   enumDefBinding,
   inferType,
   showContext,
   showTerm,
-  showType,
   starKind,
   termBinding,
-  traitDefBinding,
   typeAliasBinding,
   typecheck,
 } from "system-f-omega";
@@ -39,7 +36,7 @@ export class TypeCheckPass extends BaseWalker {
     super.walkModule(node);
   }
 
-  override walkTraitDeclaration(node: TraitDeclaration): void {}
+  override walkTraitDeclaration(_node: TraitDeclaration): void {}
 
   override walkFnDeclaration(node: FnDeclaration): void {
     const term = this.context.terms.get(node.fn.fn);
@@ -48,9 +45,6 @@ export class TypeCheckPass extends BaseWalker {
 
     const typeRes = inferType(this.env, term);
     if ("err" in typeRes) {
-      console.log("Term is", showTerm(term));
-      console.log("Context is", showContext(this.env));
-      console.log(typeRes);
       this.errors.push({ type_error: typeRes.err });
       return;
     }
@@ -100,7 +94,6 @@ export class TypeCheckPass extends BaseWalker {
     const name = "fields" in node ? node.fields.id.type : node.values.id.type;
 
     // The constructor function is defined at this point
-    console.log("type checking term", showTerm(term));
     const constructorTypeRes = typecheck(this.env, term);
     if ("err" in constructorTypeRes) {
       this.errors.push({ type_error: constructorTypeRes.err });

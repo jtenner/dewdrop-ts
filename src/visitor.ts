@@ -1,6 +1,6 @@
 import type { TypingError } from "system-f-omega";
 import type { ModuleEntry } from "./graph.js";
-import type { NameToken, StringToken, TypeToken } from "./lexer.js";
+import type { IntToken, NameToken, StringToken, TypeToken } from "./lexer.js";
 import type {
   ApplicationTypeExpression,
   ArrowKindBodyExpression,
@@ -33,7 +33,6 @@ import type {
   Import,
   ImportDeclaration,
   InfixExpression,
-  Int,
   IntExpression,
   IntPatternExpression,
   LetBindBodyExpression,
@@ -158,7 +157,7 @@ export interface ASTVisitor {
   visitTypeIdentifier(node: TypeToken): TypeToken;
   visitNameIdentifier(node: NameToken): NameToken;
   visitString(node: StringToken): StringToken;
-  visitInt(node: Int): Int;
+  visitInt(node: IntToken): IntToken;
 }
 
 export interface ASTWalker {
@@ -241,7 +240,7 @@ export interface ASTWalker {
   walkTypeIdentifier(node: TypeToken): void;
   walkNameIdentifier(node: NameToken): void;
   walkString(node: StringToken): void;
-  walkInt(node: Int): void;
+  walkInt(node: IntToken): void;
 }
 
 export type IDMode = "ambient" | "expression" | "type" | "pattern";
@@ -249,7 +248,18 @@ export type IDMode = "ambient" | "expression" | "type" | "pattern";
 export type UnboundError = { unbound: { name: string; scope: Scope } };
 export type InvalidNameError = { invalid_name: ASTNode };
 export type TypeError = { type_error: TypingError };
-export type CompilerError = TypeError | UnboundError | InvalidNameError;
+export type TypeParameterCountMismatchError = {
+  type_parameter_count: {
+    node: ASTNode;
+    actual: number;
+    expected: number;
+  };
+};
+export type CompilerError =
+  | TypeError
+  | UnboundError
+  | InvalidNameError
+  | TypeParameterCountMismatchError;
 
 export abstract class BaseContext {
   constructor(public context: CompilerContext) {}
@@ -686,7 +696,7 @@ export class BaseWalker extends BaseContext implements ASTWalker {
   walkTypeIdentifier(_node: TypeToken): void {}
   walkNameIdentifier(_node: NameToken): void {}
   walkString(_node: StringToken): void {}
-  walkInt(_node: Int): void {}
+  walkInt(_node: IntToken): void {}
 }
 
 // Default visitor that recursively visits and reconstructs the tree
@@ -722,6 +732,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         params: node.builtin.params.map((t) => this.visitFnParam(t)),
         return_type: this.visitTypeExpression(node.builtin.return_type),
       },
+      position: node.position,
     };
   }
 
@@ -731,6 +742,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         pub: node.fn.pub,
         fn: this.visitFn(node.fn.fn),
       },
+      position: node.position,
     };
   }
 
@@ -745,6 +757,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         ),
         variants: node.enum.variants.map((v) => this.visitEnumVariant(v)),
       },
+      position: node.position,
     };
   }
 
@@ -754,6 +767,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         import_from: node.import_dec.import_from,
         imports: node.import_dec.imports.map((i) => this.visitImport(i)),
       },
+      position: node.position,
     };
   }
 
@@ -765,6 +779,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         params: node.type_dec.params.map((t) => this.visitNameIdentifier(t)),
         value: this.visitTypeExpression(node.type_dec.value),
       },
+      position: node.position,
     };
   }
 
@@ -776,6 +791,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         pattern: this.visitPatternExpression(node.let_dec.pattern),
         value: this.visitExpression(node.let_dec.value),
       },
+      position: node.position,
     };
   }
 
@@ -789,19 +805,24 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         ),
         fns: node.trait.fns.map((f) => this.visitTraitFn(f)),
       },
+      position: node.position,
     };
   }
 
   visitImplDeclaration(node: ImplDeclaration): Declaration {
     return {
       impl: {
-        name: this.visitTypeIdentifier(node.impl.name),
         type_params: node.impl.type_params.map((t) =>
+          this.visitNameIdentifier(t),
+        ),
+        name: this.visitTypeIdentifier(node.impl.name),
+        trait_params: node.impl.trait_params.map((t) =>
           this.visitTypeExpression(t),
         ),
         for: this.visitTypeExpression(node.impl.for),
         fns: node.impl.fns.map((f) => this.visitFn(f)),
       },
+      position: node.position,
     };
   }
 
@@ -825,6 +846,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
             ? this.visitNameIdentifier(node.select.name)
             : this.visitTypeIdentifier(node.select.name),
       },
+      position: node.position,
     };
   }
 
@@ -836,6 +858,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         callee: this.visitTypeExpression(node.app.callee),
         args: node.app.args.map((a) => this.visitTypeExpression(a)),
       },
+      position: node.position,
     };
   }
 
@@ -845,18 +868,21 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         args: node.fn.args.map((a) => this.visitTypeExpression(a)),
         ret: this.visitTypeExpression(node.fn.ret),
       },
+      position: node.position,
     };
   }
 
   visitRecordTypeExpression(node: RecordTypeExpression): TypeExpression {
     return {
       record: node.record.map((f) => this.visitNamedTypeExpression(f)),
+      position: node.position,
     };
   }
 
   visitTupleTypeExpression(node: TupleTypeExpression): TypeExpression {
     return {
       tuple: node.tuple.map((t) => this.visitTypeExpression(t)),
+      position: node.position,
     };
   }
 
@@ -881,6 +907,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         name: this.visitNameIdentifier(node.arrow_bind.name),
         expression: this.visitExpression(node.arrow_bind.expression),
       },
+      position: node.position,
     };
   }
 
@@ -891,6 +918,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         assert: node.let_bind.assert,
         expression: this.visitExpression(node.let_bind.expression),
       },
+      position: node.position,
     };
   }
 
@@ -900,6 +928,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         name: this.visitNameIdentifier(node.assign.name),
         expression: this.visitExpression(node.assign.expression),
       },
+      position: node.position,
     };
   }
 
@@ -908,6 +937,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
   ): BodyExpression {
     return {
       expression: this.visitExpression(node.expression),
+      position: node.position,
     };
   }
 
@@ -955,12 +985,14 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         this.visitExpression(node.call[0]),
         node.call[1].map((e) => this.visitExpression(e)),
       ],
+      position: node.position,
     };
   }
 
   visitBlockExpression(node: BlockExpression): Expression {
     return {
       block: node.block.map((b) => this.visitBodyExpression(b)),
+      position: node.position,
     };
   }
 
@@ -973,12 +1005,14 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
           node.if_expr.else_body &&
           this.visitExpression(node.if_expr.else_body),
       },
+      position: node.position,
     };
   }
 
   visitSelectExpression(node: SelectExpression): Expression {
     return {
       select: [this.visitExpression(node.select[0]), node.select[1]],
+      position: node.position,
     };
   }
 
@@ -988,6 +1022,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         this.visitExpression(node.match[0]),
         node.match[1].map((a) => this.visitMatchArm(a)),
       ],
+      position: node.position,
     };
   }
 
@@ -997,6 +1032,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         op: node.prefix.op,
         operand: this.visitExpression(node.prefix.operand),
       },
+      position: node.position,
     };
   }
 
@@ -1006,6 +1042,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         op: node.postfix.op,
         operand: this.visitExpression(node.postfix.operand),
       },
+      position: node.position,
     };
   }
 
@@ -1016,12 +1053,14 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         left: this.visitExpression(node.infix.left),
         right: this.visitExpression(node.infix.right),
       },
+      position: node.position,
     };
   }
 
   visitFnExpression(node: FnExpression): Expression {
     return {
       fn: this.visitFn(node.fn),
+      position: node.position,
     };
   }
 
@@ -1031,12 +1070,14 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         ([name, expr]) =>
           [name, this.visitExpression(expr)] as [NameIdentifier, Expression],
       ),
+      position: node.position,
     };
   }
 
   visitTupleExpression(node: TupleExpression): Expression {
     return {
       tuple: node.tuple.map((e) => this.visitExpression(e)),
+      position: node.position,
     };
   }
 
@@ -1079,6 +1120,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
           this.visitPatternExpression(p),
         ),
       },
+      position: node.position,
     };
   }
 
@@ -1093,12 +1135,14 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
             PatternExpression,
           ],
       ),
+      position: node.position,
     };
   }
 
   visitTuplePatternExpression(node: TuplePatternExpression): PatternExpression {
     return {
       tuple: node.tuple.map((p) => this.visitPatternExpression(p)),
+      position: node.position,
     };
   }
 
@@ -1119,6 +1163,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
             this.visitNamedTypeExpression(f),
           ),
         },
+        position: node.position,
       };
     }
     return {
@@ -1126,6 +1171,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         id: this.visitTypeIdentifier(node.values.id),
         values: node.values.values.map((v) => this.visitTypeExpression(v)),
       },
+      position: node.position,
     };
   }
 
@@ -1148,6 +1194,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         alias: node.constr.alias && this.visitTypeIdentifier(node.constr.alias),
         name: this.visitTypeIdentifier(node.constr.name),
       },
+      position: node.position,
     };
   }
 
@@ -1157,6 +1204,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         alias: node.type.alias && this.visitTypeIdentifier(node.type.alias),
         name: this.visitTypeIdentifier(node.type.name),
       },
+      position: node.position,
     };
   }
 
@@ -1170,6 +1218,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
             : this.visitNameIdentifier(node.fn.name),
         signature: this.visitFnSignature(node.fn.signature),
       },
+      position: node.position,
     };
   }
   visitGlobalImport(node: GlobalImport): Import {
@@ -1183,6 +1232,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
             ? this.visitString(node.global.name)
             : this.visitNameIdentifier(node.global.name),
       },
+      position: node.position,
     };
   }
   visitTableImport(node: TableImport): Import {
@@ -1197,6 +1247,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
             : this.visitNameIdentifier(node.table.name),
         table_type: this.visitTypeExpression(node.table.table_type),
       },
+      position: node.position,
     };
   }
   visitStarImport(node: StarImport): Import {
@@ -1215,6 +1266,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
             ? this.visitString(node.memory.name)
             : this.visitNameIdentifier(node.memory.name),
       },
+      position: node.position,
     };
   }
   visitNameImport(node: NameImport): Import {
@@ -1223,6 +1275,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         name: this.visitNameIdentifier(node.name.name),
         alias: node.name.alias && this.visitNameIdentifier(node.name.alias),
       },
+      position: node.position,
     };
   }
   visitTraitImport(node: TraitImport): Import {
@@ -1231,6 +1284,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         name: this.visitTypeIdentifier(node.trait.name),
         alias: node.trait.alias && this.visitTypeIdentifier(node.trait.alias),
       },
+      position: node.position,
     };
   }
 
@@ -1243,6 +1297,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
         ? this.visitTypeExpression(node.return_type)
         : null,
       body: this.visitExpression(node.body),
+      position: node.position,
     };
   }
 
@@ -1252,6 +1307,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
       type_params: node.type_params.map((p) => this.visitNameIdentifier(p)),
       params: node.params.map((p) => this.visitNamedTypeExpression(p)),
       return_type: this.visitTypeExpression(node.return_type),
+      position: node.position,
     };
   }
 
@@ -1280,7 +1336,7 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
   visitString(node: StringToken): StringToken {
     return node;
   }
-  visitInt(node: Int): Int {
+  visitInt(node: IntToken): IntToken {
     return node;
   }
 }

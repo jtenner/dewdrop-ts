@@ -2040,8 +2040,6 @@ export const take_fn = async (
   if (!next_token) return [null, expected("Token", null)];
   const start_pos = next_token.position;
 
-  console.log("taking fn", next_token);
-
   [next_token, success_token] = await take_keyword(next_token, tokens, "fn");
   if ("err" in success_token) return [next_token, success_token];
 
@@ -2464,7 +2462,6 @@ const take_impl_declaration = async (
   next_token: Token | null,
   tokens: TokenIter,
 ): Promise<ParseResult<ImplDeclaration>> => {
-  console.log("Starting impl");
   let success_token: Result<ParseError, Token>;
   let name: Result<ParseError, TypeIdentifier>;
   let type_params: Result<ParseError, ListResult<NameIdentifier>>;
@@ -2488,11 +2485,8 @@ const take_impl_declaration = async (
       ",",
       ">",
     );
-    console.log("result of type params", next_token, type_params);
     if ("err" in type_params) return [next_token, type_params];
   } else type_params = ok({ list: [], position: start_pos });
-
-  console.log("Type Parameters", type_params);
 
   [next_token, name] = await take_type(next_token, tokens);
   if ("err" in name) return [next_token, name];
