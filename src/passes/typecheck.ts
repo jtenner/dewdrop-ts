@@ -4,8 +4,6 @@ import {
   checkPattern,
   enumDefBinding,
   inferType,
-  showContext,
-  showTerm,
   starKind,
   termBinding,
   typeAliasBinding,

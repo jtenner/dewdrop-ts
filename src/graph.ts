@@ -16,48 +16,57 @@ export class ModuleGraph {
     this.baseDir = path.resolve(baseDir);
   }
 
-  // Add a module with its dependencies
-  addModule(
-    filePath: string,
-    module: Module,
-    dependencies: string[] = [],
-  ): string[] {
+  addModule(filePath: string, mod: Module): ModuleEntry {
     const relativePath = this.toRelativePath(filePath);
-    let entry: ModuleEntry;
 
-    if (this.entries.has(relativePath)) {
-      entry = this.entries.get(relativePath)!;
-      entry.module = module;
-    } else {
+    let entry = this.entries.get(relativePath);
+    if (!entry) {
       entry = {
         relativePath,
         dependencies: new Set(),
         dependents: new Set(),
-        module,
+        module: mod,
       };
       this.entries.set(relativePath, entry);
+    } else {
+      entry.module = mod;
     }
 
-    const depPaths = [] as string[];
-    // Resolve and add dependencies
-    for (const dep of dependencies) {
-      const depPath = this.resolveRelativeImport(relativePath, dep);
-      depPaths.push(depPath);
-      // Ensure dependency module exists
-      if (!this.entries.has(depPath)) {
-        this.entries.set(depPath, {
-          relativePath: depPath,
-          dependencies: new Set(),
-          dependents: new Set(),
-          module: null,
-        });
-      }
+    return entry;
+  }
 
-      entry.dependencies.add(depPath);
-      this.entries.get(depPath)!.dependents.add(relativePath);
+  addDependency(filePath: string, dependsOn: string): void {
+    // `filePath` is the importer, `dependsOn` is a path *relative to that file*.
+    const fromRelative = this.toRelativePath(filePath);
+    const depRelative = this.resolveRelativeImport(fromRelative, dependsOn);
+
+    // Ensure the importer exists in the graph
+    let fromEntry = this.entries.get(fromRelative);
+    if (!fromEntry) {
+      fromEntry = {
+        relativePath: fromRelative,
+        dependencies: new Set(),
+        dependents: new Set(),
+        module: null,
+      };
+      this.entries.set(fromRelative, fromEntry);
     }
 
-    return depPaths;
+    // Ensure the dependency exists in the graph
+    let depEntry = this.entries.get(depRelative);
+    if (!depEntry) {
+      depEntry = {
+        relativePath: depRelative,
+        dependencies: new Set(),
+        dependents: new Set(),
+        module: null,
+      };
+      this.entries.set(depRelative, depEntry);
+    }
+
+    // Wire the relationship
+    fromEntry.dependencies.add(depRelative);
+    depEntry.dependents.add(fromRelative);
   }
 
   // Get modules in dependency order (topological sort)
@@ -76,17 +85,17 @@ export class ModuleGraph {
       visiting.add(modulePath);
       const module = this.entries.get(modulePath);
 
-      if (module) {
-        for (const dep of module.dependencies) {
-          visit(dep);
-        }
-      } else {
+      if (!module) {
         throw new Error("This module should exist..");
+      }
+
+      for (const dep of module.dependencies) {
+        visit(dep);
       }
 
       visiting.delete(modulePath);
       visited.add(modulePath);
-      sorted.push(module!);
+      sorted.push(module);
     };
 
     for (const modulePath of this.entries.keys()) {
@@ -96,8 +105,10 @@ export class ModuleGraph {
     return sorted;
   }
 
-  getEntries() {
-    return new Map([...this.entries].map((e) => [e[0], e[1].module!]));
+  getEntries(): Map<string, Module> {
+    return new Map(
+      [...this.entries].map(([key, entry]) => [key, entry.module!]),
+    );
   }
 
   // Find a module relative to another module
@@ -111,7 +122,7 @@ export class ModuleGraph {
     return this.entries.has(targetRelative) ? targetRelative : null;
   }
 
-  // Get all dependencies of a module
+  // Get all direct dependencies of a module
   getDependencies(filePath: string): string[] {
     const relativePath = this.toRelativePath(filePath);
     const module = this.entries.get(relativePath);
@@ -134,7 +145,7 @@ export class ModuleGraph {
     return path.relative(this.baseDir, absolutePath);
   }
 
-  // Resolve an import path relative to the importing module
+  // Resolve an import path relative to the importing module (by module-relative path)
   private resolveRelativeImport(fromPath: string, importPath: string): string {
     const fromDir = path.dirname(fromPath);
     const resolved = path.join(fromDir, importPath);

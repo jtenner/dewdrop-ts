@@ -3,6 +3,12 @@ type Void = #()
 let void = #()
 
 builtin "unreachable" as unreachable(): Never
+builtin "debug" as debug<t>(val: t): void
+
+enum Bool {
+  True,
+  False
+}
 
 enum Option<t> {
   Some(t),
@@ -26,16 +32,84 @@ fn expect<t_err, t_ok>(n: Result<t_err, t_ok>) {
   }
 }
 
-trait Map<t> {
-  fn map<u>(cb: (t) => u): Self<u>
+trait Expect<t> {
+  fn expect(val: Self): t
 }
 
-impl Map<t> for Option<t> {
-  fn map<u>(cb: (t) => u): Option<u> {
-      match self {
-         Some(val) => Some(cb(val)),
-         None => None
-      }
+trait Add {
+  fn add(left: Self, right: Self): Self
+}
+
+trait Sub {
+  fn sub(left: Self, right: Self): Self
+}
+
+trait Mul {
+  fn mul(left: Self, right: Self): Self
+}
+
+trait Div {
+  fn div(left: Self, right: Self): Self
+}
+
+trait Exp {
+  fn exp(left: Self, right: Self): Self
+}
+
+trait Or {
+  fn or(left: Self, right: Self): Self
+}
+
+trait XOr {
+  fn xor(left: Self, right: Self): Self
+}
+
+trait And {
+  fn and(left: Self, right: Self): Self
+}
+
+trait Not {
+  fn not(val: Self): Self
+}
+
+trait Concat {
+  fn concat(left: Self, right: Self): Self
+}
+
+trait Push<t> {
+  fn push(val: t, val: Self): Self
+}
+
+trait Pop<t> {
+  fn pop(val: Self): Option<#(t, Self)>
+}
+
+trait Unshift<t> {
+  fn unshift(val: t, val: Self): Self
+}
+
+trait Shift<t> {
+  fn shift(val: Self): Option<#(t, Self)>
+}
+
+
+impl <t> Expect<t> for Option<t> {
+  fn expect(val: Option<t>) match val {
+    Some(v) => v,
+    None => unreachable()
   }
 }
 
+impl <t_err, t_ok> Expect<t_ok> for Result<t_err, t_ok> {
+  fn expect(val: Result<t_err, t_ok>) match val {
+    Ok(v) => v,
+    Err(_) => unreachable()
+  }
+}
+
+impl Not for Bool {
+  fn not(val: Bool) match val {
+    True => False,
+    False => True
+  }
+}

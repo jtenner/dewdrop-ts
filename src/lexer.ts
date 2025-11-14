@@ -384,8 +384,6 @@ export async function* lex(
     "if",
     "else",
     "match",
-    "true",
-    "false",
     "enum",
     "self",
     "assert",

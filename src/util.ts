@@ -6,7 +6,6 @@ import type {
   EnumVariant,
   Expression,
   Fn,
-  FnDeclaration,
   FnParam,
   Import,
   Module,

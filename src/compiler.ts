@@ -45,7 +45,10 @@ const compilerContext = (basedir: string): CompilerContext => ({
   scopes: new Map(),
   terms: new Map(),
   types: new Map(),
-  builtins: new Map([["unreachable", {}]]),
+  builtins: new Map([
+    ["unreachable", {}],
+    ["debug", {}],
+  ]),
   bindings: new Map(),
 });
 
@@ -82,6 +85,7 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   const passes = [
     new DesugarPass(context),
     new ScopesPass(context),
+    new ResolveImports(context),
     new ElaboratePass(context),
     new TypeCheckPass(context),
   ];

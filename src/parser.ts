@@ -394,6 +394,7 @@ export type BuiltinDeclaration = {
   builtin: {
     name: StringToken;
     alias: NameIdentifier;
+    type_params: NameIdentifier[];
     params: FnParam[];
     return_type: TypeExpression;
   };
@@ -1354,29 +1355,6 @@ export const take_expression = async (
         continue;
       }
 
-      // true
-      [next_token, success_token] = await take_keyword(
-        next_token,
-        tokens,
-        "true",
-      );
-      if ("ok" in success_token) {
-        yard.push_expr({ bool: true, position: start_pos });
-        combine_state = true;
-        continue;
-      }
-
-      [next_token, success_token] = await take_keyword(
-        next_token,
-        tokens,
-        "false",
-      );
-      if ("ok" in success_token) {
-        yard.push_expr({ bool: false, position: start_pos });
-        combine_state = true;
-        continue;
-      }
-
       // if expression
       [next_token, success_token] = await take_keyword(
         next_token,
@@ -1927,10 +1905,11 @@ export const take_import = async (
 export const take_builtin_declaration = async (
   next_token: Token | null,
   tokens: TokenIter,
-): Promise<ParseResult<Declaration>> => {
+): Promise<ParseResult<BuiltinDeclaration>> => {
   let success_token: Result<ParseError, Token>;
   let name: Result<ParseError, StringToken>;
   let alias: Result<ParseError, NameIdentifier>;
+  let type_params: Result<ParseError, ListResult<NameIdentifier>>;
   let params: Result<ParseError, ListResult<FnParam>>;
   let return_type: Result<ParseError, TypeExpression>;
 
@@ -1953,6 +1932,18 @@ export const take_builtin_declaration = async (
 
   [next_token, alias] = await take_name(next_token, tokens);
   if ("err" in alias) return [next_token, alias];
+
+  [next_token, success_token] = await take_symbol(next_token, tokens, "<");
+  if ("ok" in success_token) {
+    [next_token, type_params] = await take_list(
+      next_token,
+      tokens,
+      take_name,
+      ",",
+      ">",
+    );
+    if ("err" in type_params) return [next_token, { err: type_params.err }];
+  } else type_params = ok({ list: [], position: start_pos });
 
   [next_token, success_token] = await take_symbol(next_token, tokens, "(");
   if ("err" in success_token) return [next_token, success_token];
@@ -1978,6 +1969,7 @@ export const take_builtin_declaration = async (
       builtin: {
         name: name.ok,
         alias: alias.ok,
+        type_params: type_params.ok.list,
         params: params.ok.list,
         return_type: return_type.ok,
       },

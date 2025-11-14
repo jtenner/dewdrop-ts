@@ -1074,7 +1074,7 @@ exports[`foo(1).bar(2, 3).baz matches snapshot: Expression: foo(1).bar(2, 3).baz
 ]
 `;
 
-exports[`if match x { A => true, _ => false } { 1 } else { 0 } matches snapshot: Expression: if match x { A => true, _ => false } { 1 } else { 0 } 1`] = `
+exports[`if match x { A => True, _ => False } { 1 } else { 0 } matches snapshot: Expression: if match x { A => True, _ => False } { 1 } else { 0 } 1`] = `
 [
   null,
   {
@@ -1092,11 +1092,11 @@ exports[`if match x { A => true, _ => false } { 1 } else { 0 } matches snapshot:
             [
               {
                 "body": {
-                  "bool": true,
                   "position": [
                     1,
                     19,
                   ],
+                  "type": "True",
                 },
                 "guard": null,
                 "pattern": {
@@ -1118,11 +1118,11 @@ exports[`if match x { A => true, _ => false } { 1 } else { 0 } matches snapshot:
               },
               {
                 "body": {
-                  "bool": false,
                   "position": [
                     1,
                     30,
                   ],
+                  "type": "False",
                 },
                 "guard": null,
                 "pattern": {
@@ -2899,38 +2899,6 @@ exports[`pub let pi = 3.14159 matches snapshot 1`] = `
           "position": [
             1,
             14,
-          ],
-        },
-      },
-      "position": [
-        1,
-        2,
-      ],
-    },
-  },
-]
-`;
-
-exports[`let y = true matches snapshot 1`] = `
-[
-  null,
-  {
-    "ok": {
-      "let_dec": {
-        "assert": false,
-        "pattern": {
-          "name": "y",
-          "position": [
-            1,
-            2,
-          ],
-        },
-        "pub": false,
-        "value": {
-          "bool": true,
-          "position": [
-            1,
-            9,
           ],
         },
       },
@@ -8725,7 +8693,7 @@ exports[`Declaration: impl Show for Int { fn show(): String { "int" } } matches 
 ]
 `;
 
-exports[`Declaration: impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool { true } } matches snapshot: Declaration: impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool { true } } 1`] = `
+exports[`Declaration: impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool { True } } matches snapshot: Declaration: impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool { True } } 1`] = `
 [
   null,
   {
@@ -8737,11 +8705,11 @@ exports[`Declaration: impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool {
               "block": [
                 {
                   "expression": {
-                    "bool": true,
                     "position": [
                       1,
                       60,
                     ],
+                    "type": "True",
                   },
                   "position": [
                     1,

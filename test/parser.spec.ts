@@ -53,7 +53,7 @@ test.each([
     expr: "foo(1).bar(2, 3).baz",
   },
   {
-    expr: "if match x { A => true, _ => false } { 1 } else { 0 }",
+    expr: "if match x { A => True, _ => False } { 1 } else { 0 }",
   },
 ])("$expr matches snapshot", async ({ expr }) => {
   const result = await take_expression(null, lex(chars(expr)));
@@ -150,7 +150,6 @@ test.each([
   { decl: `fn identity<t>(x: t): t { x }` },
   { decl: `let x = 42` },
   { decl: `pub let pi = 3.14159` },
-  { decl: `let y = true` },
   { decl: `type MyInt = I32` },
   { decl: `pub enum Result<t, e> { Ok(t), Err(e) }` },
   { decl: `enum Color { Red, Green(I32), Blue { shade: f32 } }` },
@@ -380,7 +379,7 @@ test.each([
   // Impl declarations
   { decl: `impl Show for Int { fn show(): String { "int" } }` },
   {
-    decl: `impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool { true } }`,
+    decl: `impl<t> Eq for Option<t> { fn eq(other: Option<t>): Bool { True } }`,
   },
   { decl: `impl<t> Default for Vec<t> { fn default(): Vec<t> { Vec() } }` },
   {

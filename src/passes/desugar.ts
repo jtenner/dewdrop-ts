@@ -28,9 +28,11 @@ export class DesugarPass extends BaseVisitor {
       position: node.position.slice() as [number, number],
     };
   }
+
   override visitBlockExpression(node: BlockExpression): Expression {
     for (let i = 0; i < node.block.length; i++) {
       const body_expr = node.block[i]!;
+
       if ("arrow_bind" in body_expr) {
         // The rest of the function becomes the body of the inner callback
         const { name, expression } = body_expr.arrow_bind;
@@ -47,11 +49,16 @@ export class DesugarPass extends BaseVisitor {
           } satisfies Fn,
           expression.position,
         );
-        const next = call_expr(
-          name_expr("map", expression.position),
-          [fn, expression],
-          expression.position,
-        );
+
+        let next: Expression;
+
+        if ("call" in expression) {
+          expression.call[1].push(fn);
+          next = expression;
+        } else {
+          next = call_expr(expression, [fn], expression.position);
+        }
+
         node.block[i] = expression_body_expr(next, expression.position);
         return super.visitBlockExpression(node);
       }
@@ -66,6 +73,6 @@ export class DesugarPass extends BaseVisitor {
       }
     }
 
-    return node;
+    return super.visitBlockExpression(node);
   }
 }
