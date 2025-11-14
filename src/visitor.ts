@@ -367,6 +367,10 @@ export class BaseWalker extends BaseContext implements ASTWalker {
   walkImplDeclaration(node: ImplDeclaration): void {
     this.walkTypeIdentifier(node.impl.name);
     for (const tp of node.impl.type_params) {
+      this.walkNameIdentifier(tp);
+    }
+
+    for (const tp of node.impl.trait_params) {
       this.walkTypeExpression(tp);
     }
     this.walkTypeExpression(node.impl.for);

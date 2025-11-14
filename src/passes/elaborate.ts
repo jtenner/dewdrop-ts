@@ -36,6 +36,7 @@ import {
   varTerm,
   varType,
   wildcardPattern,
+  traitDefBinding,
 } from "system-f-omega";
 import type { NameToken, TypeToken } from "../lexer.js";
 import {
@@ -43,6 +44,7 @@ import {
   type BlockExpression,
   type BuiltinDeclaration,
   type CallExpression,
+  type ConstructorImport,
   type ConstructorPatternExpression,
   type Declaration,
   type EnumDeclaration,
@@ -54,6 +56,8 @@ import {
   type FnExpression,
   type FnTypeExpression,
   type ImplDeclaration,
+  type Import,
+  type ImportDeclaration,
   type IntExpression,
   type LetBindBodyExpression,
   type LetDeclaration,
@@ -65,6 +69,7 @@ import {
   showEnumVariant,
   showExpression,
   showFn,
+  showImport,
   showPatternExpression,
   showTypeExpression,
   type TraitDeclaration,
@@ -72,6 +77,7 @@ import {
   type TupleTypeExpression,
   type TypeDeclaration,
   type TypeExpression,
+  type TypeImport,
 } from "../parser.js";
 import { BaseWalker } from "../visitor.js";
 
@@ -133,14 +139,12 @@ export class ElaboratePass extends BaseWalker {
       this.context.types.set(fn, fnTy);
     }
 
-    const traitDef = {
-      trait_def: {
-        kind,
-        methods,
-        name: node.trait.id.type,
-        type_param: "Self",
-      },
-    } satisfies TraitDefBinding;
+    const traitDef = traitDefBinding(
+      node.trait.id.type,
+      "Self",
+      starKind,
+      methods,
+    );
     this.context.bindings.set(node, [traitDef]);
   }
 
@@ -191,7 +195,7 @@ export class ElaboratePass extends BaseWalker {
       const paramTy = this.context.types.get(node.impl.trait_params[i]!);
       if (!paramTy)
         throw new Error(
-          `Trait param type not elaborated for: ${node.impl.trait_params[i]!}`,
+          `Trait param type not elaborated for: ${showTypeExpression(node.impl.trait_params[i]!)}`,
         );
       traitSubstitution.set(paramName, paramTy);
     }
@@ -235,6 +239,34 @@ export class ElaboratePass extends BaseWalker {
       acc = forallType(name, starKind, acc);
     }
     this.context.types.set(node, acc);
+  }
+
+  override walkImport(node: Import): void {
+    super.walkImport(node);
+    const elaborated =
+      this.context.terms.has(node) ||
+      this.context.types.has(node) ||
+      this.context.patterns.has(node);
+
+    if (!elaborated) {
+      console.log(node);
+      throw new Error(
+        `Term or type not elaborated for import: ${showImport(node)}`,
+      );
+    }
+  }
+
+  override walkTypeImport(node: TypeImport): void {
+    const element = this.lookupType(node, node.type.name.type);
+    console.log(element);
+    process.exit(0);
+  }
+
+  override walkConstructorImport(node: ConstructorImport): void {
+    const element = this.lookupTerm(node, node.constr.name.type);
+
+    console.log(element);
+    process.exit(0);
   }
 
   override walkIntExpression(node: IntExpression): void {
@@ -691,11 +723,17 @@ export class ElaboratePass extends BaseWalker {
 
   override walkDeclaration(node: Declaration): void {
     super.walkDeclaration(node);
-    if ("impl" in node || "trait" in node) {
-      if (!this.context.bindings.has(node))
-        throw new Error(`Declaration not elaborated: ${showDeclaration(node)}`);
+
+    if ("trait" in node || "impl" in node) {
+      const elaborated = this.context.bindings.has(node);
+      if (!elaborated)
+        throw new Error(
+          `Term or type not elaborated for declaration: ${showDeclaration(node)}`,
+        );
       return;
     }
+
+    if ("import_dec" in node) return;
 
     const elaborated =
       this.context.terms.has(node) ||

@@ -320,7 +320,7 @@ export class ScopesPass extends BaseWalker {
     });
 
     for (const tyvar of typeVars) {
-      const id = { name: tyvar };
+      const id = { name: tyvar, position: node.position };
       this.setScope(id, this.current);
       this.defineType(tyvar, { typevar: id });
     }

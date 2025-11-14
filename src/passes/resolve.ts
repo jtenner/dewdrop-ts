@@ -15,6 +15,7 @@ export class ResolveImports extends BaseVisitor {
       node,
       this.imported,
     );
+    console.log(paths);
     for (const p of paths) {
       modules.add(p);
     }
