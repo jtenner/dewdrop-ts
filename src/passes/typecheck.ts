@@ -1,9 +1,11 @@
 import {
   arrowKind,
   type Binding,
+  checkKind,
   checkPattern,
   enumDefBinding,
   inferType,
+  showContext,
   starKind,
   termBinding,
   typeAliasBinding,
@@ -43,6 +45,8 @@ export class TypeCheckPass extends BaseWalker {
 
     const typeRes = inferType(this.env, term);
     if ("err" in typeRes) {
+      console.log(typeRes);
+      console.log(showContext(this.env));
       this.errors.push({ type_error: typeRes.err });
       return;
     }
@@ -56,12 +60,15 @@ export class TypeCheckPass extends BaseWalker {
     if (!type)
       throw new Error(`Type not elaborated for enum: ${showDeclaration(node)}`);
 
-    let kind = starKind;
-    for (const _ of node.enum.type_params) kind = arrowKind(starKind, kind);
-
+    const kind = checkKind(this.env, type);
+    if ("err" in kind) {
+      this.errors.push({ type_error: kind.err });
+      this.context.bindings.set(node, []);
+      return;
+    }
     const enumBinding = enumDefBinding(
       node.enum.id.type,
-      kind,
+      kind.ok,
       node.enum.type_params.map((t) => t.name),
       node.enum.variants.map((t) => {
         const ty = this.context.types.get(t);
@@ -74,6 +81,7 @@ export class TypeCheckPass extends BaseWalker {
       }),
     );
     this.env.push(enumBinding);
+    console.log("Setting bindings for enum", showDeclaration(node));
     this.context.bindings.set(node, [enumBinding]);
     super.walkEnumDeclaration(node);
   }

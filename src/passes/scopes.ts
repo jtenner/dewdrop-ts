@@ -28,7 +28,7 @@ import type {
   TypeExpression,
   TypeImport,
 } from "../parser.js";
-import type { Scope, ScopeElement } from "../util.js";
+import { Scope, type ScopeElement } from "../util.js";
 import { BaseWalker } from "../visitor.js";
 
 const getTypeUniqueTypeVars = (
@@ -77,11 +77,7 @@ export class ScopesPass extends BaseWalker {
   }
 
   push() {
-    this.current = {
-      parent: this.current,
-      terms: new Map(),
-      types: new Map(),
-    };
+    this.current = new Scope(this.current);
   }
 
   pop() {
@@ -290,7 +286,7 @@ export class ScopesPass extends BaseWalker {
   }
 
   override walkDeclaration(node: Declaration): void {
-    this.setScope(node, this.current);
+    // this.setScope(node, this.current);
     super.walkDeclaration(node);
   }
 
@@ -311,8 +307,8 @@ export class ScopesPass extends BaseWalker {
 
   override walkImplDeclaration(node: ImplDeclaration): void {
     this.push();
-    this.defineTerm("self", { self: null });
     this.defineType("Self", { selftype: node.impl.for });
+    this.setScope(node, this.current);
 
     const typeVars = getTypeUniqueTypeVars({
       tuple: [...node.impl.type_params, node.impl.for],

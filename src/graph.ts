@@ -112,14 +112,14 @@ export class ModuleGraph {
   }
 
   // Find a module relative to another module
-  findModule(fromPath: string, relativePath: string): string | null {
+  findModule(fromPath: string, relativePath: string) {
     const fromRelative = this.toRelativePath(fromPath);
     const targetRelative = this.resolveRelativeImport(
       fromRelative,
       relativePath,
     );
 
-    return this.entries.has(targetRelative) ? targetRelative : null;
+    return this.entries.get(targetRelative) ?? null;
   }
 
   // Get all direct dependencies of a module

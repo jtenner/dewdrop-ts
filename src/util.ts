@@ -87,29 +87,30 @@ export type ScopeElement =
   | UnresolvedImportScopeElement
   | VariantScopeElement
   | VarScopeElement;
-export type Scope = {
-  parent: Scope | null;
-  types: Map<string, ScopeElement>;
-  terms: Map<string, ScopeElement>;
-};
 
-export const getType = (name: string, scope: Scope) => {
-  let current: Scope | null = scope;
-  while (current) {
-    if (current.types.has(name)) return current.types.get(name)!;
-    current = scope.parent;
-  }
-  return null;
-};
+export class Scope {
+  terms = new Map<string, ScopeElement>();
+  types = new Map<string, ScopeElement>();
+  constructor(public parent: Scope | null = null) {}
 
-export const getTerm = (name: string, scope: Scope) => {
-  let current: Scope | null = scope;
-  while (current) {
-    if (current.terms.has(name)) return current.terms.get(name)!;
-    current = scope.parent;
+  getType(name: string) {
+    let current: Scope | null = this;
+    while (current) {
+      if (current.types.has(name)) return current.types.get(name)!;
+      current = current.parent;
+    }
+    return null;
   }
-  return null;
-};
+
+  getTerm(name: string) {
+    let current: Scope | null = this;
+    while (current) {
+      if (current.terms.has(name)) return current.terms.get(name)!;
+      current = current.parent;
+    }
+    return null;
+  }
+}
 
 export type CompilerContext = {
   bindings: Map<ASTNode, Binding[]>;

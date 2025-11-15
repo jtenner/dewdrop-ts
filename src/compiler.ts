@@ -5,14 +5,11 @@ import { ModuleGraph, type ModuleEntry } from "./graph.js";
 import { parse, parse_file } from "./parser.js";
 import { DesugarPass } from "./passes/desugar.js";
 import { ElaboratePass } from "./passes/elaborate.js";
+import { ExportsPass } from "./passes/exports.js";
 import { ResolveImports } from "./passes/resolve.js";
 import { ScopesPass } from "./passes/scopes.js";
 import { TypeCheckPass } from "./passes/typecheck.js";
-import {
-  type Builtin,
-  type CompilerContext,
-  to_file_entry as toFileEntry,
-} from "./util.js";
+import { type CompilerContext, to_file_entry as toFileEntry } from "./util.js";
 
 export type CompilerOptions = {
   basedir: string;
@@ -28,6 +25,7 @@ if (prevasivesModule.errors.length > 0) {
   }
   process.exit(1);
 }
+
 const compilerContext = (basedir: string): CompilerContext => ({
   globalModule: {
     dependencies: new Set(),
@@ -83,9 +81,13 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
   modules.unshift(context.globalModule);
 
   const passes = [
+    // pass 2: desugar the syntax
     new DesugarPass(context),
+    // pass 3: create scopes
     new ScopesPass(context),
-    new ResolveImports(context),
+    // pass 4: move imports from other module exports
+    new ExportsPass(context),
+    // new ResolveImports(context),
     new ElaboratePass(context),
     new TypeCheckPass(context),
   ];

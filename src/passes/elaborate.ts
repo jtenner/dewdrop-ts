@@ -37,7 +37,7 @@ import {
   wildcardPattern,
   traitDefBinding,
 } from "system-f-omega";
-import type { NameToken, TypeToken } from "../lexer.js";
+import type { NameToken, StringToken, TypeToken } from "../lexer.js";
 import {
   type ApplicationTypeExpression,
   type BlockExpression,
@@ -155,7 +155,6 @@ export class ElaboratePass extends BaseWalker {
       );
 
     const methods = [] as [string, Term][];
-
     const implTerm = this.lookupType(node, node.impl.name.type);
     if (!implTerm) {
       this.errors.push({
@@ -244,27 +243,60 @@ export class ElaboratePass extends BaseWalker {
     const elaborated =
       this.context.terms.has(node) ||
       this.context.types.has(node) ||
-      this.context.patterns.has(node);
+      this.context.bindings.has(node);
 
-    if (!elaborated) {
-      console.log(node);
+    if (!elaborated)
       throw new Error(
         `Term or type not elaborated for import: ${showImport(node)}`,
       );
-    }
   }
 
   override walkTypeImport(node: TypeImport): void {
     const element = this.lookupType(node, node.type.name.type);
-    console.log(element);
-    process.exit(0);
+    if (!element) {
+      this.errors.push({
+        unbound: { name: node.type.name.type, scope: this.getScope(node)! },
+      });
+    } else {
+      if ("enum" in element) {
+        const elaboratedImport = this.context.types.get(element.enum);
+        if (!elaboratedImport)
+          throw new Error(`Enum not elaborated for import ${showImport(node)}`);
+        this.context.types.set(node, elaboratedImport);
+      } else if ("trait" in element) {
+        const elaboratedImport = this.context.bindings.get(element.trait);
+        if (!elaboratedImport)
+          throw new Error(
+            `Bindings for import not elaborated ${showImport(node)}`,
+          );
+        this.context.bindings.set(node, elaboratedImport);
+      } else if ("type" in element) {
+        const elaboratedImport = this.context.types.get(element.type);
+        if (!elaboratedImport)
+          throw new Error(`Type not elaborated for import ${showImport(node)}`);
+        this.context.types.set(node, elaboratedImport);
+      } else
+        throw new Error(`Invalid import at this point: ${showImport(node)}`);
+    }
   }
 
   override walkConstructorImport(node: ConstructorImport): void {
     const element = this.lookupTerm(node, node.constr.name.type);
-
-    console.log(element);
-    process.exit(0);
+    if (!element)
+      this.errors.push({
+        unbound: { name: node.constr.name.type, scope: this.getScope(node)! },
+      });
+    else {
+      if ("variant" in element) {
+        const elaboratedImport = this.context.terms.get(element.variant);
+        if (!elaboratedImport)
+          throw new Error(
+            `Constructor not elaborated for import: ${showImport(node)}`,
+          );
+        this.context.terms.set(node, elaboratedImport);
+      } else
+        throw new Error(`Invalid import at this point: ${showImport(node)}`);
+    }
   }
 
   override walkIntExpression(node: IntExpression): void {
@@ -384,9 +416,16 @@ export class ElaboratePass extends BaseWalker {
       acc = lamType(param.name.name, starKind, paramType);
     }
 
-    // TODO: Maybe add type parameters here
+    for (let i = node.builtin.type_params.length - 1; i >= 0; i--) {
+      const typeParam = node.builtin.type_params[i]!;
+      acc = forallType(typeParam.name, starKind, acc);
+    }
 
     this.context.types.set(node, acc);
+  }
+
+  override walkString(node: StringToken): void {
+    this.context.terms.set(node, conTerm(node.string, conType("String")));
   }
 
   override walkEnumDeclaration(node: EnumDeclaration): void {

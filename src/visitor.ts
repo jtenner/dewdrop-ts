@@ -202,7 +202,6 @@ export interface ASTWalker {
   walkPrefixExpression(node: PrefixExpression): void;
   walkPostfixExpression(node: PostfixExpression): void;
   walkInfixExpression(node: InfixExpression): void;
-  walkStringExpression(node: StringToken): void;
   walkFnExpression(node: FnExpression): void;
   walkRecordExpression(node: RecordExpression): void;
   walkTupleExpression(node: TupleExpression): void;
@@ -255,14 +254,30 @@ export type TypeParameterCountMismatchError = {
     expected: number;
   };
 };
+export type NotAFunctionError = {
+  not_a_function: ASTNode;
+};
+export type NotAConstructorError = {
+  not_a_constructor: ASTNode;
+};
+export type NotATypeError = {
+  not_a_type: ASTNode;
+};
 export type CompilerError =
   | TypeError
   | UnboundError
   | InvalidNameError
-  | TypeParameterCountMismatchError;
+  | TypeParameterCountMismatchError
+  | NotAFunctionError
+  | NotAConstructorError
+  | NotATypeError;
+
+const id = new WeakMap<Map<any, any>, number>();
 
 export abstract class BaseContext {
   constructor(public context: CompilerContext) {}
+
+  modulePath: string = "";
   idMode: IDMode = "ambient";
   errors: CompilerError[] = [];
   abstract visit(module: ModuleEntry): ModuleEntry;
@@ -290,7 +305,15 @@ export abstract class BaseContext {
 
   lookupType(node: ASTNode, name: string) {
     let scope = this.context.scopes.get(node) ?? null;
-    if (!scope) throw new Error(`Node scope not found!`);
+    if (!scope) {
+      for (const scopeEntry of this.context.scopes.keys()) {
+        if ("impl" in scopeEntry) {
+          console.log(scopeEntry.position);
+          if (node === scopeEntry) console.log("Hit!");
+        }
+      }
+      throw new Error(`Node scope not found!`);
+    }
 
     while (scope) {
       const ty = scope.types.get(name);
@@ -304,6 +327,7 @@ export abstract class BaseContext {
 
 export class BaseWalker extends BaseContext implements ASTWalker {
   override visit(module: ModuleEntry) {
+    this.modulePath = module.relativePath;
     this.walkModule(module.module!);
     return module;
   }
@@ -706,6 +730,7 @@ export class BaseWalker extends BaseContext implements ASTWalker {
 // Default visitor that recursively visits and reconstructs the tree
 export class BaseVisitor extends BaseContext implements ASTVisitor {
   override visit(entry: ModuleEntry) {
+    this.modulePath = entry.relativePath;
     entry.module = this.visitModule(entry.module!);
     return entry;
   }
@@ -733,6 +758,9 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
       builtin: {
         name: this.visitString(node.builtin.name),
         alias: this.visitNameIdentifier(node.builtin.alias),
+        type_params: node.builtin.type_params.map((t) =>
+          this.visitNameIdentifier(t),
+        ),
         params: node.builtin.params.map((t) => this.visitFnParam(t)),
         return_type: this.visitTypeExpression(node.builtin.return_type),
       },
