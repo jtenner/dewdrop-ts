@@ -9,7 +9,11 @@ import { ExportsPass } from "./passes/exports.js";
 import { ResolveImports } from "./passes/resolve.js";
 import { ScopesPass } from "./passes/scopes.js";
 import { TypeCheckPass } from "./passes/typecheck.js";
-import { type CompilerContext, to_file_entry as toFileEntry } from "./util.js";
+import {
+  type CompilerContext,
+  Scope,
+  to_file_entry as toFileEntry,
+} from "./util.js";
 
 export type CompilerOptions = {
   basedir: string;
@@ -33,11 +37,8 @@ const compilerContext = (basedir: string): CompilerContext => ({
     module: prevasivesModule.module,
     relativePath: "@std/pervasives",
   } as ModuleEntry,
-  globalScope: {
-    parent: null,
-    terms: new Map(),
-    types: new Map(),
-  },
+  elaborated: new Map(),
+  globalScope: new Scope(null),
   modules: new ModuleGraph(basedir),
   patterns: new Map(),
   scopes: new Map(),
@@ -49,8 +50,6 @@ const compilerContext = (basedir: string): CompilerContext => ({
   ]),
   bindings: new Map(),
 });
-
-// we need to scopify the global context for later reuse
 
 export async function compile(options: Partial<CompilerOptions> = {}) {
   const basedir = options.basedir ?? (await process.cwd());
@@ -87,7 +86,8 @@ export async function compile(options: Partial<CompilerOptions> = {}) {
     new ScopesPass(context),
     // pass 4: move imports from other module exports
     new ExportsPass(context),
-    // new ResolveImports(context),
+
+    // elaborate and type check
     new ElaboratePass(context),
     new TypeCheckPass(context),
   ];

@@ -16,7 +16,14 @@ import type {
   TypeDeclaration,
   TypeExpression,
 } from "./parser.js";
-import type { Binding, Pattern, Term, Type } from "system-f-omega";
+import type {
+  Binding,
+  Pattern,
+  Term,
+  TraitDefBinding,
+  TraitImplBinding,
+  Type,
+} from "system-f-omega";
 import type { ModuleEntry, ModuleGraph } from "./graph.js";
 
 export type FileEntry = {
@@ -112,9 +119,44 @@ export class Scope {
   }
 }
 
+export type FunctionDeclarationElaboration = {
+  fn_decl: {
+    fn: ASTNode;
+    term: Term;
+    type: Type;
+  };
+};
+export type TraitDefElaboration = {
+  trait_def: TraitDefBinding;
+};
+export type TraitImplElaboration = {
+  trait_impl: TraitImplBinding;
+};
+export type TypeElaboration = {
+  type: Type;
+};
+export type LetBindElaboration = { let_bind: { pattern: Pattern; term: Term } };
+export type BuiltinElaboration = { builtin: { type: Type } };
+export type EnumElaboration = {
+  enum: {
+    binding: Binding;
+    alias: Binding | null;
+    variantDefs: [string, [Term, Type]][];
+  };
+};
+export type Elaboration =
+  | FunctionDeclarationElaboration
+  | TraitDefElaboration
+  | TraitImplElaboration
+  | TypeElaboration
+  | LetBindElaboration
+  | BuiltinElaboration
+  | EnumElaboration;
+
 export type CompilerContext = {
   bindings: Map<ASTNode, Binding[]>;
   builtins: Map<string, Builtin>;
+  elaborated: Map<ASTNode, Elaboration>;
   globalModule: ModuleEntry;
   globalScope: Scope;
   modules: ModuleGraph;

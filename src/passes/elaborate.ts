@@ -36,6 +36,11 @@ import {
   varType,
   wildcardPattern,
   traitDefBinding,
+  enumDefBinding,
+  normalizeType,
+  substituteType,
+  typeAliasBinding,
+  type Binding,
 } from "system-f-omega";
 import type { NameToken, StringToken, TypeToken } from "../lexer.js";
 import {
@@ -98,6 +103,38 @@ export class ElaboratePass extends BaseWalker {
       throw new Error(`Type not elaborated: ${showTypeExpression(node)}`);
   }
 
+  override walkFnDeclaration(node: FnDeclaration): void {
+    super.walkFnDeclaration(node);
+    const term = this.context.terms.get(node.fn.fn);
+    if (!term) throw new Error(`Term not elaborated for ${showFn(node.fn.fn)}`);
+    const type = this.context.types.get(node.fn.fn);
+    if (!type) throw new Error(`Type not elaborated for ${showFn(node.fn.fn)}`);
+
+    this.context.elaborated.set(node, {
+      fn_decl: {
+        fn: node,
+        term,
+        type,
+      },
+    });
+  }
+
+  override walkLetDeclaration(node: LetDeclaration): void {
+    super.walkLetDeclaration(node);
+    const pattern = this.context.patterns.get(node.let_dec.pattern);
+    if (!pattern)
+      throw new Error(
+        `Pattern not elaborated for: ${showPatternExpression(node.let_dec.pattern)}`,
+      );
+    const term = this.context.terms.get(node.let_dec.value);
+    if (!term)
+      throw new Error(
+        `Term not elaborated for : ${showExpression(node.let_dec.value)}`,
+      );
+
+    this.context.elaborated.set(node, { let_bind: { pattern, term } });
+  }
+
   override walkTraitDeclaration(node: TraitDeclaration): void {
     super.walkTraitDeclaration(node);
 
@@ -137,13 +174,13 @@ export class ElaboratePass extends BaseWalker {
       this.context.types.set(fn, fnTy);
     }
 
-    const traitDef = traitDefBinding(
+    const trait_def = traitDefBinding(
       node.trait.id.type,
       "Self",
       starKind,
       methods,
     );
-    this.context.bindings.set(node, [traitDef]);
+    this.context.elaborated.set(node, { trait_def });
   }
 
   override walkImplDeclaration(node: ImplDeclaration): void {
@@ -218,8 +255,13 @@ export class ElaboratePass extends BaseWalker {
       methodDict = tylamTerm(p.name, starKind, methodDict);
     }
 
-    const binding = traitImplBinding(node.impl.name.type, implFor, methodDict);
-    this.context.bindings.set(node, [binding]);
+    const trait_impl = traitImplBinding(
+      node.impl.name.type,
+      implFor,
+      methodDict,
+    );
+
+    this.context.elaborated.set(node, { trait_impl });
   }
 
   override walkTypeDeclaration(node: TypeDeclaration): void {
@@ -235,7 +277,7 @@ export class ElaboratePass extends BaseWalker {
       const name = node.type_dec.params[i]!.name;
       acc = forallType(name, starKind, acc);
     }
-    this.context.types.set(node, acc);
+    this.context.elaborated.set(node, { type: acc });
   }
 
   override walkImport(node: Import): void {
@@ -357,13 +399,6 @@ export class ElaboratePass extends BaseWalker {
     this.context.types.set(node, fnType);
   }
 
-  override walkFnDeclaration(node: FnDeclaration): void {
-    super.walkFnDeclaration(node);
-    const term = this.context.terms.get(node.fn.fn);
-    if (!term) throw new Error(`Term not elaborated for ${showFn(node.fn.fn)}`);
-    this.context.terms.set(node, term);
-  }
-
   override walkFnExpression(node: FnExpression): void {
     super.walkFnExpression(node);
     const fn = this.context.terms.get(node.fn);
@@ -421,7 +456,7 @@ export class ElaboratePass extends BaseWalker {
       acc = forallType(typeParam.name, starKind, acc);
     }
 
-    this.context.types.set(node, acc);
+    this.context.elaborated.set(node, { builtin: { type: acc } });
   }
 
   override walkString(node: StringToken): void {
@@ -430,78 +465,148 @@ export class ElaboratePass extends BaseWalker {
 
   override walkEnumDeclaration(node: EnumDeclaration): void {
     super.walkEnumDeclaration(node);
-    // generate the enumType
-    const variants = [] as [string, Type][];
-    for (const v of node.enum.variants) {
-      const vty = this.context.types.get(v);
-      if (!vty)
+
+    const { id, recursive, type_params, variants } = node.enum;
+    const enumName = id.type;
+    const variantDefs: [string, [Term, Type]][] = [];
+
+    // Kind: * → * → ... → *
+    let kind = starKind;
+    for (let i = 0; i < type_params.length; i++)
+      kind = arrowKind(starKind, kind);
+
+    const paramNames = type_params.map((t) => t.name);
+
+    // Field schemes
+    const enumVariants: [string, Type][] = variants.map((v) => {
+      const label = "fields" in v ? v.fields.id.type : v.values.id.type;
+      const fieldScheme = this.context.types.get(v);
+      if (!fieldScheme)
         throw new Error(
-          `Enum Variant type not elaborated: ${showEnumVariant(v)}`,
+          `Type not elaborated for variant: ${showEnumVariant(v)}`,
         );
-      variants.push(["fields" in v ? v.fields.id.type : v.values.id.type, vty]);
+      return [label, fieldScheme];
+    });
+
+    const binding = enumDefBinding(enumName, kind, paramNames, enumVariants);
+    let alias: Binding | null = null;
+
+    // Precompute µ type + body for recursive enums
+    let mu: Type | null = null;
+    let variantBody: Type | null = null;
+
+    if (recursive) {
+      variantBody = variantType(enumVariants); // <Label: FieldScheme | ...>
+      mu = muType(id.type, variantBody); // μList. <...>
+      alias = typeAliasBinding(
+        enumName,
+        paramNames,
+        paramNames.map(() => starKind),
+        mu,
+      );
     }
 
-    let enumType = variantType(variants) as Type;
-    for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
-      enumType = forallType(node.enum.type_params[i]!.name, starKind, enumType);
-    }
-    if (node.enum.recursive) enumType = muType(node.enum.id.type, enumType);
+    for (const variantNode of variants) {
+      const label =
+        "fields" in variantNode
+          ? variantNode.fields.id.type
+          : variantNode.values.id.type;
 
-    // Generate a constructor function for each enum variant
-    for (const v of node.enum.variants) {
-      const vname = "fields" in v ? v.fields.id.type : v.values.id.type;
-      // each enum variant created it's own function body at this point
-      let body = this.context.terms.get(v);
-      let vtype: Type;
-      if (!body)
+      const fieldScheme = this.context.types.get(variantNode);
+      if (!fieldScheme)
         throw new Error(
-          `Enum Variant term body not elaborated: ${showEnumVariant(v)}`,
+          `Type not elaborated for variant: ${showEnumVariant(variantNode)}`,
         );
-      body = injectTerm(vname, body, enumType);
 
-      // wrap in parameters backwards
-      if ("fields" in v) {
-        const fields = [] as [string, Type][];
-        for (let i = v.fields.fields.length - 1; i >= 0; i--) {
-          const field = v.fields.fields[i]!;
-          const fieldName = field.name.name;
-          const fieldType = this.context.types.get(field.ty);
-          if (!fieldType)
-            throw new Error(
-              `Field type not elaborated: ${showTypeExpression(field.ty)}`,
-            );
-          fields.unshift([fieldName, fieldType]);
-          body = lamTerm(fieldName, fieldType, body);
-        }
-        vtype = recordType(fields);
-      } else {
-        const fields = [] as Type[];
-        for (let i = v.values.values.length - 1; i >= 0; i--) {
-          const fieldName = `p${i}`;
-          const fieldType = this.context.types.get(v.values.values[i]!);
-          if (!fieldType)
-            throw new Error(
-              `Field type not elaborated: ${showTypeExpression(v.values.values[i]!)}`,
-            );
-          body = lamTerm(fieldName, fieldType, body);
-          fields.unshift(fieldType);
-        }
-        vtype = tupleType(fields);
+      const def = this.buildEnumVariantConstructor(
+        enumName,
+        type_params,
+        label,
+        fieldScheme,
+        recursive,
+        mu,
+        variantBody,
+      );
+
+      variantDefs.push([label, def]);
+    }
+
+    this.context.elaborated.set(node, {
+      enum: { binding, alias, variantDefs },
+    });
+  }
+
+  // Helper: build a term-level constructor for an enum variant.
+  private buildEnumVariantConstructor(
+    enumName: string,
+    typeParams: NameToken[],
+    variantLabel: string,
+    fieldScheme: Type,
+    recursive: boolean,
+    muTypeDef: Type | null,
+    variantBodyDef: Type | null,
+  ): [Term, Type] {
+    // Build external enum type: EnumName<tp0, tp1, ...>
+    // This is the name/type the surface language sees.
+    let enumApp: Type = conType(enumName);
+    for (const tp of typeParams) {
+      enumApp = appType(enumApp, varType(tp.name));
+    }
+
+    const payloadName = "payload";
+    let body: Term;
+
+    if (!recursive) {
+      // Non-recursive: inject directly into the enum application;
+      // downstream normalizeType will expand aliases/enums as needed.
+      body = injectTerm(variantLabel, varTerm(payloadName), enumApp);
+    } else {
+      if (!muTypeDef || !variantBodyDef) {
+        throw new Error(
+          `Internal error: recursive enum ${enumName} missing µ definition`,
+        );
       }
 
-      // wrap in type parameters and possibly a fold
-      if (node.enum.recursive) body = foldTerm(enumType, body);
+      // Instantiate µ and variant body with actual type parameters, if any.
+      // Here we assume fieldScheme & enumVariants are already written in
+      // terms of the enum's type params; enumApp is the instantiated outer type.
 
-      for (let i = node.enum.type_params.length - 1; i >= 0; i--) {
-        const typeName = node.enum.type_params[i]!.name;
-        body = tylamTerm(typeName, starKind, body);
-      }
+      // Example:
+      //   muTypeDef      = μList. <Nil: (), Cons: (T, List)>
+      //   enumApp        = List<T>
+      //   variantBodyDef = <Nil: () | Cons: (T, List)>
+      //
+      // For the constructor, we:
+      //   1) instantiate the variant body with params (that's already done
+      //      in enumVariants/field schemes, so variantBodyDef is fine as-is),
+      //   2) inject into the instantiated variant body,
+      //   3) fold to the instantiated µ type (enumApp).
 
-      this.context.types.set(v, vtype);
-      this.context.terms.set(v, body);
+      const injected = injectTerm(
+        variantLabel,
+        varTerm(payloadName),
+        variantBodyDef,
+      );
+
+      body = foldTerm(enumApp, injected);
     }
 
-    this.context.types.set(node, enumType);
+    let term: Term = lamTerm(payloadName, fieldScheme, body);
+
+    // Quantify over type parameters
+    for (let i = typeParams.length - 1; i >= 0; i--) {
+      const tp = typeParams[i]!;
+      term = tylamTerm(tp.name, starKind, term);
+    }
+
+    // Type: ∀tp. fieldScheme → EnumName<tp...>
+    let ctorType: Type = arrowType(fieldScheme, enumApp);
+    for (let i = typeParams.length - 1; i >= 0; i--) {
+      const tp = typeParams[i]!;
+      ctorType = forallType(tp.name, starKind, ctorType);
+    }
+
+    return [term, ctorType];
   }
 
   override walkEnumVariant(node: EnumVariant): void {
@@ -725,21 +830,6 @@ export class ElaboratePass extends BaseWalker {
       this.context.terms.set(node, varTerm(node.type));
   }
 
-  override walkLetDeclaration(node: LetDeclaration): void {
-    super.walkLetDeclaration(node);
-    const pattern = this.context.patterns.get(node.let_dec.pattern);
-    if (!pattern)
-      throw new Error(
-        `Pattern not elaborated for: ${showPatternExpression(node.let_dec.pattern)}`,
-      );
-    const term = this.context.terms.get(node.let_dec.value);
-    if (!term)
-      throw new Error(
-        `Term not elaborated for : ${showExpression(node.let_dec.value)}`,
-      );
-    this.context.patterns.set(node, pattern);
-    this.context.terms.set(node, term);
-  }
   override walkConstructorPatternExpression(
     node: ConstructorPatternExpression,
   ): void {
@@ -761,22 +851,7 @@ export class ElaboratePass extends BaseWalker {
   override walkDeclaration(node: Declaration): void {
     super.walkDeclaration(node);
 
-    if ("trait" in node || "impl" in node) {
-      const elaborated = this.context.bindings.has(node);
-      if (!elaborated)
-        throw new Error(
-          `Term or type not elaborated for declaration: ${showDeclaration(node)}`,
-        );
-      return;
-    }
-
-    if ("import_dec" in node) return;
-
-    const elaborated =
-      this.context.terms.has(node) ||
-      this.context.types.has(node) ||
-      this.context.patterns.has(node);
-
+    const elaborated = this.context.elaborated.has(node);
     if (!elaborated)
       throw new Error(
         `Term or type not elaborated for declaration: ${showDeclaration(node)}`,
