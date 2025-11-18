@@ -272,8 +272,6 @@ export type CompilerError =
   | NotAConstructorError
   | NotATypeError;
 
-const id = new WeakMap<Map<any, any>, number>();
-
 export abstract class BaseContext {
   constructor(public context: CompilerContext) {}
 

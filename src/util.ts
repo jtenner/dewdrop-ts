@@ -1,11 +1,23 @@
 import * as path from "node:path";
 import type {
+  Binding,
+  Kind,
+  Pattern,
+  Term,
+  TraitDefBinding,
+  TraitImplBinding,
+  Type,
+} from "system-f-omega";
+import type { ModuleEntry, ModuleGraph } from "./graph.js";
+import type {
   BodyExpression,
+  BuiltinDeclaration,
   Declaration,
   EnumDeclaration,
   EnumVariant,
   Expression,
   Fn,
+  FnDeclaration,
   FnParam,
   Import,
   Module,
@@ -16,15 +28,6 @@ import type {
   TypeDeclaration,
   TypeExpression,
 } from "./parser.js";
-import type {
-  Binding,
-  Pattern,
-  Term,
-  TraitDefBinding,
-  TraitImplBinding,
-  Type,
-} from "system-f-omega";
-import type { ModuleEntry, ModuleGraph } from "./graph.js";
 
 export type FileEntry = {
   absolute: string;
@@ -119,49 +122,52 @@ export class Scope {
   }
 }
 
-export type FunctionDeclarationElaboration = {
-  fn_decl: {
-    fn: ASTNode;
-    term: Term;
-    type: Type;
+export type EnumTypeWorkItem = {
+  enum_type: {
+    name: string;
+    typeParams: string[]; // ["E", "A"]
+    enumKind: Kind; // * → * → *
+    variants: [string, Type][]; // [["Ok", A], ["Err", E]]
+    node: EnumDeclaration; // (optional: good for error reporting)
   };
 };
-export type TraitDefElaboration = {
-  trait_def: TraitDefBinding;
-};
-export type TraitImplElaboration = {
-  trait_impl: TraitImplBinding;
-};
-export type TypeElaboration = {
-  type: Type;
-};
-export type LetBindElaboration = { let_bind: { pattern: Pattern; term: Term } };
-export type BuiltinElaboration = { builtin: { type: Type } };
-export type EnumElaboration = {
-  enum: {
-    binding: Binding;
-    alias: Binding | null;
-    variantDefs: [string, [Term, Type]][];
+
+export type EnumConstructorWorkItem = {
+  enum_constructor: {
+    name: string; // e.g. "Ok"
+    constructorType: Type;
+    node: EnumVariant;
+    parent: EnumDeclaration;
   };
 };
-export type Elaboration =
-  | FunctionDeclarationElaboration
-  | TraitDefElaboration
-  | TraitImplElaboration
-  | TypeElaboration
-  | LetBindElaboration
-  | BuiltinElaboration
-  | EnumElaboration;
+
+export type BuiltinTypeWorkItem = {
+  builtin: {
+    name: string;
+    fnType: Type;
+    node: BuiltinDeclaration;
+  };
+};
+export type FunctionWorkItem = {
+  fn: {
+    name: string;
+    fnTerm: Term;
+    fnType: Type;
+    node: FnDeclaration;
+  };
+};
+
+export type WorkItem =
+  | EnumTypeWorkItem
+  | EnumConstructorWorkItem
+  | BuiltinTypeWorkItem
+  | FunctionWorkItem;
 
 export type CompilerContext = {
-  bindings: Map<ASTNode, Binding[]>;
   builtins: Map<string, Builtin>;
-  elaborated: Map<ASTNode, Elaboration>;
   globalModule: ModuleEntry;
   globalScope: Scope;
   modules: ModuleGraph;
   scopes: Map<ASTNode, Scope>;
-  terms: Map<ASTNode, Term>;
-  types: Map<ASTNode, Type>;
-  patterns: Map<ASTNode, Pattern>;
+  worklists: Map<Module, WorkItem[]>;
 };
