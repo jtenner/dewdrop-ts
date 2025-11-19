@@ -464,14 +464,3 @@ test.each([
   expect("ok" in result[1]).toBeTrue();
   expect(result).toMatchSnapshot(`EdgeCase: ${expr}`);
 });
-
-// Test match expressions with guards
-test.each([
-  { expr: "match x { Some(y) if (y > 0) => y, _ => 0 }" },
-  { expr: "match point { #(x, y) if (x == y) => x, #(x, _) => x, _ => 0 }" },
-  { expr: "match value { n if (n < 0) => -n, n if (n > 100) => 100, n => n }" },
-])("Match with guard: $expr matches snapshot", async ({ expr }) => {
-  const result = await take_expression(null, lex(chars(expr)));
-  expect("ok" in result[1]).toBeTrue();
-  expect(result).toMatchSnapshot(`MatchWithGuard: ${expr}`);
-});

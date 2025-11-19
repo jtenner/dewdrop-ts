@@ -8,8 +8,8 @@ import {
   type Fn,
   fn_expr,
   fn_param,
-  let_bind_body_expr,
   name_expr,
+  type InfixExpression,
 } from "../parser.js";
 import { BaseVisitor } from "../visitor.js";
 
@@ -30,49 +30,181 @@ export class DesugarPass extends BaseVisitor {
   }
 
   override visitBlockExpression(node: BlockExpression): Expression {
-    for (let i = 0; i < node.block.length; i++) {
-      const body_expr = node.block[i]!;
+    const block = node.block;
 
-      if ("arrow_bind" in body_expr) {
-        // The rest of the function becomes the body of the inner callback
-        const { name, expression } = body_expr.arrow_bind;
-        const rest = node.block.splice(i + 1, node.block.length - i);
+    for (let i = block.length - 1; i >= 0; i--) {
+      const item = block[i]!;
+      if ("arrow_bind" in item) {
+        const nextIndex = i + 1;
+        const count = block.length - nextIndex;
+        const rest = block.splice(nextIndex, count);
+        const position = block[0]?.position ?? node.position;
+        const fnParamName = item.arrow_bind.name.name;
+        const fnPosition = item.arrow_bind.name.position;
+        const fnParam = fn_param(fnParamName, null, fnPosition);
+        const fn = {
+          body: block_expr(rest, position),
+          name: null,
+          params: [fnParam],
+          position,
+          return_type: null,
+          type_params: [],
+        } satisfies Fn;
+        const fnExpr = fn_expr(fn, position);
 
-        const fn = fn_expr(
-          {
-            body: block_expr(rest, expression.position),
-            name: null,
-            return_type: null,
-            params: [fn_param(name.name, null, expression.position)],
-            type_params: [],
-            position: body_expr.position,
-          } satisfies Fn,
-          expression.position,
-        );
-
-        let next: Expression;
-
-        if ("call" in expression) {
-          expression.call[1].push(fn);
-          next = expression;
+        if ("call" in item.arrow_bind.expression) {
+          // should be first parameter of the call expression
+          item.arrow_bind.expression.call[1].unshift(fnExpr);
+          block[i] = expression_body_expr(
+            item.arrow_bind.expression,
+            item.arrow_bind.expression.position,
+          );
         } else {
-          next = call_expr(expression, [fn], expression.position);
+          block[i] = expression_body_expr(
+            call_expr(item.arrow_bind.expression, [fnExpr], position),
+            position,
+          );
         }
-
-        node.block[i] = expression_body_expr(next, expression.position);
-        return super.visitBlockExpression(node);
-      }
-
-      if ("expression" in body_expr && i !== node.block.length - 1) {
-        node.block[i] = let_bind_body_expr(
-          false,
-          name_expr("_", body_expr.position),
-          body_expr.expression,
-          body_expr.position,
-        );
       }
     }
+    return super.visitBlockExpression(block_expr(block, node.position));
+  }
 
-    return super.visitBlockExpression(node);
+  override visitInfixExpression(node: InfixExpression): Expression {
+    switch (node.infix.op) {
+      case "!=":
+        return call_expr(
+          name_expr("not", node.position),
+          [
+            call_expr(
+              name_expr("eq", node.position),
+              [node.infix.left, node.infix.right],
+              node.position,
+            ),
+          ],
+          node.position,
+        );
+      case "==":
+        return call_expr(
+          name_expr("eq", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "<>":
+        return call_expr(
+          name_expr("concat", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "<":
+        return call_expr(
+          name_expr("lt", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "<=":
+        return call_expr(
+          name_expr("lte", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case ">":
+        return call_expr(
+          name_expr("gt", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case ">=":
+        return call_expr(
+          name_expr("gte", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "%":
+        return call_expr(
+          name_expr("mod", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "&":
+        return call_expr(
+          name_expr("and", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "|":
+        return call_expr(
+          name_expr("or", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "&&":
+        return call_expr(
+          name_expr("logical_and", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "||":
+        return call_expr(
+          name_expr("logical_or", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "+":
+        return call_expr(
+          name_expr("add", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "-":
+        return call_expr(
+          name_expr("sub", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "*":
+        return call_expr(
+          name_expr("mul", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "/":
+        return call_expr(
+          name_expr("mul", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "**":
+        return call_expr(
+          name_expr("exp", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "<<":
+        return call_expr(
+          name_expr("shl", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case ">>":
+        return call_expr(
+          name_expr("shr", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "^":
+        return call_expr(
+          name_expr("xor", node.position),
+          [node.infix.left, node.infix.right],
+          node.position,
+        );
+      case "|>":
+        if ("call" in node.infix.right) {
+          node.infix.right.call[1].unshift(node.infix.left);
+          return node.infix.right;
+        }
+        return call_expr(node.infix.right, [node.infix.left], node.position);
+    }
+    throw new Error(`Binary operator not supported: ${node.infix.op}`);
   }
 }

@@ -837,7 +837,6 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
                 16,
               ],
             },
-            "guard": null,
             "pattern": {
               "constr": {
                 "patterns": [],
@@ -866,7 +865,6 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
                 24,
               ],
             },
-            "guard": null,
             "pattern": {
               "constr": {
                 "patterns": [],
@@ -895,7 +893,6 @@ exports[`match x { A => 1, B => 2, _ => 3 } matches snapshot: Expression: match 
                 32,
               ],
             },
-            "guard": null,
             "pattern": {
               "name": "_",
               "position": [
@@ -1098,7 +1095,6 @@ exports[`if match x { A => True, _ => False } { 1 } else { 0 } matches snapshot:
                   ],
                   "type": "True",
                 },
-                "guard": null,
                 "pattern": {
                   "constr": {
                     "patterns": [],
@@ -1124,7 +1120,6 @@ exports[`if match x { A => True, _ => False } { 1 } else { 0 } matches snapshot:
                   ],
                   "type": "False",
                 },
-                "guard": null,
                 "pattern": {
                   "name": "_",
                   "position": [
@@ -7062,7 +7057,6 @@ exports[`Expression: fn(x) { match x { Some(y) => y, None => 0 } } matches snaps
                           30,
                         ],
                       },
-                      "guard": null,
                       "pattern": {
                         "constr": {
                           "patterns": [
@@ -7099,7 +7093,6 @@ exports[`Expression: fn(x) { match x { Some(y) => y, None => 0 } } matches snaps
                           41,
                         ],
                       },
-                      "guard": null,
                       "pattern": {
                         "constr": {
                           "patterns": [],
@@ -9034,7 +9027,6 @@ exports[`Declaration: impl <t_err, t_ok> Map<t_ok> for Result<t_err, t_ok> {
                               18,
                             ],
                           },
-                          "guard": null,
                           "pattern": {
                             "constr": {
                               "patterns": [
@@ -9085,7 +9077,6 @@ exports[`Declaration: impl <t_err, t_ok> Map<t_ok> for Result<t_err, t_ok> {
                               19,
                             ],
                           },
-                          "guard": null,
                           "pattern": {
                             "constr": {
                               "patterns": [
@@ -11241,6 +11232,7 @@ exports[`Declaration: builtin "i32.add" as i32_add(a: I32, b: I32): I32 matches 
           ],
           "type": "I32",
         },
+        "type_params": [],
       },
       "position": [
         1,
@@ -11553,379 +11545,6 @@ exports[`Edge case: (a + b)(c, d) matches snapshot: EdgeCase: (a + b)(c, d) 1`] 
           ],
         },
       },
-      "position": [
-        1,
-        2,
-      ],
-    },
-  },
-]
-`;
-
-exports[`Match with guard: match x { Some(y) if (y > 0) => y, _ => 0 } matches snapshot: MatchWithGuard: match x { Some(y) if (y > 0) => y, _ => 0 } 1`] = `
-[
-  null,
-  {
-    "ok": {
-      "match": [
-        {
-          "name": "x",
-          "position": [
-            1,
-            2,
-          ],
-        },
-        [
-          {
-            "body": {
-              "name": "y",
-              "position": [
-                1,
-                33,
-              ],
-            },
-            "guard": {
-              "infix": {
-                "left": {
-                  "name": "y",
-                  "position": [
-                    1,
-                    24,
-                  ],
-                },
-                "op": ">",
-                "right": {
-                  "int": {
-                    "size": 32,
-                    "value": 0n,
-                  },
-                  "position": [
-                    1,
-                    24,
-                  ],
-                },
-              },
-              "position": [
-                1,
-                24,
-              ],
-            },
-            "pattern": {
-              "constr": {
-                "patterns": [
-                  {
-                    "name": "y",
-                    "position": [
-                      1,
-                      17,
-                    ],
-                  },
-                ],
-                "type": {
-                  "position": [
-                    1,
-                    11,
-                  ],
-                  "type": "Some",
-                },
-              },
-              "position": [
-                1,
-                11,
-              ],
-            },
-          },
-          {
-            "body": {
-              "int": {
-                "size": 32,
-                "value": 0n,
-              },
-              "position": [
-                1,
-                41,
-              ],
-            },
-            "guard": null,
-            "pattern": {
-              "name": "_",
-              "position": [
-                1,
-                36,
-              ],
-            },
-          },
-        ],
-      ],
-      "position": [
-        1,
-        2,
-      ],
-    },
-  },
-]
-`;
-
-exports[`Match with guard: match point { #(x, y) if (x == y) => x, #(x, _) => x, _ => 0 } matches snapshot: MatchWithGuard: match point { #(x, y) if (x == y) => x, #(x, _) => x, _ => 0 } 1`] = `
-[
-  null,
-  {
-    "ok": {
-      "match": [
-        {
-          "name": "point",
-          "position": [
-            1,
-            2,
-          ],
-        },
-        [
-          {
-            "body": {
-              "name": "x",
-              "position": [
-                1,
-                38,
-              ],
-            },
-            "guard": {
-              "infix": {
-                "left": {
-                  "name": "x",
-                  "position": [
-                    1,
-                    28,
-                  ],
-                },
-                "op": "==",
-                "right": {
-                  "name": "y",
-                  "position": [
-                    1,
-                    32,
-                  ],
-                },
-              },
-              "position": [
-                1,
-                28,
-              ],
-            },
-            "pattern": {
-              "position": [
-                1,
-                15,
-              ],
-              "tuple": [
-                {
-                  "name": "x",
-                  "position": [
-                    1,
-                    18,
-                  ],
-                },
-                {
-                  "name": "y",
-                  "position": [
-                    1,
-                    20,
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            "body": {
-              "name": "x",
-              "position": [
-                1,
-                52,
-              ],
-            },
-            "guard": null,
-            "pattern": {
-              "position": [
-                1,
-                41,
-              ],
-              "tuple": [
-                {
-                  "name": "x",
-                  "position": [
-                    1,
-                    44,
-                  ],
-                },
-                {
-                  "name": "_",
-                  "position": [
-                    1,
-                    46,
-                  ],
-                },
-              ],
-            },
-          },
-          {
-            "body": {
-              "int": {
-                "size": 32,
-                "value": 0n,
-              },
-              "position": [
-                1,
-                60,
-              ],
-            },
-            "guard": null,
-            "pattern": {
-              "name": "_",
-              "position": [
-                1,
-                55,
-              ],
-            },
-          },
-        ],
-      ],
-      "position": [
-        1,
-        2,
-      ],
-    },
-  },
-]
-`;
-
-exports[`Match with guard: match value { n if (n < 0) => -n, n if (n > 100) => 100, n => n } matches snapshot: MatchWithGuard: match value { n if (n < 0) => -n, n if (n > 100) => 100, n => n } 1`] = `
-[
-  null,
-  {
-    "ok": {
-      "match": [
-        {
-          "name": "value",
-          "position": [
-            1,
-            2,
-          ],
-        },
-        [
-          {
-            "body": {
-              "position": [
-                1,
-                31,
-              ],
-              "prefix": {
-                "op": "-",
-                "operand": {
-                  "name": "n",
-                  "position": [
-                    1,
-                    31,
-                  ],
-                },
-              },
-            },
-            "guard": {
-              "infix": {
-                "left": {
-                  "name": "n",
-                  "position": [
-                    1,
-                    22,
-                  ],
-                },
-                "op": "<",
-                "right": {
-                  "int": {
-                    "size": 32,
-                    "value": 0n,
-                  },
-                  "position": [
-                    1,
-                    22,
-                  ],
-                },
-              },
-              "position": [
-                1,
-                22,
-              ],
-            },
-            "pattern": {
-              "name": "n",
-              "position": [
-                1,
-                15,
-              ],
-            },
-          },
-          {
-            "body": {
-              "int": {
-                "size": 32,
-                "value": 100n,
-              },
-              "position": [
-                1,
-                53,
-              ],
-            },
-            "guard": {
-              "infix": {
-                "left": {
-                  "name": "n",
-                  "position": [
-                    1,
-                    42,
-                  ],
-                },
-                "op": ">",
-                "right": {
-                  "int": {
-                    "size": 32,
-                    "value": 100n,
-                  },
-                  "position": [
-                    1,
-                    42,
-                  ],
-                },
-              },
-              "position": [
-                1,
-                42,
-              ],
-            },
-            "pattern": {
-              "name": "n",
-              "position": [
-                1,
-                35,
-              ],
-            },
-          },
-          {
-            "body": {
-              "name": "n",
-              "position": [
-                1,
-                63,
-              ],
-            },
-            "guard": null,
-            "pattern": {
-              "name": "n",
-              "position": [
-                1,
-                58,
-              ],
-            },
-          },
-        ],
-      ],
       "position": [
         1,
         2,

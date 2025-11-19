@@ -171,7 +171,6 @@ export type Expression =
 
 export type MatchArm = {
   pattern: PatternExpression;
-  guard: Expression | null;
   body: Expression;
 };
 
@@ -1072,36 +1071,19 @@ const take_match_arm = async (
   next_token: Token | null,
   tokens: TokenIter,
 ): Promise<ParseResult<MatchArm>> => {
-  let token_success: Result<ParseError, Token>;
   let op: Result<ParseError, string>;
   let pattern: Result<ParseError, PatternExpression>;
-  let guard: Result<ParseError, Expression> | null = null;
   let body: Result<ParseError, Expression>;
 
   [next_token, pattern] = await take_pattern_expression(next_token, tokens);
   if ("err" in pattern) return [next_token, pattern];
-
-  [next_token, token_success] = await take_keyword(next_token, tokens, "if");
-  if ("ok" in token_success) {
-    [next_token, token_success] = await take_symbol(next_token, tokens, "(");
-    if ("err" in token_success) return [next_token, token_success];
-
-    [next_token, guard] = await take_expression(next_token, tokens);
-    if ("err" in guard) return [next_token, guard];
-
-    [next_token, token_success] = await take_symbol(next_token, tokens, ")");
-    if ("err" in token_success) return [next_token, token_success];
-  }
 
   // we must find `=>`
   [next_token, op] = await take_operator(next_token, tokens);
   if ("ok" in op && op.ok === "=>") {
     [next_token, body] = await take_expression(next_token, tokens);
     if ("err" in body) return [next_token, body];
-    return [
-      next_token,
-      ok({ body: body.ok, guard: guard?.ok ?? null, pattern: pattern.ok }),
-    ];
+    return [next_token, ok({ body: body.ok, pattern: pattern.ok })];
   } else if ("err" in op) return [next_token, op];
   else return [next_token, expected("symbol(=>)", next_token)];
 };
@@ -3206,9 +3188,8 @@ export function showBodyExpression(body: BodyExpression): string {
 }
 
 export function showMatchArm(arm: MatchArm): string {
-  const { pattern, guard, body } = arm;
-  const g = guard ? ` if ${showExpression(guard)}` : "";
-  return `${showPatternExpression(pattern)}${g} => ${showExpression(body)}`;
+  const { pattern, body } = arm;
+  return `${showPatternExpression(pattern)} => ${showExpression(body)}`;
 }
 
 export function showPatternExpression(pat: PatternExpression): string {

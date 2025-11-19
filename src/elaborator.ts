@@ -22,6 +22,8 @@ import {
   varTerm,
   varType,
   wildcardPattern,
+  recordTerm,
+  projectTerm,
 } from "system-f-omega";
 import {
   type ApplicationTypeExpression,
@@ -40,19 +42,25 @@ import {
   type FnTypeExpression,
   type IfExpression,
   type InfixExpression,
+  type IntExpression,
+  type MatchExpression,
   type Module,
   type NameIdentifier,
   type PatternExpression,
+  type RecordExpression,
   type RecordTypeExpression,
+  type SelectExpression,
   type SelectTypeExpression,
   showBodyExpression,
   showExpression,
   showTypeExpression,
+  type TupleExpression,
   type TupleTypeExpression,
   type TypeExpression,
   type TypeIdentifier,
 } from "./parser.js";
 import type { WorkItem } from "./util.js";
+import type { StringToken } from "./lexer.js";
 
 type TypeContextState = ReturnType<typeof state>;
 
@@ -202,7 +210,7 @@ export function elaborateFn(fn: Fn, ctx: TypeContextState) {
   }
 
   // function body is body + lam params + type params
-  const body = elaborateExpression(fn.body);
+  const body = elaborateExpression(fn.body, ctx);
   let fnTerm = body;
   for (let i = paramTypes.length - 1; i >= 0; i--) {
     fnTerm = lamTerm(fn.params[i]!.name.name, paramTypes[i]!, fnTerm);
@@ -224,22 +232,78 @@ export function elaborateExpression(
   else if ("float" in expr) return elaborateFloatExpression(expr);
   else if ("fn" in expr) return elaborateFnExpression(expr, ctx);
   else if ("if_expr" in expr) return elaborateIfExpression(expr, ctx);
-  else if ("infix" in expr) return elaborateInfixExpression(expr, ctx);
+  else if ("int" in expr) return elaborateIntExpression(expr);
+  else if ("string" in expr) return elaborateStringExpression(expr);
+  else if ("name" in expr) return elaborateNameExpression(expr);
+  else if ("tuple" in expr) return elaborateTupleExpression(expr, ctx);
+  else if ("record" in expr) return elaborateRecordExpession(expr, ctx);
+  else if ("select" in expr) return elaborateSelectExpression(expr, ctx);
+  else if ("type" in expr) return elaborateConstructorExpression(expr);
+  else if ("match" in expr) return elaborateMatchExpression(expr, ctx);
+  // else if ("infix" in expr) return elaborateInfixExpression(expr, ctx);
 }
 
-export function elaborateInfixExpression(
-  expr: InfixExpression,
+export function elaborateMatchExpression(
+  expr: MatchExpression,
   ctx: TypeContextState,
 ) {
-  const left = elaborateExpression(expr.infix.left, ctx);
-  const right = elaborateExpression(expr.infix.right, ctx);
-  switch (expr.infix.op) {
-    case "!=":
-      return appTerm(
-        varTerm("not"),
-        appTerm(appTerm(varTerm("eq"), left), right),
-      );
-  }
+  return matchTerm(
+    elaborateExpression(expr.match[0], ctx),
+    expr.match[1].map((t) => {
+      const pattern = elaboratePatternExpression(t.pattern);
+      const body = elaborateExpression(t.body, ctx);
+      return [pattern, body];
+    }),
+  );
+}
+
+export function elaborateConstructorExpression(expr: TypeIdentifier) {
+  return varTerm(expr.type);
+}
+
+export function elaborateSelectExpression(
+  expr: SelectExpression,
+  ctx: TypeContextState,
+) {
+  return projectTerm(
+    elaborateExpression(expr.select[0], ctx),
+    expr.select[1].name,
+  );
+}
+
+export function elaborateRecordExpession(
+  expr: RecordExpression,
+  ctx: TypeContextState,
+) {
+  return recordTerm(
+    expr.record.map((key) => [key[0].name, elaborateExpression(key[1], ctx)]),
+  );
+}
+
+export function elaborateTupleExpression(
+  expr: TupleExpression,
+  ctx: TypeContextState,
+) {
+  return tupleTerm(expr.tuple.map((t) => elaborateExpression(t, ctx)));
+}
+
+export function elaborateNameExpression(expr: NameIdentifier) {
+  return varTerm(expr.name);
+}
+
+export function elaborateStringExpression(expr: StringToken) {
+  return conTerm(`"${expr.string}"`, conType("String"));
+}
+
+export function elaborateIntExpression(expr: IntExpression) {
+  return conTerm(
+    `${expr.int.value}`,
+    conType(
+      expr.int.size < 0
+        ? `I${Math.abs(Number(expr.int.size))}`
+        : `U${expr.int.size}`,
+    ),
+  );
 }
 
 export function elaborateIfExpression(
