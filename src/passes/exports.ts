@@ -15,7 +15,6 @@ import { BaseWalker } from "../visitor.js";
 export class ExportsPass extends BaseWalker {
   currentScope!: Scope;
   importScope!: Scope;
-  handled = new WeakSet<Import>();
 
   override walkModule(node: Module): void {
     const currentScope = this.context.scopes.get(node);
@@ -56,12 +55,11 @@ export class ExportsPass extends BaseWalker {
 
   override walkImport(node: Import): void {
     super.walkImport(node);
-    if (!this.handled.has(node))
+    if (!this.context.imports.has(node))
       throw new Error(`Import not handled: ${showImport(node)}`);
   }
 
   override walkFnImport(node: FnImport): void {
-    this.handled.add(node);
     const name =
       "string" in node.fn.name ? node.fn.name.string : node.fn.name.name;
     const alias = node.fn.alias?.name ?? name;
@@ -71,7 +69,7 @@ export class ExportsPass extends BaseWalker {
       this.errors.push({ unbound: { name, scope: this.importScope! } });
       return;
     }
-
+    this.context.imports.set(node, importedFn);
     if (
       "fn" in importedFn ||
       "trait_fn" in importedFn ||
@@ -84,7 +82,6 @@ export class ExportsPass extends BaseWalker {
   }
 
   override walkConstructorImport(node: ConstructorImport): void {
-    this.handled.add(node);
     const name = node.constr.name.type;
     const alias = node.constr.alias?.type ?? name;
 
@@ -94,6 +91,8 @@ export class ExportsPass extends BaseWalker {
       return;
     }
 
+    this.context.imports.set(node, importedConstructor);
+
     if ("variant" in importedConstructor) {
       this.currentScope.terms.set(alias, importedConstructor);
     } else {
@@ -102,7 +101,6 @@ export class ExportsPass extends BaseWalker {
   }
 
   override walkTypeImport(node: TypeImport): void {
-    this.handled.add(node);
     const name = node.type.name.type;
     const alias = node.type.alias?.type ?? name;
 
@@ -112,6 +110,7 @@ export class ExportsPass extends BaseWalker {
       return;
     }
 
+    this.context.imports.set(node, importedType);
     if (
       "enum" in importedType ||
       "trait" in importedType ||
@@ -124,7 +123,6 @@ export class ExportsPass extends BaseWalker {
   }
 
   override walkEnumImport(node: EnumImport): void {
-    this.handled.add(node);
     const name = node.enum.name.type;
     const alias = node.enum.alias?.type ?? name;
 
@@ -133,6 +131,8 @@ export class ExportsPass extends BaseWalker {
       this.errors.push({ unbound: { name, scope: this.importScope } });
       return;
     }
+
+    this.context.imports.set(node, importedType);
 
     if ("enum" in importedType) {
       this.currentScope.types.set(alias, importedType);

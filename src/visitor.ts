@@ -52,7 +52,6 @@ import type {
   RecordTypeExpression,
   SelectExpression,
   SelectTypeExpression,
-  SelfExpression,
   StarImport,
   StringPatternExpression,
   TableImport,
@@ -117,7 +116,6 @@ export interface ASTVisitor {
   visitFnExpression(node: FnExpression): Expression;
   visitRecordExpression(node: RecordExpression): Expression;
   visitTupleExpression(node: TupleExpression): Expression;
-  visitSelfExpression(node: SelfExpression): Expression;
 
   // Pattern Expressions
   visitPatternExpression(node: PatternExpression): PatternExpression;
@@ -205,7 +203,6 @@ export interface ASTWalker {
   walkFnExpression(node: FnExpression): void;
   walkRecordExpression(node: RecordExpression): void;
   walkTupleExpression(node: TupleExpression): void;
-  walkSelfExpression(node: SelfExpression): void;
 
   // Pattern Expressions
   walkPatternExpression(node: PatternExpression): void;
@@ -496,7 +493,6 @@ export class BaseWalker extends BaseContext implements ASTWalker {
     else if ("prefix" in node) this.walkPrefixExpression(node);
     else if ("record" in node) this.walkRecordExpression(node);
     else if ("select" in node) this.walkSelectExpression(node);
-    else if ("self" in node) this.walkSelfExpression(node);
     else if ("string" in node) this.walkString(node);
     else if ("tuple" in node) this.walkTupleExpression(node);
     else if ("type" in node) this.walkTypeIdentifier(node);
@@ -556,7 +552,6 @@ export class BaseWalker extends BaseContext implements ASTWalker {
       this.walkExpression(t);
     }
   }
-  walkSelfExpression(_node: SelfExpression): void {}
 
   // Pattern Expressions
   walkPatternExpression(node: PatternExpression): void {
@@ -595,7 +590,6 @@ export class BaseWalker extends BaseContext implements ASTWalker {
   // Other nodes
   walkMatchArm(node: MatchArm): void {
     this.walkPatternExpression(node.pattern);
-    if (node.guard) this.walkExpression(node.guard);
     this.walkExpression(node.body);
   }
   walkEnumVariant(node: EnumVariant): void {
@@ -987,7 +981,6 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
     if ("fn" in node) return this.visitFnExpression(node);
     if ("record" in node) return this.visitRecordExpression(node);
     if ("tuple" in node) return this.visitTupleExpression(node);
-    if ("self" in node) return this.visitSelfExpression(node);
     if ("name" in node) return this.visitNameIdentifier(node);
     if ("type" in node) return this.visitTypeIdentifier(node);
     throw new Error("Invalid expression kind", { cause: node });
@@ -1111,10 +1104,6 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
     };
   }
 
-  visitSelfExpression(node: SelfExpression): Expression {
-    return node;
-  }
-
   visitPatternExpression(node: PatternExpression): PatternExpression {
     if ("constr" in node) return this.visitConstructorPatternExpression(node);
     if ("int" in node) return this.visitIntPatternExpression(node);
@@ -1179,7 +1168,6 @@ export class BaseVisitor extends BaseContext implements ASTVisitor {
   visitMatchArm(node: MatchArm): MatchArm {
     return {
       pattern: this.visitPatternExpression(node.pattern),
-      guard: node.guard && this.visitExpression(node.guard),
       body: this.visitExpression(node.body),
     };
   }

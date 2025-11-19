@@ -148,7 +148,6 @@ export type TupleExpression = {
   tuple: Expression[];
   position: [number, number];
 };
-export type SelfExpression = { self: null; position: [number, number] };
 export type Expression =
   | NameIdentifier
   | TypeConstructorExpression
@@ -166,8 +165,7 @@ export type Expression =
   | StringToken
   | FnExpression
   | RecordExpression
-  | TupleExpression
-  | SelfExpression;
+  | TupleExpression;
 
 export type MatchArm = {
   pattern: PatternExpression;
@@ -1201,17 +1199,6 @@ export const take_expression = async (
       [next_token, name] = await take_name(next_token, tokens);
       if ("ok" in name) {
         yard.push_expr(name.ok);
-        combine_state = true;
-        continue;
-      }
-
-      [next_token, success_token] = await take_keyword(
-        next_token,
-        tokens,
-        "self",
-      );
-      if ("ok" in success_token) {
-        yard.push_expr({ self: null, position: start_pos });
         combine_state = true;
         continue;
       }
@@ -2859,10 +2846,6 @@ export const tuple_expr = (
   tuple: Expression[],
   position: [number, number],
 ): TupleExpression => ({ tuple, position });
-export const self_expr = (position: [number, number]): SelfExpression => ({
-  self: null,
-  position,
-});
 
 export const arrow_kind_body_expr = (
   name: string,
@@ -3160,9 +3143,6 @@ export function showExpression(expr: Expression): string {
   }
   if ("tuple" in expr) {
     return `(${expr.tuple.map(showExpression).join(", ")})`;
-  }
-  if ("self" in expr) {
-    return "self";
   }
   return "";
 }

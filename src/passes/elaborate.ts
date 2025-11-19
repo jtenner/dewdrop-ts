@@ -5,7 +5,7 @@ import type { CompilerContext } from "../util.js";
 export class ElaboratorPass {
   constructor(public context: CompilerContext) {}
   visit(module: Module) {
-    const worklist = elaborate(module);
+    const worklist = elaborate(module, this.context);
     this.context.worklists.set(module, worklist);
   }
 }

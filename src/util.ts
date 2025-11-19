@@ -1,13 +1,5 @@
 import * as path from "node:path";
-import type {
-  Binding,
-  Kind,
-  Pattern,
-  Term,
-  TraitDefBinding,
-  TraitImplBinding,
-  Type,
-} from "system-f-omega";
+import type { Kind, Pattern, Term, Type } from "system-f-omega";
 import type { ModuleEntry, ModuleGraph } from "./graph.js";
 import type {
   BodyExpression,
@@ -19,6 +11,7 @@ import type {
   Fn,
   FnDeclaration,
   FnParam,
+  ImplDeclaration,
   Import,
   Module,
   NameIdentifier,
@@ -156,12 +149,48 @@ export type FunctionWorkItem = {
     node: FnDeclaration;
   };
 };
-
+export type LetWorkItem = {
+  let: {
+    assert: boolean;
+    pattern: Pattern;
+    term: Term;
+  };
+};
+export type TypeWorkItem = {
+  type: {
+    name: string;
+    params: string[];
+    body: Type;
+    typeDecl: TypeDeclaration;
+  };
+};
+export type TraitWorkItem = {
+  trait: {
+    name: string;
+    typeParams: string[];
+    fns: { name: string; fn: Type }[];
+  };
+};
+export type ImplWorkItem = {
+  impl: {
+    traitName: string;
+    forType: Type;
+    traitType: Type;
+    dict: Term;
+    methods: { name: string; fnTerm: Term; fnType: Type }[];
+    typeParams: string[];
+    node: ImplDeclaration;
+  };
+};
 export type WorkItem =
   | EnumTypeWorkItem
   | EnumConstructorWorkItem
   | BuiltinTypeWorkItem
-  | FunctionWorkItem;
+  | FunctionWorkItem
+  | LetWorkItem
+  | TypeWorkItem
+  | TraitWorkItem
+  | ImplWorkItem;
 
 export type CompilerContext = {
   builtins: Map<string, Builtin>;
@@ -169,5 +198,6 @@ export type CompilerContext = {
   globalScope: Scope;
   modules: ModuleGraph;
   scopes: Map<ASTNode, Scope>;
+  imports: Map<Import, ScopeElement>;
   worklists: Map<Module, WorkItem[]>;
 };
